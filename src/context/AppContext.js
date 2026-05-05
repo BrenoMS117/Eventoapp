@@ -26,6 +26,16 @@ export function AppProvider({ children }) {
     return () => clearInterval(interval);
   }, []);
 
+  function addEvent(newEvent) {
+    const event = {
+      ...newEvent,
+      id: `e${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setEvents(prev => [event, ...prev]);
+    return event;
+  }
+
   function redeemCoupon(couponId) {
     const coupon = coupons.find(c => c.id === couponId);
     if (!coupon) return { success: false, error: 'Cupom não encontrado' };
@@ -106,6 +116,7 @@ export function AppProvider({ children }) {
     getCouponsForEvent,
     getNearbyCoupons,
     isCouponRedeemed,
+    addEvent,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
