@@ -1,27 +1,27 @@
-import { supabase } from "../lib/supabase";
+import { supabase } from '../lib/supabase';
 
 export const couponsService = {
   async getAll() {
     const { data, error } = await supabase
-      .from("coupons")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .from('coupons')
+      .select('*')
+      .order('created_at', { ascending: false });
     if (error) return { data: null, error };
     return { data: data.map(_mapCoupon), error: null };
   },
 
   async getByEvent(eventId) {
     const { data, error } = await supabase
-      .from("coupons")
-      .select("*")
-      .eq("event_id", eventId);
+      .from('coupons')
+      .select('*')
+      .eq('event_id', eventId);
     if (error) return { data: null, error };
     return { data: data.map(_mapCoupon), error: null };
   },
 
   async create(coupon, ownerId) {
     const { data, error } = await supabase
-      .from("coupons")
+      .from('coupons')
       .insert({
         event_id: coupon.eventId,
         owner_id: ownerId,
@@ -49,38 +49,32 @@ export const couponsService = {
   async redeem(couponId, userId) {
     // Decrement remaining_qty
     const { data: coupon } = await supabase
-      .from("coupons")
-      .select("remaining_qty")
-      .eq("id", couponId)
+      .from('coupons')
+      .select('remaining_qty')
+      .eq('id', couponId)
       .single();
 
     if (!coupon || coupon.remaining_qty <= 0) {
-      return { success: false, error: "Cupons esgotados." };
+      return { success: false, error: 'Cupons esgotados.' };
     }
 
     const qrCode = `EVT-${couponId.slice(0, 8).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
     const [{ error: redeemError }, { error: updateError }] = await Promise.all([
-      supabase
-        .from("redemptions")
-        .insert({ coupon_id: couponId, user_id: userId, qr_code: qrCode }),
-      supabase
-        .from("coupons")
-        .update({ remaining_qty: coupon.remaining_qty - 1 })
-        .eq("id", couponId),
+      supabase.from('redemptions').insert({ coupon_id: couponId, user_id: userId, qr_code: qrCode }),
+      supabase.from('coupons').update({ remaining_qty: coupon.remaining_qty - 1 }).eq('id', couponId),
     ]);
 
-    if (redeemError || updateError)
-      return { success: false, error: "Erro ao resgatar. Tente novamente." };
+    if (redeemError || updateError) return { success: false, error: 'Erro ao resgatar. Tente novamente.' };
     return { success: true, qrCode };
   },
 
   async getUserRedemptions(userId) {
     const { data } = await supabase
-      .from("redemptions")
-      .select("coupon_id")
-      .eq("user_id", userId);
-    return data?.map((r) => r.coupon_id) ?? [];
+      .from('redemptions')
+      .select('coupon_id')
+      .eq('user_id', userId);
+    return data?.map(r => r.coupon_id) ?? [];
   },
 };
 
@@ -101,7 +95,7 @@ function _mapCoupon(d) {
     remainingQty: d.remaining_qty,
     isNearby: d.is_nearby ?? false,
     isRedeemed: false, // computed from redemptions
-    gradient: d.gradient ?? ["#1D9E75", "#085041"],
-    highlightColor: d.highlight_color ?? "#0D9E75",
+    gradient: d.gradient ?? ['#1D9E75', '#085041'],
+    highlightColor: d.highlight_color ?? '#0D9E75',
   };
 }

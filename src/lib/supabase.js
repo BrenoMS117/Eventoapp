@@ -1,6 +1,6 @@
-import "react-native-url-polyfill/auto";
-import { createClient } from "@supabase/supabase-js";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import 'react-native-url-polyfill/auto';
+import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ⚠️ Substitua pelas suas credenciais do painel Supabase
 // Settings > API > Project URL e anon public key
@@ -129,8 +129,4 @@ alter table public.feed_posts enable row level security;
 create policy "Posts visíveis por todos" on public.feed_posts for select using (true);
 create policy "Usuário cria post" on public.feed_posts for insert with check (auth.uid() = user_id);
 create policy "Usuário edita próprio post" on public.feed_posts for update using (auth.uid() = user_id);
-
-
-https://urolqcerirouztkpelld.supabase.co
-sb_publishable_NihcK_P8z1KL_gJWRRBi7g_JZD8Kfq1
 */

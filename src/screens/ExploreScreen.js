@@ -1,404 +1,220 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  StyleSheet,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useApp } from "../context/AppContext";
-import { COLORS, RADIUS, SHADOW } from "../utils/theme";
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Dimensions, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../context/AppContext';
+import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
-const FILTERS = ["Todos", "Shows", "Festas", "Bares", "Cultura"];
+const { width } = Dimensions.get('window');
 
-function CrowdBar({ level }) {
-  const color =
-    level >= 85 ? COLORS.danger : level >= 60 ? COLORS.warning : COLORS.success;
+const CATEGORIES = [
+  { key: 'todos', label: 'All Events' },
+  { key: 'rave', label: 'Rave' },
+  { key: 'concert', label: 'Concert' },
+  { key: 'art', label: 'Art Basel' },
+  { key: 'electro', label: 'Electro Events' },
+  { key: 'festival', label: 'Festival' },
+];
+
+const HEAT_COLORS = {
+  BLAZING: '#FF4500', HOT: '#E83B5C', WARM: '#F59E0B', COOL: '#3B82F6',
+};
+
+function VibeMeter({ value }) {
+  const color = value > 70 ? COLORS.primary : value > 40 ? COLORS.purple : '#3B82F6';
   return (
-    <View style={styles.crowdBarBg}>
-      <View
-        style={[
-          styles.crowdBarFill,
-          { width: `${level}%`, backgroundColor: color },
-        ]}
-      />
-    </View>
-  );
-}
-
-function Pill({ icon, label, color, text }) {
-  return (
-    <View style={[styles.pill, { backgroundColor: color }]}>
-      <Text style={[styles.pillText, { color: text }]}>
-        {icon} {label}
-      </Text>
-    </View>
-  );
-}
-
-function CrowdPill({ level }) {
-  if (level >= 85)
-    return (
-      <Pill
-        icon="🚨"
-        label="Lotado"
-        color={COLORS.dangerLight}
-        text={COLORS.danger}
-      />
-    );
-  if (level >= 60)
-    return (
-      <Pill
-        icon="🔥"
-        label={`${level}% cheio`}
-        color={COLORS.warningLight}
-        text={COLORS.warning}
-      />
-    );
-  return (
-    <Pill
-      icon="🟢"
-      label="Tranquilo"
-      color={COLORS.successLight}
-      text={COLORS.success}
-    />
-  );
-}
-
-function EventCard({ event, onPress }) {
-  return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <View style={[styles.cardBanner, { backgroundColor: event.gradient[0] }]}>
-        <View style={styles.bannerRow}>
-          {event.isLive ? (
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveBadgeText}>
-                AO VIVO · {event.checkedInCount.toLocaleString()} aqui
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.liveBadge}>
-              <Ionicons name="time-outline" size={11} color="#fff" />
-              <Text style={styles.liveBadgeText}>
-                {" "}
-                Começa às {event.startsAt}
-              </Text>
-            </View>
-          )}
-          {event.couponsCount > 0 && (
-            <View style={styles.couponBadge}>
-              <Text style={styles.couponBadgeText}>
-                🎟 {event.couponsCount} cupons
-              </Text>
-            </View>
-          )}
-        </View>
-        <Text style={styles.bannerCategory}>{event.categoryLabel}</Text>
+    <View>
+      <View style={s.vmBg}>
+        <View style={[s.vmFill, { width: `${Math.max(2, value)}%`, backgroundColor: color }]} />
       </View>
-      <View style={styles.cardInfo}>
-        <View style={styles.cardHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardName} numberOfLines={1}>
-              {event.name}
-            </Text>
-            <Text style={styles.cardMeta}>
-              📍 {event.address.split(" - ")[1] || event.venue} ·{" "}
-              {event.distanceKm}km
-            </Text>
-          </View>
-          <View style={styles.ratingBadge}>
-            <Text style={styles.ratingText}>⭐ {event.rating}</Text>
-          </View>
-        </View>
-        <CrowdBar level={event.crowdLevel} />
-        <View style={styles.pillRow}>
-          <CrowdPill level={event.crowdLevel} />
-          {event.queueMinutes > 0 && (
-            <Pill
-              icon="⏱"
-              label={`Fila ~${event.queueMinutes}min`}
-              color={COLORS.warningLight}
-              text={COLORS.warning}
-            />
-          )}
-          {event.accessible && (
-            <Pill
-              icon="♿"
-              label="Acessível"
-              color={COLORS.primaryLight}
-              text={COLORS.primaryDark}
-            />
-          )}
-          {event.nowPlaying && (
-            <Pill
-              icon="🎵"
-              label={event.nowPlaying.slice(0, 18)}
-              color={COLORS.purpleLight}
-              text={COLORS.purple}
-            />
-          )}
-        </View>
-        <View style={styles.cardFooter}>
-          <Text style={styles.priceText}>{event.price}</Text>
-          <Text style={styles.endsText}>
-            {event.isLive ? `Até ${event.endsAt}` : `Hoje às ${event.startsAt}`}
-          </Text>
-        </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
+        <Text style={s.vmLabel}>Chill</Text>
+        <Text style={s.vmLabel}>Intense</Text>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
 export default function ExploreScreen({ navigation }) {
-  const { events, selectedEventFilter, setSelectedEventFilter } = useApp();
-  const [search, setSearch] = useState("");
+  const { events, logout } = useApp();
+  const [cat, setCat] = useState('todos');
+  const [search, setSearch] = useState('');
 
-  const filtered = events.filter((e) => {
-    const matchFilter =
-      selectedEventFilter === "Todos" ||
-      (selectedEventFilter === "Shows" && e.category === "show") ||
-      (selectedEventFilter === "Festas" && e.category === "festa") ||
-      (selectedEventFilter === "Bares" && e.category === "bar") ||
-      (selectedEventFilter === "Cultura" && e.category === "cultura");
-    const matchSearch =
-      !search ||
-      e.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.venue.toLowerCase().includes(search.toLowerCase());
-    return matchFilter && matchSearch;
+  const filtered = events.filter(e => {
+    const matchCat = cat === 'todos' || e.category === cat;
+    const matchSearch = !search || e.name.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSearch;
   });
 
-  const liveEvents = filtered.filter((e) => e.isLive);
-  const upcomingEvents = filtered.filter((e) => !e.isLive);
+  const heroEvent = filtered.find(e => e.isLive) || filtered[0];
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>🗺 Perto de você</Text>
-          <Text style={styles.headerSub}>
-            São Paulo · {liveEvents.length} ao vivo agora
-          </Text>
+    <SafeAreaView style={s.safe} edges={['top']}>
+      {/* Header */}
+      <View style={s.header}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="pulse" size={20} color={COLORS.primary} />
+          <Text style={s.logo}>LiveVibe</Text>
         </View>
-        <TouchableOpacity style={styles.headerBtn}>
-          <Ionicons name="notifications-outline" size={22} color="#fff" />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.searchWrapper}>
-        <Ionicons
-          name="search-outline"
-          size={16}
-          color={COLORS.textMuted}
-          style={{ marginRight: 8 }}
-        />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar evento, local, artista..."
-          placeholderTextColor={COLORS.textMuted}
-          value={search}
-          onChangeText={setSearch}
-        />
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersScroll}
-        contentContainerStyle={styles.filtersContent}
-      >
-        {FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f}
-            style={[
-              styles.filterBtn,
-              selectedEventFilter === f && styles.filterBtnActive,
-            ]}
-            onPress={() => setSelectedEventFilter(f)}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                selectedEventFilter === f && styles.filterTextActive,
-              ]}
-            >
-              {f}
-            </Text>
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          <TouchableOpacity style={s.iconBtn}>
+            <Ionicons name="notifications-outline" size={22} color={COLORS.text} />
+            <View style={s.notifDot} />
           </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {liveEvents.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Ao vivo agora</Text>
-            {liveEvents.map((e) => (
-              <EventCard
-                key={e.id}
-                event={e}
-                onPress={() =>
-                  navigation.navigate("EventDetail", { eventId: e.id })
-                }
-              />
-            ))}
-          </>
+          <TouchableOpacity style={s.iconBtn} onPress={() => Alert.alert('Sair?', '', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Sair', onPress: logout }])}>
+            <Ionicons name="person-circle-outline" size={26} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Page title */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 }}>
+          <Text style={s.pageTitle}>Explore Events</Text>
+          <View style={s.filterPill}>
+            <Ionicons name="options-outline" size={14} color={COLORS.text} />
+            <Text style={{ fontSize: 12, color: COLORS.text, fontWeight: '600', marginLeft: 4 }}>Filter</Text>
+          </View>
+        </View>
+
+        {/* Search */}
+        <View style={s.searchBox}>
+          <Ionicons name="search-outline" size={16} color={COLORS.textMuted} style={{ marginRight: 8 }} />
+          <TextInput style={s.searchInput} placeholder="Search events, venues, artists..."
+            placeholderTextColor={COLORS.textMuted} value={search} onChangeText={setSearch} />
+        </View>
+
+        {/* Categories */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.cats}>
+          {CATEGORIES.map(c => (
+            <TouchableOpacity key={c.key} style={[s.catPill, cat === c.key && s.catPillOn]} onPress={() => setCat(c.key)}>
+              <Text style={[s.catText, cat === c.key && s.catTextOn]}>{c.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Hero */}
+        {heroEvent && (
+          <View style={{ marginHorizontal: 16, marginBottom: 6 }}>
+            <TouchableOpacity style={s.hero} onPress={() => navigation.navigate('EventDetail', { eventId: heroEvent.id })} activeOpacity={0.92}>
+              <View style={[s.heroBg, { backgroundColor: heroEvent.gradient[0] }]} />
+              <View style={[s.heroBg, { backgroundColor: heroEvent.gradient[1], opacity: 0.5 }]} />
+              <View style={s.heroOverlay} />
+              <View style={s.heroContent}>
+                {heroEvent.isLive && (
+                  <View style={s.liveBadge}>
+                    <View style={s.liveDot} />
+                    <Text style={s.liveText}>LIVE</Text>
+                  </View>
+                )}
+                <Text style={s.heroName}>{heroEvent.name}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <View style={[s.capDot, { backgroundColor: heroEvent.capacityPct > 80 ? '#FF4500' : COLORS.success }]} />
+                  <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>{heroEvent.capacityPct}% CAPACITY</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: HEAT_COLORS[heroEvent.heatLevel] || '#fff' }}>
+                    | {heroEvent.vibeLabel?.toUpperCase()}
+                  </Text>
+                </View>
+                <TouchableOpacity style={s.ticketBtn}>
+                  <Text style={s.ticketBtnText}>BUY TICKETS</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+            {/* Dots */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+              {filtered.slice(0, 3).map((_, i) => (
+                <View key={i} style={[s.dot, i === 0 && s.dotActive]} />
+              ))}
+            </View>
+          </View>
         )}
-        {upcomingEvents.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Mais tarde hoje</Text>
-            {upcomingEvents.map((e) => (
-              <EventCard
-                key={e.id}
-                event={e}
-                onPress={() =>
-                  navigation.navigate("EventDetail", { eventId: e.id })
-                }
-              />
-            ))}
-          </>
-        )}
-        <View style={{ height: 24 }} />
+
+        {/* Live Now cards */}
+        <View style={{ marginTop: 4 }}>
+          <Text style={[s.sectionTitle, { marginLeft: 16 }]}>Live Now</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
+            {filtered.map(e => {
+              const hc = HEAT_COLORS[e.heatLevel] || COLORS.primary;
+              return (
+                <TouchableOpacity key={e.id} style={s.eventCard}
+                  onPress={() => navigation.navigate('EventDetail', { eventId: e.id })} activeOpacity={0.88}>
+                  <View style={[s.eventCardTop, { backgroundColor: e.gradient[0] + 'CC' }]}>
+                    {e.isLive && (
+                      <View style={s.liveSmall}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>Live Now</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={s.eventCardBody}>
+                    <Text style={s.eventCardName} numberOfLines={1}>{e.name}</Text>
+                    <Text style={s.eventCardSub} numberOfLines={1}>{e.venue}</Text>
+                    <Text style={s.vmLabelText}>Vibe Meter</Text>
+                    <VibeMeter value={e.vibeMeter} />
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="people-outline" size={11} color={COLORS.textSub} />
+                        <Text style={s.attendText}>{e.checkedInCount} attendance</Text>
+                      </View>
+                      {e.heatLevel && (
+                        <View style={[s.heatBadge, { borderColor: hc + '55', backgroundColor: hc + '22' }]}>
+                          <Text style={[s.heatText, { color: hc }]}>{e.heatLevel}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    backgroundColor: COLORS.primaryDark,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  headerTitle: { fontSize: 18, fontWeight: "600", color: "#fff" },
-  headerSub: { fontSize: 12, color: "#9FE1CB", marginTop: 2 },
-  headerBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  searchWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.surface,
-    margin: 12,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: 12,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    ...SHADOW.sm,
-  },
-  searchInput: { flex: 1, height: 40, fontSize: 14, color: COLORS.text },
-  filtersScroll: { maxHeight: 44 },
-  filtersContent: { paddingHorizontal: 12, gap: 8, alignItems: "center" },
-  filterBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surface,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  filterBtnActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  filterText: { fontSize: 13, color: COLORS.textSecondary },
-  filterTextActive: { color: "#fff", fontWeight: "600" },
-  scroll: { flex: 1 },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: COLORS.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    marginHorizontal: 12,
-    marginBottom: 12,
-    overflow: "hidden",
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    ...SHADOW.sm,
-  },
-  cardBanner: { height: 90, padding: 10, justifyContent: "space-between" },
-  bannerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: COLORS.live,
-    marginRight: 5,
-  },
-  liveBadgeText: { color: "#fff", fontSize: 10, fontWeight: "600" },
-  couponBadge: {
-    backgroundColor: "rgba(255,255,255,0.25)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
-  },
-  couponBadgeText: { color: "#fff", fontSize: 10, fontWeight: "600" },
-  bannerCategory: { color: "rgba(255,255,255,0.8)", fontSize: 11 },
-  cardInfo: { padding: 12 },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  cardName: { fontSize: 15, fontWeight: "600", color: COLORS.text },
-  cardMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  ratingBadge: {
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
-    marginLeft: 8,
-  },
-  ratingText: { fontSize: 12, color: COLORS.primaryDark, fontWeight: "600" },
-  crowdBarBg: {
-    height: 5,
-    backgroundColor: COLORS.border,
-    borderRadius: 4,
-    marginBottom: 8,
-    overflow: "hidden",
-  },
-  crowdBarFill: { height: "100%", borderRadius: 4 },
-  pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginBottom: 8 },
-  pill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: RADIUS.full },
-  pillText: { fontSize: 11, fontWeight: "500" },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  priceText: { fontSize: 13, fontWeight: "600", color: COLORS.text },
-  endsText: { fontSize: 12, color: COLORS.textSecondary },
+const CARD_W = width * 0.68;
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 },
+  logo: { fontSize: 18, fontWeight: '900', color: COLORS.text, letterSpacing: 0.5 },
+  iconBtn: { padding: 6, position: 'relative' },
+  notifDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary, position: 'absolute', top: 6, right: 4, borderWidth: 1.5, borderColor: COLORS.bg },
+  pageTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text },
+  filterPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgElevated, paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: COLORS.border },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgCard, marginHorizontal: 16, marginBottom: 14, borderRadius: RADIUS.lg, paddingHorizontal: 14, height: 44, borderWidth: 0.5, borderColor: COLORS.border },
+  searchInput: { flex: 1, fontSize: 14, color: COLORS.text },
+  cats: { paddingHorizontal: 16, gap: 8, alignItems: 'center', marginBottom: 16 },
+  catPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard, borderWidth: 0.5, borderColor: COLORS.border },
+  catPillOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  catText: { fontSize: 13, color: COLORS.textSub, fontWeight: '500' },
+  catTextOn: { color: '#fff', fontWeight: '700' },
+  hero: { height: 220, borderRadius: RADIUS.xl, overflow: 'hidden', justifyContent: 'flex-end' },
+  heroBg: { ...StyleSheet.absoluteFillObject },
+  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+  heroContent: { padding: 18 },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.danger, paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full, alignSelf: 'flex-start', marginBottom: 8 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
+  liveText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 1 },
+  heroName: { fontSize: 26, fontWeight: '900', color: '#fff', letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' },
+  capDot: { width: 8, height: 8, borderRadius: 4 },
+  ticketBtn: { backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 9, borderRadius: RADIUS.full, alignSelf: 'flex-start' },
+  ticketBtnText: { fontSize: 12, fontWeight: '900', color: COLORS.bg, letterSpacing: 0.5 },
+  dot: { width: 20, height: 4, borderRadius: 2, backgroundColor: COLORS.border },
+  dotActive: { backgroundColor: COLORS.primary, width: 32 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 12 },
+  eventCard: { width: CARD_W, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, overflow: 'hidden', borderWidth: 0.5, borderColor: COLORS.border },
+  eventCardTop: { height: 110, justifyContent: 'flex-end', padding: 8 },
+  liveSmall: { backgroundColor: COLORS.danger + 'EE', paddingHorizontal: 10, paddingVertical: 3, borderRadius: RADIUS.full, alignSelf: 'flex-start' },
+  eventCardBody: { padding: 12 },
+  eventCardName: { fontSize: 14, fontWeight: '900', color: COLORS.text, textTransform: 'uppercase', marginBottom: 2 },
+  eventCardSub: { fontSize: 12, color: COLORS.textSub, marginBottom: 8 },
+  vmLabelText: { fontSize: 10, color: COLORS.textMuted, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase' },
+  vmBg: { height: 6, backgroundColor: COLORS.bgOverlay, borderRadius: 3, overflow: 'hidden', marginBottom: 3 },
+  vmFill: { height: '100%', borderRadius: 3 },
+  vmLabel: { fontSize: 9, color: COLORS.textMuted },
+  attendText: { fontSize: 11, color: COLORS.textSub },
+  heatBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, borderWidth: 0.5 },
+  heatText: { fontSize: 10, fontWeight: '700' },
 });

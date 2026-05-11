@@ -1,362 +1,223 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useApp } from "../context/AppContext";
-import { COLORS, RADIUS, SHADOW } from "../utils/theme";
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../context/AppContext';
+import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
-const RATING_QUICK = [
-  {
-    key: "tranquilo",
-    icon: "🟢",
-    label: "Tranquilo",
-    color: COLORS.successLight,
-    text: COLORS.success,
-  },
-  {
-    key: "cheio",
-    icon: "🟡",
-    label: "Cheio",
-    color: COLORS.warningLight,
-    text: COLORS.warning,
-  },
-  {
-    key: "lotado",
-    icon: "🔴",
-    label: "Lotado",
-    color: COLORS.dangerLight,
-    text: COLORS.danger,
-  },
-  {
-    key: "acessivel",
-    icon: "♿",
-    label: "Acessível",
-    color: COLORS.primaryLight,
-    text: COLORS.primaryDark,
-  },
-  {
-    key: "musica",
-    icon: "🎵",
-    label: "Boa música",
-    color: COLORS.purpleLight,
-    text: COLORS.purple,
-  },
-  {
-    key: "ruim",
-    icon: "👎",
-    label: "Ruim",
-    color: COLORS.dangerLight,
-    text: COLORS.danger,
-  },
+const { width } = Dimensions.get('window');
+
+const HEAT_COLORS = {
+  BLAZING: '#FF4500', HOT: '#E83B5C', WARM: '#F59E0B', COOL: '#3B82F6',
+};
+
+const RATING_OPTIONS = [
+  { key: 'fire', icon: '🔥', label: 'Intenso', color: COLORS.primary },
+  { key: 'chill', icon: '✨', label: 'Chill', color: '#3B82F6' },
+  { key: 'crowd', icon: '👥', label: 'Lotado', color: COLORS.warning },
+  { key: 'accessible', icon: '♿', label: 'Acessível', color: COLORS.success },
+  { key: 'music', icon: '🎵', label: 'Boa música', color: COLORS.purple },
+  { key: 'bad', icon: '👎', label: 'Ruim', color: COLORS.danger },
 ];
+
+function VibeMeter({ value, large = false }) {
+  const h = large ? 10 : 6;
+  const color = value > 70 ? COLORS.primary : value > 40 ? COLORS.purple : '#3B82F6';
+  return (
+    <View>
+      <View style={{ height: h, backgroundColor: COLORS.bgOverlay, borderRadius: h / 2, overflow: 'hidden', marginBottom: 4 }}>
+        <View style={{ height: '100%', width: `${Math.max(2, value)}%`, backgroundColor: color, borderRadius: h / 2 }} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Chill</Text>
+        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Intense</Text>
+      </View>
+    </View>
+  );
+}
+
+function StatCard({ label, value, sub, color, icon }) {
+  return (
+    <View style={s.statCard}>
+      <Text style={s.statIcon}>{icon}</Text>
+      <Text style={[s.statValue, { color }]}>{value}</Text>
+      <Text style={s.statLabel}>{label}</Text>
+      {sub ? <Text style={s.statSub}>{sub}</Text> : null}
+    </View>
+  );
+}
 
 export default function EventDetailScreen({ route, navigation }) {
   const { eventId } = route.params;
-  const {
-    events,
-    getCouponsForEvent,
-    feedPosts,
-    redeemCoupon,
-    isCouponRedeemed,
-    nearbyEventIds,
-  } = useApp();
+  const { events, getCouponsForEvent, feedPosts, redeemCoupon, isCouponRedeemed, nearbyEventIds } = useApp();
   const [selectedRatings, setSelectedRatings] = useState([]);
   const [ratingSent, setRatingSent] = useState(false);
 
-  const event = events.find((e) => e.id === eventId);
+  const event = events.find(e => e.id === eventId);
   if (!event) return null;
 
   const coupons = getCouponsForEvent(eventId);
-  const eventPosts = feedPosts.filter((p) => p.eventId === eventId).slice(0, 3);
+  const posts = feedPosts.filter(p => p.eventId === eventId).slice(0, 3);
   const isNearby = nearbyEventIds.includes(eventId);
-  const crowdColor =
-    event.crowdLevel >= 85
-      ? COLORS.danger
-      : event.crowdLevel >= 60
-        ? COLORS.warning
-        : COLORS.success;
+  const heatColor = HEAT_COLORS[event.heatLevel] || COLORS.primary;
+  const crowdColor = event.crowdLevel >= 85 ? COLORS.danger : event.crowdLevel >= 60 ? COLORS.warning : COLORS.success;
+
+  function toggleRating(key) {
+    if (ratingSent) return;
+    setSelectedRatings(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }
 
   function handleRedeem(coupon) {
-    if (!isNearby) {
-      Alert.alert(
-        "Você precisa estar no local",
-        "Chegue perto do evento para resgatar cupons.",
-      );
-      return;
-    }
-    if (isCouponRedeemed(coupon.id)) {
-      Alert.alert("Já resgatado", "Você já usou este cupom.");
-      return;
-    }
+    if (!isNearby) { Alert.alert('📍 Vá ao local', `Chegue até ${coupon.venue} para resgatar.`); return; }
+    if (isCouponRedeemed(coupon.id)) { Alert.alert('Já resgatado', 'Você já usou este cupom.'); return; }
     Alert.alert(`Resgatar: ${coupon.title}`, coupon.description, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Resgatar agora",
-        onPress: () => {
-          const result = redeemCoupon(coupon.id);
-          if (result.success)
-            Alert.alert(
-              "✅ Resgatado!",
-              `Apresente ao atendente do ${coupon.venue}.`,
-            );
-          else Alert.alert("Erro", result.error);
-        },
-      },
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Resgatar agora', onPress: () => {
+        const r = redeemCoupon(coupon.id);
+        if (r.success) Alert.alert('✅ Resgatado!', `Apresente ao atendente de ${coupon.venue}.`);
+        else Alert.alert('Erro', r.error);
+      }},
     ]);
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={[styles.header, { backgroundColor: event.gradient[0] }]}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-        >
-          <Ionicons name="chevron-back" size={20} color="#fff" />
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {event.name}
-          </Text>
-          <Text style={styles.headerSub}>{event.venue}</Text>
+    <SafeAreaView style={s.safe} edges={['top']}>
+      {/* Hero header */}
+      <View style={[s.hero, { backgroundColor: event.gradient[0] }]}>
+        <View style={[s.heroOverlay, { backgroundColor: event.gradient[1], opacity: 0.5 }]} />
+        <View style={s.heroBar}>
+          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={20} color="#fff" />
+          </TouchableOpacity>
+          {isNearby && (
+            <View style={s.nearbyChip}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#4ade80' }} />
+              <Text style={s.nearbyText}>Você está aqui</Text>
+            </View>
+          )}
+          <TouchableOpacity style={s.shareBtn}>
+            <Ionicons name="share-outline" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
-        {isNearby && (
-          <View style={styles.nearbyBadge}>
-            <Text style={styles.nearbyText}>📍 Você está aqui</Text>
-          </View>
-        )}
+        <View style={s.heroContent}>
+          {event.isLive && (
+            <View style={s.liveBadge}>
+              <View style={s.liveDot} />
+              <Text style={s.liveText}>LIVE</Text>
+              <Text style={s.liveCount}> · {event.checkedInCount.toLocaleString()} aqui</Text>
+            </View>
+          )}
+          <Text style={s.heroName}>{event.name}</Text>
+          <Text style={s.heroVenue}>📍 {event.venue} · {event.address.split(' - ')[1] || event.distanceKm + 'km'}</Text>
+          {event.heatLevel && (
+            <View style={[s.heatChip, { backgroundColor: heatColor + '33', borderColor: heatColor + '66' }]}>
+              <Text style={[s.heatChipText, { color: heatColor }]}>🔥 HEAT LEVEL: {event.heatLevel}</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {event.isLive && (
-          <View
-            style={[
-              styles.liveBanner,
-              { backgroundColor: event.gradient[0] + "22" },
-            ]}
-          >
-            <View style={styles.liveDot} />
-            <Text style={styles.liveBannerText}>
-              <Text style={{ fontWeight: "700", color: event.gradient[0] }}>
-                {event.checkedInCount.toLocaleString()} pessoas
-              </Text>{" "}
-              estão aqui agora
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.statsGrid}>
-          {[
-            {
-              label: "Lotação",
-              value: `${event.crowdLevel}%`,
-              sub: event.crowdLabel,
-              color: crowdColor,
-            },
-            {
-              label: "Fila",
-              value:
-                event.queueMinutes > 0
-                  ? `~${event.queueMinutes}min`
-                  : "Sem fila",
-              sub: event.queueMinutes > 0 ? "de espera" : "Entre já!",
-              color: event.queueMinutes > 10 ? COLORS.warning : COLORS.success,
-            },
-            {
-              label: "Avaliação",
-              value: `${event.rating} ⭐`,
-              sub: `${event.reviewCount} reviews`,
-              color: COLORS.primary,
-            },
-            {
-              label: "Acessível",
-              value: event.accessible ? "✓ Sim" : "✗ Não",
-              sub: event.accessible ? "Rampa + banheiro" : "Sem acesso",
-              color: event.accessible ? COLORS.success : COLORS.danger,
-            },
-          ].map((stat) => (
-            <View key={stat.label} style={styles.statCard}>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-              <Text style={[styles.statValue, { color: stat.color }]}>
-                {stat.value}
-              </Text>
-              <Text style={styles.statSub}>{stat.sub}</Text>
-            </View>
-          ))}
+        {/* Vibe meter */}
+        <View style={s.vibeSection}>
+          <Text style={s.vibeSectionLabel}>Vibe Meter</Text>
+          <VibeMeter value={event.vibeMeter} large />
         </View>
 
+        {/* Stats grid */}
+        <View style={s.statsGrid}>
+          <StatCard icon="👥" label="Lotação" value={`${event.crowdLevel}%`} sub={event.crowdLabel} color={crowdColor} />
+          <StatCard icon="⏱" label="Fila" value={event.queueMinutes > 0 ? `~${event.queueMinutes}min` : 'Sem fila'} sub={event.queueMinutes > 0 ? 'de espera' : 'Entre já!'} color={event.queueMinutes > 10 ? COLORS.warning : COLORS.success} />
+          <StatCard icon="⭐" label="Avaliação" value={event.rating || '—'} sub={`${event.reviewCount} reviews`} color={COLORS.gold} />
+          <StatCard icon="♿" label="Acessível" value={event.accessible ? '✓ Sim' : '✗ Não'} sub={event.accessibilityNotes?.slice(0, 14) || ''} color={event.accessible ? COLORS.success : COLORS.danger} />
+        </View>
+
+        {/* Now playing */}
         {event.nowPlaying && (
-          <View style={styles.musicCard}>
-            <Text style={styles.musicLabel}>🎵 Tocando agora</Text>
-            <Text style={styles.musicNow}>{event.nowPlaying}</Text>
-            {event.nextAct && (
-              <Text style={styles.musicNext}>A seguir: {event.nextAct}</Text>
-            )}
+          <View style={s.nowPlayingCard}>
+            <View style={s.nowPlayingLeft}>
+              <Text style={s.nowPlayingLabel}>🎵 TOCANDO AGORA</Text>
+              <Text style={s.nowPlayingArtist}>{event.nowPlaying}</Text>
+              {event.nextAct ? <Text style={s.nextAct}>A seguir: {event.nextAct}</Text> : null}
+            </View>
+            <View style={s.nowPlayingWave}>
+              {[14, 22, 18, 28, 16, 24, 20].map((h, i) => (
+                <View key={i} style={[s.waveBar, { height: h, backgroundColor: COLORS.primary }]} />
+              ))}
+            </View>
           </View>
         )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Avaliação rápida</Text>
-          <View style={styles.ratingGrid}>
-            {RATING_QUICK.map((r) => (
-              <TouchableOpacity
-                key={r.key}
-                style={[
-                  styles.ratingPill,
-                  { backgroundColor: r.color },
-                  selectedRatings.includes(r.key) && styles.ratingPillSelected,
-                ]}
-                onPress={() =>
-                  !ratingSent &&
-                  setSelectedRatings((prev) =>
-                    prev.includes(r.key)
-                      ? prev.filter((k) => k !== r.key)
-                      : [...prev, r.key],
-                  )
-                }
-              >
-                <Text style={[styles.ratingPillText, { color: r.text }]}>
-                  {r.icon} {r.label}
-                </Text>
+        {/* Quick rating */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Avaliação Rápida</Text>
+          <View style={s.ratingGrid}>
+            {RATING_OPTIONS.map(r => (
+              <TouchableOpacity key={r.key}
+                style={[s.ratingPill, { backgroundColor: r.color + '22', borderColor: selectedRatings.includes(r.key) ? r.color : r.color + '44' }]}
+                onPress={() => toggleRating(r.key)}>
+                <Text style={s.ratingIcon}>{r.icon}</Text>
+                <Text style={[s.ratingLabel, { color: r.color }]}>{r.label}</Text>
+                {selectedRatings.includes(r.key) && (
+                  <Ionicons name="checkmark-circle" size={12} color={r.color} style={{ marginLeft: 3 }} />
+                )}
               </TouchableOpacity>
             ))}
           </View>
           {selectedRatings.length > 0 && !ratingSent && (
-            <TouchableOpacity
-              style={styles.submitBtn}
-              onPress={() => {
-                setRatingSent(true);
-                Alert.alert("Obrigado! 🙌", "Sua avaliação foi enviada!");
-              }}
-            >
-              <Text style={styles.submitBtnText}>Enviar avaliação ↗</Text>
+            <TouchableOpacity style={s.submitRatingBtn} onPress={() => { setRatingSent(true); Alert.alert('Obrigado! 🙌', 'Avaliação enviada!'); }}>
+              <Text style={s.submitRatingText}>Enviar avaliação →</Text>
             </TouchableOpacity>
           )}
           {ratingSent && (
-            <View style={styles.ratingThanks}>
-              <Ionicons
-                name="checkmark-circle"
-                size={16}
-                color={COLORS.success}
-              />
-              <Text style={styles.ratingThanksText}>
-                Avaliação enviada! Obrigado 🙌
-              </Text>
+            <View style={s.ratingThanks}>
+              <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+              <Text style={{ fontSize: 13, color: COLORS.success, fontWeight: '600' }}>Avaliação enviada! Obrigado 🙌</Text>
             </View>
           )}
         </View>
 
+        {/* Coupons */}
         {coupons.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionRow}>
-              <Text style={styles.sectionTitle}>Cupons disponíveis</Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: COLORS.primary,
-                  fontWeight: "600",
-                }}
-              >
-                {coupons.length} cupons
-              </Text>
+          <View style={s.section}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={s.sectionTitle}>Cupons Disponíveis</Text>
+              <View style={s.couponCountBadge}>
+                <Text style={s.couponCountText}>{coupons.length} cupons</Text>
+              </View>
             </View>
-            {coupons.map((coupon) => {
+            {coupons.map(coupon => {
               const redeemed = isCouponRedeemed(coupon.id);
-              const isSoldOut = coupon.remainingQty === 0;
+              const soldOut = coupon.remainingQty === 0;
+              const pct = (coupon.remainingQty / coupon.totalQty) * 100;
               return (
-                <TouchableOpacity
-                  key={coupon.id}
-                  style={[styles.couponCard, redeemed && { opacity: 0.7 }]}
-                  onPress={() => handleRedeem(coupon)}
-                  activeOpacity={0.85}
-                  disabled={isSoldOut}
-                >
-                  <View
-                    style={[
-                      styles.couponLeft,
-                      { backgroundColor: coupon.highlightColor + "22" },
-                    ]}
-                  >
-                    <Text style={{ fontSize: 26 }}>{coupon.icon}</Text>
+                <TouchableOpacity key={coupon.id}
+                  style={[s.couponCard, redeemed && { opacity: 0.65 }]}
+                  onPress={() => handleRedeem(coupon)} activeOpacity={0.85} disabled={soldOut}>
+                  {/* Band */}
+                  <View style={[s.couponBand, { backgroundColor: coupon.highlightColor }]}>
+                    <Text style={s.couponBandIcon}>{coupon.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.couponBandType}>{coupon.typeLabel}</Text>
+                      <Text style={s.couponBandTitle}>{coupon.title}</Text>
+                    </View>
+                    <View style={s.couponTear} />
+                    {redeemed && <View style={s.redeemedBadge}><Text style={s.redeemedText}>✓</Text></View>}
+                    {soldOut && !redeemed && <View style={s.soldOutBadge}><Text style={s.soldOutText}>Esgotado</Text></View>}
                   </View>
-                  <View style={styles.couponBody}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 6,
-                        marginBottom: 4,
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.couponTypeBadge,
-                          { backgroundColor: coupon.highlightColor + "22" },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.couponTypeText,
-                            { color: coupon.highlightColor },
-                          ]}
-                        >
-                          {coupon.typeLabel}
-                        </Text>
-                      </View>
-                      {redeemed && (
-                        <View style={styles.redeemedBadge}>
-                          <Text style={styles.redeemedText}>✓ Resgatado</Text>
-                        </View>
-                      )}
-                      {isSoldOut && !redeemed && (
-                        <View style={styles.soldOutBadge}>
-                          <Text style={styles.soldOutText}>Esgotado</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.couponTitle}>{coupon.title}</Text>
-                    <Text style={styles.couponDesc} numberOfLines={2}>
-                      {coupon.description}
-                    </Text>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginTop: 6,
-                      }}
-                    >
-                      <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
-                        {coupon.remainingQty}/{coupon.totalQty} restantes
-                      </Text>
-                      {!redeemed && !isSoldOut && (
-                        <Text
-                          style={[
-                            { fontSize: 13, fontWeight: "600" },
-                            { color: coupon.highlightColor },
-                          ]}
-                        >
-                          {isNearby ? "Resgatar →" : "📍 Ir ao local"}
+                  {/* Body */}
+                  <View style={s.couponBody}>
+                    <Text style={s.couponDesc} numberOfLines={2}>{coupon.description}</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                      <Text style={s.couponQty}>{soldOut ? 'Esgotado' : `${coupon.remainingQty}/${coupon.totalQty} restantes`}</Text>
+                      {!redeemed && !soldOut && (
+                        <Text style={[s.redeemCTA, { color: coupon.highlightColor }]}>
+                          {isNearby ? 'Resgatar →' : '📍 Vá ao local'}
                         </Text>
                       )}
                     </View>
-                    <View style={styles.qtyBar}>
-                      <View
-                        style={[
-                          styles.qtyFill,
-                          {
-                            width: `${(coupon.remainingQty / coupon.totalQty) * 100}%`,
-                            backgroundColor: coupon.highlightColor,
-                          },
-                        ]}
-                      />
+                    <View style={s.couponProgress}>
+                      <View style={[s.couponProgressFill, { width: `${pct}%`, backgroundColor: coupon.highlightColor }]} />
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -365,241 +226,104 @@ export default function EventDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {eventPosts.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>O que estão dizendo</Text>
-            {eventPosts.map((post) => (
-              <View key={post.id} style={styles.postCard}>
-                <View
-                  style={[
-                    styles.postAvatar,
-                    { backgroundColor: post.user.color },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.postAvatarText,
-                      { color: post.user.textColor },
-                    ]}
-                  >
-                    {post.user.initials}
-                  </Text>
+        {/* Feed preview */}
+        {posts.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>O que estão dizendo</Text>
+            {posts.map(post => (
+              <View key={post.id} style={s.feedCard}>
+                <View style={[s.feedAvatar, { backgroundColor: post.user.color }]}>
+                  <Text style={s.feedAvatarText}>{post.user.initials}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
-                      marginBottom: 4,
-                    }}
-                  >
-                    <Text style={styles.postName}>{post.user.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <Text style={s.feedName}>{post.user.name}</Text>
                     {post.verified && (
-                      <View style={styles.verifiedBadge}>
-                        <Text style={styles.verifiedText}>✓ No local</Text>
+                      <View style={s.verifiedBadge}>
+                        <Text style={s.verifiedText}>✓ No local</Text>
                       </View>
                     )}
-                    <Text style={styles.postTime}>{post.time}</Text>
+                    <Text style={s.feedTime}>{post.time}</Text>
                   </View>
-                  <Text style={styles.postText}>{post.text}</Text>
+                  <Text style={s.feedText}>{post.text}</Text>
                 </View>
               </View>
             ))}
           </View>
         )}
+
         <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 14,
-  },
-  backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: { fontSize: 16, fontWeight: "600", color: "#fff" },
-  headerSub: { fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 },
-  nearbyBadge: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  nearbyText: { fontSize: 11, color: "#fff", fontWeight: "600" },
-  liveBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.live,
-  },
-  liveBannerText: { fontSize: 14, color: COLORS.text },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 12,
-    gap: 8,
-    paddingTop: 8,
-  },
-  statCard: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: 12,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    ...SHADOW.sm,
-  },
-  statLabel: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 4 },
-  statValue: { fontSize: 20, fontWeight: "600" },
-  statSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
-  musicCard: {
-    backgroundColor: COLORS.surface,
-    marginHorizontal: 12,
-    marginTop: 10,
-    borderRadius: RADIUS.md,
-    padding: 12,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  musicLabel: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 3 },
-  musicNow: { fontSize: 14, fontWeight: "600", color: COLORS.text },
-  musicNext: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  hero: { height: 240, justifyContent: 'flex-end', position: 'relative' },
+  heroOverlay: { ...StyleSheet.absoluteFillObject },
+  heroBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 8, position: 'absolute', top: 0, left: 0, right: 0 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
+  shareBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
+  nearbyChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: RADIUS.full },
+  nearbyText: { fontSize: 11, color: '#fff', fontWeight: '600' },
+  heroContent: { padding: 16 },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.danger, paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full, alignSelf: 'flex-start', marginBottom: 8 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff', marginRight: 5 },
+  liveText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 1 },
+  liveCount: { fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '500' },
+  heroName: { fontSize: 24, fontWeight: '900', color: '#fff', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  heroVenue: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 8 },
+  heatChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: RADIUS.full, borderWidth: 1, alignSelf: 'flex-start' },
+  heatChipText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
+  vibeSection: { backgroundColor: COLORS.bgCard, margin: 12, borderRadius: RADIUS.lg, padding: 14, borderWidth: 0.5, borderColor: COLORS.border },
+  vibeSectionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8 },
+  statCard: { flex: 1, minWidth: '45%', backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 14, borderWidth: 0.5, borderColor: COLORS.border },
+  statIcon: { fontSize: 18, marginBottom: 6 },
+  statValue: { fontSize: 20, fontWeight: '800' },
+  statLabel: { fontSize: 12, color: COLORS.textSub, marginTop: 2 },
+  statSub: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  nowPlayingCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgCard, marginHorizontal: 12, marginTop: 10, borderRadius: RADIUS.lg, padding: 14, borderWidth: 0.5, borderColor: COLORS.primary + '44' },
+  nowPlayingLeft: { flex: 1 },
+  nowPlayingLabel: { fontSize: 10, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4 },
+  nowPlayingArtist: { fontSize: 15, fontWeight: '800', color: COLORS.text, marginBottom: 3 },
+  nextAct: { fontSize: 12, color: COLORS.textSub },
+  nowPlayingWave: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  waveBar: { width: 4, borderRadius: 2, opacity: 0.85 },
   section: { paddingHorizontal: 12, marginTop: 16 },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  sectionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  ratingGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  ratingPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: RADIUS.full,
-  },
-  ratingPillSelected: { borderWidth: 2, borderColor: COLORS.primary },
-  ratingPillText: { fontSize: 13, fontWeight: "500" },
-  submitBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.md,
-    padding: 12,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  submitBtnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  ratingThanks: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: COLORS.successLight,
-    padding: 10,
-    borderRadius: RADIUS.md,
-    marginTop: 10,
-  },
-  ratingThanksText: { color: COLORS.success, fontSize: 13, fontWeight: "500" },
-  couponCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    marginBottom: 10,
-    flexDirection: "row",
-    overflow: "hidden",
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    ...SHADOW.sm,
-  },
-  couponLeft: { width: 60, justifyContent: "center", alignItems: "center" },
-  couponBody: { flex: 1, padding: 12 },
-  couponTypeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: RADIUS.full,
-  },
-  couponTypeText: { fontSize: 10, fontWeight: "600" },
-  redeemedBadge: {
-    backgroundColor: COLORS.successLight,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: RADIUS.full,
-  },
-  redeemedText: { fontSize: 10, color: COLORS.success, fontWeight: "600" },
-  soldOutBadge: {
-    backgroundColor: COLORS.dangerLight,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: RADIUS.full,
-  },
-  soldOutText: { fontSize: 10, color: COLORS.danger, fontWeight: "600" },
-  couponTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.text,
-    marginBottom: 3,
-  },
-  couponDesc: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17 },
-  qtyBar: {
-    height: 3,
-    backgroundColor: COLORS.border,
-    borderRadius: 2,
-    marginTop: 6,
-    overflow: "hidden",
-  },
-  qtyFill: { height: "100%", borderRadius: 2 },
-  postCard: {
-    flexDirection: "row",
-    gap: 10,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  postAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  postAvatarText: { fontSize: 12, fontWeight: "600" },
-  postName: { fontSize: 13, fontWeight: "600", color: COLORS.text },
-  verifiedBadge: {
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: RADIUS.full,
-  },
-  verifiedText: { fontSize: 9, color: COLORS.primaryDark, fontWeight: "600" },
-  postTime: { fontSize: 11, color: COLORS.textMuted, marginLeft: "auto" },
-  postText: { fontSize: 13, color: COLORS.text, lineHeight: 18 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: COLORS.text, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
+  ratingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  ratingPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1.5 },
+  ratingIcon: { fontSize: 14, marginRight: 5 },
+  ratingLabel: { fontSize: 12, fontWeight: '600' },
+  submitRatingBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 13, alignItems: 'center', marginTop: 12 },
+  submitRatingText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  ratingThanks: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.success + '22', padding: 10, borderRadius: RADIUS.md, marginTop: 10, borderWidth: 0.5, borderColor: COLORS.success + '44' },
+  couponCountBadge: { backgroundColor: COLORS.primary + '22', paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: COLORS.primary + '55' },
+  couponCountText: { fontSize: 12, color: COLORS.primary, fontWeight: '700' },
+  couponCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, marginBottom: 10, overflow: 'hidden', borderWidth: 0.5, borderColor: COLORS.border },
+  couponBand: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
+  couponBandIcon: { fontSize: 26 },
+  couponBandType: { fontSize: 10, color: 'rgba(255,255,255,0.75)', fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 },
+  couponBandTitle: { fontSize: 15, fontWeight: '900', color: '#fff' },
+  couponTear: { width: 1.5, height: 50, backgroundColor: 'rgba(255,255,255,0.25)', marginHorizontal: 6, borderStyle: 'dashed' },
+  redeemedBadge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full },
+  redeemedText: { fontSize: 13, color: '#fff', fontWeight: '800' },
+  soldOutBadge: { backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full },
+  soldOutText: { fontSize: 11, color: '#fff', fontWeight: '600' },
+  couponBody: { padding: 12 },
+  couponDesc: { fontSize: 13, color: COLORS.textSub, lineHeight: 18 },
+  couponQty: { fontSize: 11, color: COLORS.textMuted },
+  redeemCTA: { fontSize: 13, fontWeight: '700' },
+  couponProgress: { height: 4, backgroundColor: COLORS.bgOverlay, borderRadius: 2, overflow: 'hidden', marginTop: 8 },
+  couponProgressFill: { height: '100%', borderRadius: 2 },
+  feedCard: { flexDirection: 'row', gap: 10, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: COLORS.border },
+  feedAvatar: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center' },
+  feedAvatarText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  feedName: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  verifiedBadge: { backgroundColor: COLORS.primary + '33', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.full },
+  verifiedText: { fontSize: 10, color: COLORS.primaryLight, fontWeight: '600' },
+  feedTime: { fontSize: 11, color: COLORS.textMuted, marginLeft: 'auto' },
+  feedText: { fontSize: 13, color: COLORS.textSub, lineHeight: 18 },
 });

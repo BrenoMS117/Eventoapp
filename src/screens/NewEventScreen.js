@@ -1,698 +1,467 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Switch,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useApp } from "../context/AppContext";
-import { COLORS, RADIUS, SHADOW } from "../utils/theme";
-import { FieldInput } from "../components/FieldInput";
-import { validate } from "../utils/validation";
+  View, Text, TextInput, TouchableOpacity, ScrollView,
+  StyleSheet, Alert, KeyboardAvoidingView, Platform, Switch,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../context/AppContext';
+import { COLORS, RADIUS, SHADOW } from '../utils/theme';
+import { validate } from '../utils/validation';
 
 const CATEGORIES = [
-  { key: "show", label: "Show", icon: "🎸" },
-  { key: "festa", label: "Festa", icon: "🎉" },
-  { key: "bar", label: "Bar", icon: "🍺" },
-  { key: "cultura", label: "Cultura", icon: "🎨" },
-  { key: "teatro", label: "Teatro", icon: "🎭" },
-  { key: "esporte", label: "Esporte", icon: "⚽" },
-  { key: "gastronomia", label: "Gastro", icon: "🍕" },
-  { key: "musica", label: "Música", icon: "🎵" },
+  { key: 'rave', label: 'Rave', icon: '🎧' },
+  { key: 'concert', label: 'Concert', icon: '🎸' },
+  { key: 'festival', label: 'Festival', icon: '🎪' },
+  { key: 'art', label: 'Art Basel', icon: '🎨' },
+  { key: 'electro', label: 'Electro', icon: '⚡' },
+  { key: 'bar', label: 'Bar', icon: '🍺' },
+  { key: 'teatro', label: 'Teatro', icon: '🎭' },
+  { key: 'cultura', label: 'Cultura', icon: '🏛' },
 ];
 
-const GRADIENTS = [
-  { colors: ["#1D9E75", "#085041"], label: "Verde" },
-  { colors: ["#533AB7", "#26215C"], label: "Roxo" },
-  { colors: ["#D85A30", "#4A1B0C"], label: "Laranja" },
-  { colors: ["#378ADD", "#0C447C"], label: "Azul" },
-  { colors: ["#C0392B", "#7B241C"], label: "Vermelho" },
-  { colors: ["#8E44AD", "#5B2C6F"], label: "Violeta" },
+const GRADIENT_PRESETS = [
+  { colors: ['#E83B5C', '#7B2FBE'], label: 'Brand' },
+  { colors: ['#B8296E', '#26215C'], label: 'Purple' },
+  { colors: ['#FF4500', '#E83B5C'], label: 'Fire' },
+  { colors: ['#1E40AF', '#3B82F6'], label: 'Blue' },
+  { colors: ['#059669', '#10B981'], label: 'Green' },
+  { colors: ['#8E44AD', '#5B2C6F'], label: 'Violet' },
 ];
 
-const STEPS = ["Básico", "Local", "Detalhes", "Revisar"];
-const AGE_OPTIONS = ["Livre", "14+", "16+", "18+"];
+const AGE_OPTIONS = ['Livre', '14+', '16+', '18+'];
+const STEPS = ['Básico', 'Local', 'Detalhes', 'Revisar'];
+
+function StepIndicator({ current }) {
+  return (
+    <View style={s.stepRow}>
+      {STEPS.map((label, i) => {
+        const done = i < current;
+        const active = i === current;
+        const color = done ? COLORS.success : active ? COLORS.primary : COLORS.textMuted;
+        return (
+          <React.Fragment key={label}>
+            <View style={s.stepItem}>
+              <View style={[s.stepDot, { backgroundColor: done ? COLORS.success : active ? COLORS.primary : COLORS.bgOverlay, borderColor: color }]}>
+                {done
+                  ? <Ionicons name="checkmark" size={10} color="#fff" />
+                  : <Text style={[s.stepDotNum, { color: active ? '#fff' : COLORS.textMuted }]}>{i + 1}</Text>}
+              </View>
+              <Text style={[s.stepLabel, { color }]}>{label}</Text>
+            </View>
+            {i < STEPS.length - 1 && (
+              <View style={[s.stepLine, { backgroundColor: done ? COLORS.success : COLORS.bgOverlay }]} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </View>
+  );
+}
+
+function Field({ label, required, children, error, hint }) {
+  return (
+    <View style={s.fieldWrap}>
+      {label ? (
+        <View style={s.fieldLabelRow}>
+          <Text style={s.fieldLabel}>
+            {label}{required ? <Text style={{ color: COLORS.primary }}> *</Text> : ''}
+          </Text>
+          {hint ? <Text style={s.fieldHint}>{hint}</Text> : null}
+        </View>
+      ) : null}
+      {children}
+      {error ? (
+        <View style={s.fieldError}>
+          <Ionicons name="alert-circle" size={12} color={COLORS.danger} />
+          <Text style={s.fieldErrorText}>{error}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function TextBox({ error, ...props }) {
+  return (
+    <TextInput
+      {...props}
+      style={[s.input, error && s.inputError, props.multiline && s.inputMulti, props.style]}
+      placeholderTextColor={COLORS.textMuted}
+    />
+  );
+}
 
 export default function NewEventScreen({ navigation }) {
   const { addEvent, currentUser } = useApp();
   const [step, setStep] = useState(0);
 
-  // Step 0
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState("");
-  const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  // Step 0 — Basic
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
 
-  // Step 1
-  const [venue, setVenue] = useState(currentUser?.venueName || "");
-  const [address, setAddress] = useState("");
-  const [neighborhood, setNeighborhood] = useState("");
-  const [city, setCity] = useState("São Paulo");
+  // Step 1 — Location
+  const [venue, setVenue] = useState(currentUser?.venueName || '');
+  const [address, setAddress] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('São Paulo');
 
-  // Step 2
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
+  // Step 2 — Details
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
   const [freeEntry, setFreeEntry] = useState(false);
   const [accessible, setAccessible] = useState(false);
-  const [accessibilityNotes, setAccessibilityNotes] = useState("");
-  const [artist, setArtist] = useState("");
-  const [ageRestriction, setAgeRestriction] = useState("Livre");
-  const [selectedGradient, setSelectedGradient] = useState(0);
+  const [accessibilityNotes, setAccessibilityNotes] = useState('');
+  const [artist, setArtist] = useState('');
+  const [ageRestriction, setAgeRestriction] = useState('Livre');
+  const [gradientIdx, setGradientIdx] = useState(0);
 
-  // Errors & touched per step
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
 
-  function getErr(f) {
-    return touched[f] ? errors[f] : "";
+  function getErr(f) { return touched[f] ? errors[f] : ''; }
+
+  function setErr(f, val) {
+    setTouched(p => ({ ...p, [f]: true }));
+    setErrors(p => ({ ...p, [f]: getValidation(f, val) }));
   }
 
-  function touch(f, val) {
-    setTouched((p) => ({ ...p, [f]: true }));
-    setErrors((p) => ({ ...p, [f]: getFieldValidation(f, val) }));
+  function getValidation(f, v) {
+    const vals = { name, category, date, startTime, endTime, address, price };
+    const val = v !== undefined ? v : vals[f];
+    if (f === 'name') return validate.minLength(val, 3, 'Nome do evento');
+    if (f === 'category') return val ? '' : 'Selecione uma categoria.';
+    if (f === 'date') return validate.date(val);
+    if (f === 'startTime') return validate.time(val);
+    if (f === 'endTime') return val ? validate.time(val) : '';
+    if (f === 'address') return validate.required(val, 'Endereço');
+    if (f === 'price' && !freeEntry) return validate.required(val, 'Valor da entrada');
+    return '';
   }
 
-  function getFieldValidation(f, val) {
-    const v =
-      val !== undefined
-        ? val
-        : { name, category, date, startTime, address, price }[f];
-    if (f === "name") return validate.minLength(v, 3, "Nome do evento");
-    if (f === "category") return v ? "" : "Selecione uma categoria.";
-    if (f === "date") return validate.date(v);
-    if (f === "startTime") return validate.time(v);
-    if (f === "endTime") return v ? validate.time(v) : ""; // opcional
-    if (f === "address") return validate.required(v, "Endereço");
-    if (f === "price" && !freeEntry) return validate.required(v, "Valor");
-    return "";
-  }
-
-  function validateStep0() {
-    const e = {
-      name: getFieldValidation("name", name),
-      category: getFieldValidation("category", category),
-      date: getFieldValidation("date", date),
-      startTime: getFieldValidation("startTime", startTime),
-      endTime: getFieldValidation("endTime", endTime),
+  function validateStep(s) {
+    const fieldsByStep = {
+      0: ['name', 'category', 'date', 'startTime', 'endTime'],
+      1: ['address'],
+      2: freeEntry ? [] : ['price'],
     };
-    setErrors((p) => ({ ...p, ...e }));
-    setTouched((p) => ({
-      ...p,
-      name: true,
-      category: true,
-      date: true,
-      startTime: true,
-      endTime: true,
-    }));
+    const fields = fieldsByStep[s] || [];
+    const e = {};
+    fields.forEach(f => { e[f] = getValidation(f); });
+    setErrors(prev => ({ ...prev, ...e }));
+    setTouched(prev => ({ ...prev, ...Object.fromEntries(fields.map(f => [f, true])) }));
     return !Object.values(e).some(Boolean);
   }
 
-  function validateStep1() {
-    const e = { address: getFieldValidation("address", address) };
-    setErrors((p) => ({ ...p, ...e }));
-    setTouched((p) => ({ ...p, address: true }));
-    return !e.address;
-  }
-
-  function validateStep2() {
-    if (!freeEntry && !price.trim()) {
-      setErrors((p) => ({
-        ...p,
-        price: 'Informe o valor ou marque "Entrada gratuita".',
-      }));
-      setTouched((p) => ({ ...p, price: true }));
-      return false;
-    }
-    return true;
-  }
-
   function handleNext() {
-    if (step === 0 && !validateStep0()) return;
-    if (step === 1 && !validateStep1()) return;
-    if (step === 2 && !validateStep2()) return;
-    setStep((s) => s + 1);
+    if (!validateStep(step)) return;
+    setStep(s => s + 1);
   }
 
   function handleSubmit() {
-    const catInfo = CATEGORIES.find((c) => c.key === category);
+    const catInfo = CATEGORIES.find(c => c.key === category);
     addEvent({
       name: name.trim(),
-      venue: venue.trim() || currentUser?.venueName || "Meu estabelecimento",
-      address: `${address.trim()}${neighborhood ? ` - ${neighborhood.trim()}` : ""}`,
+      venue: venue.trim() || currentUser?.venueName || 'Meu estabelecimento',
+      address: `${address.trim()}${neighborhood ? ` - ${neighborhood.trim()}` : ''}`,
       category,
       categoryLabel: catInfo?.label || category,
       startsAt: startTime,
       endsAt: endTime || null,
-      price: freeEntry ? "Gratuito" : price.trim(),
+      price: freeEntry ? 'Gratuito' : price.trim(),
       accessible,
       accessibilityNotes: accessible ? accessibilityNotes.trim() : null,
       nowPlaying: null,
       nextAct: artist.trim() || null,
       description: description.trim(),
       distanceKm: 0.5,
-      gradient: GRADIENTS[selectedGradient].colors,
+      gradient: GRADIENT_PRESETS[gradientIdx].colors,
       ageRestriction,
+      vibeMeter: 50,
+      vibeLabel: 'Moderate',
+      heatLevel: null,
+      capacityPct: 0,
     });
-    Alert.alert(
-      "🎉 Evento criado!",
-      `"${name}" foi publicado. Usuários próximos já podem visualizá-lo!`,
-      [{ text: "Ótimo!", onPress: () => navigation.goBack() }],
+    Alert.alert('🚀 Evento publicado!',
+      `"${name}" está no ar! Usuários próximos já podem visualizá-lo.`,
+      [{ text: 'Ótimo!', onPress: () => navigation.goBack() }]
     );
   }
 
-  const catInfo = CATEGORIES.find((c) => c.key === category);
+  const catInfo = CATEGORIES.find(c => c.key === category);
+  const gradPreset = GRADIENT_PRESETS[gradientIdx];
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() =>
-            step > 0 ? setStep((s) => s - 1) : navigation.goBack()
-          }
-          style={styles.backBtn}
-        >
-          <Ionicons name="chevron-back" size={20} color="#fff" />
+    <SafeAreaView style={s.safe} edges={['top']}>
+      {/* Header */}
+      <View style={s.header}>
+        <TouchableOpacity style={s.backBtn} onPress={() => step > 0 ? setStep(s => s - 1) : navigation.goBack()}>
+          <Ionicons name="chevron-back" size={20} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Novo evento</Text>
-        <View style={styles.stepBadge}>
-          <Text style={styles.stepBadgeText}>
-            {step + 1}/{STEPS.length}
-          </Text>
+        <Text style={s.headerTitle}>Novo Evento</Text>
+        <View style={s.stepBadge}>
+          <Text style={s.stepBadgeText}>{step + 1}/{STEPS.length}</Text>
         </View>
       </View>
 
-      <View style={styles.progressBar}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${((step + 1) / STEPS.length) * 100}%` },
-          ]}
-        />
+      {/* Progress bar */}
+      <View style={s.progressBar}>
+        <View style={[s.progressFill, { width: `${((step + 1) / STEPS.length) * 100}%` }]} />
       </View>
 
-      <View style={styles.stepTabs}>
-        {STEPS.map((s, i) => (
-          <View key={s} style={styles.stepTab}>
-            <View
-              style={[
-                styles.stepDot,
-                i <= step && styles.stepDotActive,
-                i < step && styles.stepDotDone,
-              ]}
-            >
-              {i < step ? (
-                <Ionicons name="checkmark" size={10} color="#fff" />
-              ) : (
-                <Text
-                  style={[styles.stepDotText, i === step && { color: "#fff" }]}
-                >
-                  {i + 1}
-                </Text>
-              )}
-            </View>
-            <Text
-              style={[
-                styles.stepLabel,
-                i === step && { color: COLORS.primary, fontWeight: "600" },
-              ]}
-            >
-              {s}
-            </Text>
-          </View>
-        ))}
+      {/* Step indicators */}
+      <View style={s.stepIndicatorWrap}>
+        <StepIndicator current={step} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* STEP 0 */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+          {/* ── STEP 0: Basic ── */}
           {step === 0 && (
-            <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Informações básicas</Text>
+            <View style={s.stepContent}>
+              <Text style={s.stepTitle}>Informações básicas</Text>
 
-              <FieldInput
-                label="Nome do evento"
-                required
-                icon="megaphone-outline"
-                value={name}
-                onChangeText={(v) => {
-                  setName(v);
-                  touch("name", v);
-                }}
-                error={getErr("name")}
-                placeholder="Ex: Jazz no Beco do Batman"
-                maxLength={60}
-                autoCapitalize="words"
-              />
-
-              <Text style={styles.fieldLabel}>
-                Categoria <Text style={{ color: COLORS.danger }}>*</Text>
-              </Text>
-              {getErr("category") ? (
-                <Text style={styles.inlineError}>{getErr("category")}</Text>
-              ) : null}
-              <View style={styles.categoryGrid}>
-                {CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat.key}
-                    style={[
-                      styles.categoryBtn,
-                      category === cat.key && styles.categoryBtnActive,
-                    ]}
-                    onPress={() => {
-                      setCategory(cat.key);
-                      touch("category", cat.key);
-                    }}
-                  >
-                    <Text style={styles.categoryBtnIcon}>{cat.icon}</Text>
-                    <Text
-                      style={[
-                        styles.categoryBtnLabel,
-                        category === cat.key && {
-                          color: COLORS.primary,
-                          fontWeight: "600",
-                        },
-                      ]}
-                    >
-                      {cat.label}
-                    </Text>
-                    {category === cat.key && (
-                      <View style={styles.categoryCheck}>
-                        <Ionicons name="checkmark" size={8} color="#fff" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <FieldInput
-                label="Data"
-                required
-                icon="calendar-outline"
-                value={date}
-                onChangeText={(v) => {
-                  setDate(v);
-                  touch("date", v);
-                }}
-                error={getErr("date")}
-                placeholder="DD/MM/AAAA"
-                keyboardType="numbers-and-punctuation"
-                autoCapitalize="none"
-                hint="Formato: DD/MM/AAAA"
-              />
-
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <FieldInput
-                    label="Início"
-                    required
-                    icon="time-outline"
-                    value={startTime}
-                    onChangeText={(v) => {
-                      setStartTime(v);
-                      touch("startTime", v);
-                    }}
-                    error={getErr("startTime")}
-                    placeholder="20:00"
-                    keyboardType="numbers-and-punctuation"
-                    autoCapitalize="none"
-                    hint="HH:MM"
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <FieldInput
-                    label="Término"
-                    icon="time-outline"
-                    value={endTime}
-                    onChangeText={(v) => {
-                      setEndTime(v);
-                      touch("endTime", v);
-                    }}
-                    error={getErr("endTime")}
-                    placeholder="02:00"
-                    keyboardType="numbers-and-punctuation"
-                    autoCapitalize="none"
-                    hint="Opcional"
-                  />
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* STEP 1 */}
-          {step === 1 && (
-            <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Local do evento</Text>
-
-              <FieldInput
-                label="Nome do local"
-                icon="business-outline"
-                value={venue}
-                onChangeText={setVenue}
-                placeholder={currentUser?.venueName || "Nome do bar/venue"}
-                autoCapitalize="words"
-              />
-
-              <FieldInput
-                label="Endereço"
-                required
-                icon="location-outline"
-                value={address}
-                onChangeText={(v) => {
-                  setAddress(v);
-                  touch("address", v);
-                }}
-                error={getErr("address")}
-                placeholder="Rua, número"
-                autoCapitalize="words"
-              />
-
-              <FieldInput
-                label="Bairro"
-                icon="map-outline"
-                value={neighborhood}
-                onChangeText={setNeighborhood}
-                placeholder="Ex: Vila Madalena"
-                autoCapitalize="words"
-              />
-
-              <FieldInput
-                label="Cidade"
-                icon="pin-outline"
-                value={city}
-                onChangeText={setCity}
-                placeholder="São Paulo"
-                autoCapitalize="words"
-              />
-            </View>
-          )}
-
-          {/* STEP 2 */}
-          {step === 2 && (
-            <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Detalhes do evento</Text>
-
-              <FieldInput
-                label="Descrição"
-                icon="document-text-outline"
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Descreva o evento, atrações..."
-                multiline
-                maxLength={300}
-                hint={`${description.length}/300`}
-              />
-
-              <FieldInput
-                label="Artista / Atração principal"
-                icon="musical-notes-outline"
-                value={artist}
-                onChangeText={setArtist}
-                placeholder="Ex: DJ Alok, Banda X..."
-                autoCapitalize="words"
-              />
-
-              <View style={styles.switchRow}>
-                <View>
-                  <Text style={styles.switchLabel}>Entrada gratuita</Text>
-                  <Text style={styles.switchSub}>Sem cobrança de ingresso</Text>
-                </View>
-                <Switch
-                  value={freeEntry}
-                  onValueChange={(v) => {
-                    setFreeEntry(v);
-                    if (v) setErrors((p) => ({ ...p, price: "" }));
-                  }}
-                  trackColor={{ true: COLORS.primary }}
-                  thumbColor="#fff"
+              <Field label="Nome do evento" required error={getErr('name')}>
+                <TextBox
+                  placeholder="Ex: FESTIVAL OF LIGHTS"
+                  value={name}
+                  onChangeText={v => { setName(v); setErr('name', v); }}
+                  error={getErr('name')}
+                  maxLength={60}
+                  autoCapitalize="characters"
                 />
+                <Text style={s.charCount}>{name.length}/60</Text>
+              </Field>
+
+              <Field label="Categoria" required error={getErr('category')}>
+                <View style={s.categoryGrid}>
+                  {CATEGORIES.map(cat => (
+                    <TouchableOpacity key={cat.key}
+                      style={[s.catBtn, category === cat.key && s.catBtnActive]}
+                      onPress={() => { setCategory(cat.key); setErr('category', cat.key); }}>
+                      <Text style={s.catBtnIcon}>{cat.icon}</Text>
+                      <Text style={[s.catBtnLabel, category === cat.key && { color: COLORS.primary, fontWeight: '700' }]}>{cat.label}</Text>
+                      {category === cat.key && (
+                        <View style={s.catCheck}>
+                          <Ionicons name="checkmark" size={8} color="#fff" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </Field>
+
+              <Field label="Data" required error={getErr('date')} hint="DD/MM/AAAA">
+                <View style={s.inputRow}>
+                  <Ionicons name="calendar-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                  <TextInput style={[s.inputInner, getErr('date') && s.inputError]} placeholder="25/12/2025" placeholderTextColor={COLORS.textMuted} value={date} onChangeText={v => { setDate(v); setErr('date', v); }} keyboardType="numbers-and-punctuation" />
+                </View>
+              </Field>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Field label="Início" required error={getErr('startTime')} hint="HH:MM">
+                    <View style={s.inputRow}>
+                      <Ionicons name="time-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                      <TextInput style={[s.inputInner, getErr('startTime') && s.inputError]} placeholder="21:00" placeholderTextColor={COLORS.textMuted} value={startTime} onChangeText={v => { setStartTime(v); setErr('startTime', v); }} keyboardType="numbers-and-punctuation" />
+                    </View>
+                  </Field>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Field label="Término" error={getErr('endTime')} hint="Opcional">
+                    <View style={s.inputRow}>
+                      <Ionicons name="time-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                      <TextInput style={[s.inputInner, getErr('endTime') && s.inputError]} placeholder="04:00" placeholderTextColor={COLORS.textMuted} value={endTime} onChangeText={v => { setEndTime(v); setErr('endTime', v); }} keyboardType="numbers-and-punctuation" />
+                    </View>
+                  </Field>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* ── STEP 1: Location ── */}
+          {step === 1 && (
+            <View style={s.stepContent}>
+              <Text style={s.stepTitle}>Local do evento</Text>
+
+              <Field label="Nome do local">
+                <View style={s.inputRow}>
+                  <Ionicons name="business-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                  <TextInput style={s.inputInner} placeholder={currentUser?.venueName || 'Ex: Club D'} placeholderTextColor={COLORS.textMuted} value={venue} onChangeText={setVenue} autoCapitalize="words" />
+                </View>
+              </Field>
+
+              <Field label="Endereço" required error={getErr('address')}>
+                <View style={[s.inputRow, getErr('address') && s.inputRowError]}>
+                  <Ionicons name="location-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                  <TextInput style={s.inputInner} placeholder="Rua, número" placeholderTextColor={COLORS.textMuted} value={address} onChangeText={v => { setAddress(v); setErr('address', v); }} autoCapitalize="words" />
+                </View>
+              </Field>
+
+              <Field label="Bairro">
+                <View style={s.inputRow}>
+                  <Ionicons name="map-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                  <TextInput style={s.inputInner} placeholder="Ex: Vila Madalena" placeholderTextColor={COLORS.textMuted} value={neighborhood} onChangeText={setNeighborhood} autoCapitalize="words" />
+                </View>
+              </Field>
+
+              <Field label="Cidade">
+                <View style={s.inputRow}>
+                  <Ionicons name="pin-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                  <TextInput style={s.inputInner} placeholder="São Paulo" placeholderTextColor={COLORS.textMuted} value={city} onChangeText={setCity} autoCapitalize="words" />
+                </View>
+              </Field>
+            </View>
+          )}
+
+          {/* ── STEP 2: Details ── */}
+          {step === 2 && (
+            <View style={s.stepContent}>
+              <Text style={s.stepTitle}>Detalhes do evento</Text>
+
+              <Field label="Descrição" hint={`${description.length}/300`}>
+                <TextBox
+                  placeholder="Descreva o evento, atrações, ambiente..."
+                  value={description} onChangeText={setDescription}
+                  multiline maxLength={300}
+                />
+              </Field>
+
+              <Field label="Artista / Atração principal">
+                <View style={s.inputRow}>
+                  <Ionicons name="musical-notes-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                  <TextInput style={s.inputInner} placeholder="Ex: DJ Alok, Banda X..." placeholderTextColor={COLORS.textMuted} value={artist} onChangeText={setArtist} autoCapitalize="words" />
+                </View>
+              </Field>
+
+              <View style={s.switchCard}>
+                <View>
+                  <Text style={s.switchLabel}>Entrada gratuita</Text>
+                  <Text style={s.switchSub}>Sem cobrança de ingresso</Text>
+                </View>
+                <Switch value={freeEntry} onValueChange={v => { setFreeEntry(v); if (v) setErrors(p => ({ ...p, price: '' })); }} trackColor={{ false: COLORS.bgOverlay, true: COLORS.primary }} thumbColor="#fff" />
               </View>
 
               {!freeEntry && (
-                <FieldInput
-                  label="Valor da entrada"
-                  required
-                  icon="cash-outline"
-                  value={price}
-                  onChangeText={(v) => {
-                    setPrice(v);
-                    touch("price", v);
-                  }}
-                  error={getErr("price")}
-                  placeholder="Ex: R$ 30,00"
-                  keyboardType="numeric"
-                  autoCapitalize="none"
-                />
+                <Field label="Valor da entrada" required error={getErr('price')}>
+                  <View style={[s.inputRow, getErr('price') && s.inputRowError]}>
+                    <Text style={[s.inputRowIcon, { fontSize: 14, color: COLORS.textMuted }]}>R$</Text>
+                    <TextInput style={s.inputInner} placeholder="80,00" placeholderTextColor={COLORS.textMuted} value={price} onChangeText={v => { setPrice(v); setErr('price', v); }} keyboardType="numeric" />
+                  </View>
+                </Field>
               )}
 
-              <Text style={styles.fieldLabel}>Faixa etária</Text>
-              <View style={styles.ageRow}>
-                {AGE_OPTIONS.map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[
-                      styles.ageBtn,
-                      ageRestriction === opt && styles.ageBtnActive,
-                    ]}
-                    onPress={() => setAgeRestriction(opt)}
-                  >
-                    <Text
-                      style={[
-                        styles.ageBtnText,
-                        ageRestriction === opt && { color: "#fff" },
-                      ]}
-                    >
-                      {opt}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.switchRow}>
-                <View>
-                  <Text style={styles.switchLabel}>♿ Acessível</Text>
-                  <Text style={styles.switchSub}>
-                    Rampa, banheiro adaptado etc.
-                  </Text>
+              <Field label="Faixa etária">
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {AGE_OPTIONS.map(opt => (
+                    <TouchableOpacity key={opt}
+                      style={[s.ageBtn, ageRestriction === opt && s.ageBtnActive]}
+                      onPress={() => setAgeRestriction(opt)}>
+                      <Text style={[s.ageBtnText, ageRestriction === opt && { color: '#fff' }]}>{opt}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-                <Switch
-                  value={accessible}
-                  onValueChange={setAccessible}
-                  trackColor={{ true: COLORS.primary }}
-                  thumbColor="#fff"
-                />
+              </Field>
+
+              <View style={s.switchCard}>
+                <View>
+                  <Text style={s.switchLabel}>♿ Acessível</Text>
+                  <Text style={s.switchSub}>Rampa, banheiro adaptado etc.</Text>
+                </View>
+                <Switch value={accessible} onValueChange={setAccessible} trackColor={{ false: COLORS.bgOverlay, true: COLORS.primary }} thumbColor="#fff" />
               </View>
 
               {accessible && (
-                <FieldInput
-                  label="Detalhes de acessibilidade"
-                  icon="accessibility-outline"
-                  value={accessibilityNotes}
-                  onChangeText={setAccessibilityNotes}
-                  placeholder="Ex: Rampa lateral + banheiro adaptado"
-                  autoCapitalize="sentences"
-                />
+                <Field label="Detalhes de acessibilidade">
+                  <View style={s.inputRow}>
+                    <Ionicons name="accessibility-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                    <TextInput style={s.inputInner} placeholder="Ex: Rampa lateral + banheiro adaptado" placeholderTextColor={COLORS.textMuted} value={accessibilityNotes} onChangeText={setAccessibilityNotes} />
+                  </View>
+                </Field>
               )}
 
-              <Text style={styles.fieldLabel}>Cor do card</Text>
-              <View style={styles.gradientRow}>
-                {GRADIENTS.map((g, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={[
-                      styles.gradientDot,
-                      { backgroundColor: g.colors[0] },
-                      selectedGradient === i && styles.gradientDotActive,
-                    ]}
-                    onPress={() => setSelectedGradient(i)}
-                  >
-                    {selectedGradient === i && (
-                      <Ionicons name="checkmark" size={14} color="#fff" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <Field label="Cor do card">
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                  {GRADIENT_PRESETS.map((g, i) => (
+                    <TouchableOpacity key={i}
+                      style={[s.gradDot, { backgroundColor: g.colors[0] }, gradientIdx === i && s.gradDotActive]}
+                      onPress={() => setGradientIdx(i)}>
+                      {gradientIdx === i && <Ionicons name="checkmark" size={14} color="#fff" />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </Field>
             </View>
           )}
 
-          {/* STEP 3 - Review */}
+          {/* ── STEP 3: Review ── */}
           {step === 3 && (
-            <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Revisar e publicar</Text>
-              <View style={styles.previewCard}>
-                <View
-                  style={[
-                    styles.previewBanner,
-                    { backgroundColor: GRADIENTS[selectedGradient].colors[0] },
-                  ]}
-                >
-                  <Text style={styles.previewBannerDate}>
-                    📅 {date} às {startTime}
-                    {endTime ? ` — ${endTime}` : ""}
-                  </Text>
-                  <Text style={styles.previewBannerCat}>
-                    {catInfo?.icon} {catInfo?.label}
-                  </Text>
+            <View style={s.stepContent}>
+              <Text style={s.stepTitle}>Revisar e publicar</Text>
+
+              {/* Preview card */}
+              <View style={s.previewCard}>
+                <View style={[s.previewBanner, { backgroundColor: gradPreset.colors[0] }]}>
+                  <View style={[s.previewBannerOverlay, { backgroundColor: gradPreset.colors[1], opacity: 0.5 }]} />
+                  <Text style={s.previewBannerDate}>📅 {date} às {startTime}{endTime ? ` — ${endTime}` : ''}</Text>
+                  <Text style={s.previewBannerCat}>{catInfo?.icon} {catInfo?.label}</Text>
                 </View>
-                <View style={{ padding: 14 }}>
-                  <Text
-                    style={{
-                      fontSize: 17,
-                      fontWeight: "700",
-                      color: COLORS.text,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {name}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      color: COLORS.textSecondary,
-                      marginBottom: 8,
-                    }}
-                  >
-                    📍 {venue || "Local"}
-                    {neighborhood ? ` · ${neighborhood}` : ""}
-                  </Text>
-                  {description ? (
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        color: COLORS.textSecondary,
-                        lineHeight: 18,
-                        marginBottom: 10,
-                      }}
-                      numberOfLines={3}
-                    >
-                      {description}
-                    </Text>
-                  ) : null}
-                  <View
-                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}
-                  >
-                    <View style={styles.previewPill}>
-                      <Text style={styles.previewPillText}>
-                        {freeEntry ? "🎟 Gratuito" : `🎟 ${price}`}
-                      </Text>
-                    </View>
-                    {accessible && (
-                      <View
-                        style={[
-                          styles.previewPill,
-                          { backgroundColor: COLORS.primaryLight },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.previewPillText,
-                            { color: COLORS.primaryDark },
-                          ]}
-                        >
-                          ♿ Acessível
-                        </Text>
-                      </View>
-                    )}
-                    <View style={styles.previewPill}>
-                      <Text style={styles.previewPillText}>
-                        🔞 {ageRestriction}
-                      </Text>
-                    </View>
-                    {artist ? (
-                      <View
-                        style={[
-                          styles.previewPill,
-                          { backgroundColor: COLORS.purpleLight },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.previewPillText,
-                            { color: COLORS.purple },
-                          ]}
-                        >
-                          🎤 {artist}
-                        </Text>
-                      </View>
-                    ) : null}
+                <View style={s.previewBody}>
+                  <Text style={s.previewName}>{name || 'Nome do evento'}</Text>
+                  <Text style={s.previewVenue}>📍 {venue || 'Local'}{neighborhood ? ` · ${neighborhood}` : ''}</Text>
+                  {description ? <Text style={s.previewDesc} numberOfLines={2}>{description}</Text> : null}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                    <View style={s.previewPill}><Text style={s.previewPillText}>{freeEntry ? '🎟 Gratuito' : `🎟 R$ ${price}`}</Text></View>
+                    {accessible && <View style={[s.previewPill, { backgroundColor: COLORS.success + '22' }]}><Text style={[s.previewPillText, { color: COLORS.success }]}>♿ Acessível</Text></View>}
+                    <View style={s.previewPill}><Text style={s.previewPillText}>🔞 {ageRestriction}</Text></View>
+                    {artist ? <View style={[s.previewPill, { backgroundColor: COLORS.primary + '22' }]}><Text style={[s.previewPillText, { color: COLORS.primary }]}>🎤 {artist}</Text></View> : null}
                   </View>
                 </View>
               </View>
 
-              <View style={styles.summaryCard}>
+              {/* Summary list */}
+              <View style={s.summaryCard}>
                 {[
-                  ["Evento", name],
-                  ["Categoria", `${catInfo?.icon} ${catInfo?.label}`],
-                  ["Data", date],
-                  ["Horário", `${startTime}${endTime ? ` – ${endTime}` : ""}`],
-                  [
-                    "Endereço",
-                    `${address}${neighborhood ? `, ${neighborhood}` : ""}`,
-                  ],
-                  ["Entrada", freeEntry ? "Gratuito" : price],
-                  ["Faixa etária", ageRestriction],
-                  [
-                    "Acessível",
-                    accessible
-                      ? `Sim${accessibilityNotes ? ` — ${accessibilityNotes}` : ""}`
-                      : "Não",
-                  ],
+                  ['Evento', name],
+                  ['Categoria', catInfo ? `${catInfo.icon} ${catInfo.label}` : '—'],
+                  ['Data', date],
+                  ['Horário', `${startTime}${endTime ? ` – ${endTime}` : ''}`],
+                  ['Endereço', `${address}${neighborhood ? `, ${neighborhood}` : ''}`],
+                  ['Entrada', freeEntry ? 'Gratuito' : `R$ ${price}`],
+                  ['Faixa etária', ageRestriction],
+                  ['Acessível', accessible ? `Sim${accessibilityNotes ? ` — ${accessibilityNotes}` : ''}` : 'Não'],
                 ].map(([label, val]) => (
-                  <View key={label} style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>{label}</Text>
-                    <Text style={styles.summaryValue} numberOfLines={2}>
-                      {val || "—"}
-                    </Text>
+                  <View key={label} style={s.summaryRow}>
+                    <Text style={s.summaryLabel}>{label}</Text>
+                    <Text style={s.summaryValue} numberOfLines={2}>{val || '—'}</Text>
                   </View>
                 ))}
               </View>
 
-              <View style={styles.notifInfo}>
-                <Ionicons
-                  name="notifications"
-                  size={18}
-                  color={COLORS.primary}
-                />
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: 13,
-                    color: COLORS.primaryDark,
-                    lineHeight: 18,
-                  }}
-                >
-                  Usuários próximos serão notificados assim que o evento for
-                  publicado.
-                </Text>
+              {/* Notification card */}
+              <View style={s.notifCard}>
+                <Ionicons name="notifications" size={18} color={COLORS.primary} />
+                <Text style={s.notifText}>Usuários próximos serão notificados assim que o evento for publicado no LiveVibe.</Text>
               </View>
             </View>
           )}
+
           <View style={{ height: 20 }} />
         </ScrollView>
 
-        <View style={styles.bottomBar}>
+        {/* Bottom CTA */}
+        <View style={s.bottomBar}>
           {step < 3 ? (
-            <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-              <Text style={styles.nextBtnText}>Continuar →</Text>
+            <TouchableOpacity style={s.nextBtn} onPress={handleNext}>
+              <Text style={s.nextBtnText}>Continuar →</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.publishBtn} onPress={handleSubmit}>
-              <Ionicons name="rocket-outline" size={18} color="#fff" />
-              <Text style={styles.publishBtnText}>Publicar evento agora</Text>
+            <TouchableOpacity style={s.publishBtn} onPress={handleSubmit}>
+              <Ionicons name="rocket-outline" size={20} color="#fff" />
+              <Text style={s.publishBtnText}>Publicar evento agora</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -701,226 +470,158 @@ export default function NewEventScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+
   header: {
-    backgroundColor: COLORS.primaryDark,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 14,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, gap: 10,
   },
   backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: COLORS.bgCard, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 0.5, borderColor: COLORS.border,
   },
-  headerTitle: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#fff",
-  },
+  headerTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: COLORS.text },
   stepBadge: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.primary + '22', paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: COLORS.primary + '55',
   },
-  stepBadgeText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  progressBar: { height: 3, backgroundColor: COLORS.border },
-  progressFill: { height: "100%", backgroundColor: COLORS.primary },
-  stepTabs: {
-    flexDirection: "row",
-    backgroundColor: COLORS.surface,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.border,
+  stepBadgeText: { color: COLORS.primary, fontSize: 12, fontWeight: '700' },
+
+  progressBar: { height: 3, backgroundColor: COLORS.bgOverlay },
+  progressFill: { height: '100%', backgroundColor: COLORS.primary },
+
+  stepIndicatorWrap: {
+    backgroundColor: COLORS.bgCard,
+    paddingVertical: 14, paddingHorizontal: 16,
+    borderBottomWidth: 0.5, borderBottomColor: COLORS.border,
   },
-  stepTab: { flex: 1, alignItems: "center", gap: 4 },
+  stepRow: { flexDirection: 'row', alignItems: 'center' },
+  stepItem: { alignItems: 'center', gap: 4 },
   stepDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: COLORS.border,
-    justifyContent: "center",
-    alignItems: "center",
+    width: 24, height: 24, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5,
   },
-  stepDotActive: { backgroundColor: COLORS.primary },
-  stepDotDone: { backgroundColor: COLORS.success },
-  stepDotText: { fontSize: 11, fontWeight: "700", color: COLORS.textMuted },
-  stepLabel: { fontSize: 10, color: COLORS.textMuted },
+  stepDotNum: { fontSize: 11, fontWeight: '800' },
+  stepLabel: { fontSize: 10, fontWeight: '600' },
+  stepLine: { flex: 1, height: 1.5, marginHorizontal: 4, marginBottom: 14 },
+
   stepContent: { padding: 16 },
-  stepTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.text,
-    marginBottom: 16,
+  stepTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 18 },
+
+  fieldWrap: { marginBottom: 16 },
+  fieldLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSub },
+  fieldHint: { fontSize: 11, color: COLORS.textMuted },
+  fieldError: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 },
+  fieldErrorText: { fontSize: 12, color: COLORS.danger },
+
+  input: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: 13,
+    fontSize: 15, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border,
   },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    marginBottom: 6,
-    marginTop: 4,
+  inputError: { borderColor: COLORS.danger, backgroundColor: COLORS.danger + '11' },
+  inputMulti: { minHeight: 90, textAlignVertical: 'top' },
+  inputRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
+    paddingHorizontal: 12, height: 50,
+    borderWidth: 1, borderColor: COLORS.border,
   },
-  inlineError: { fontSize: 12, color: COLORS.danger, marginBottom: 6 },
-  categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 8,
+  inputRowError: { borderColor: COLORS.danger, backgroundColor: COLORS.danger + '11' },
+  inputRowIcon: { marginRight: 8 },
+  inputInner: { flex: 1, fontSize: 15, color: COLORS.text },
+  charCount: { fontSize: 11, color: COLORS.textMuted, textAlign: 'right', marginTop: 4 },
+
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  catBtn: {
+    width: '22%', aspectRatio: 1,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: COLORS.border, position: 'relative',
   },
-  categoryBtn: {
-    width: "22%",
-    aspectRatio: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    position: "relative",
+  catBtnActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '18' },
+  catBtnIcon: { fontSize: 22 },
+  catBtnLabel: { fontSize: 10, color: COLORS.textMuted, marginTop: 3 },
+  catCheck: {
+    position: 'absolute', top: 4, right: 4,
+    width: 14, height: 14, borderRadius: 7,
+    backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center',
   },
-  categoryBtnActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryLight + "88",
+
+  switchCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 14,
+    marginBottom: 16, borderWidth: 0.5, borderColor: COLORS.border,
   },
-  categoryBtnIcon: { fontSize: 22 },
-  categoryBtnLabel: { fontSize: 10, color: COLORS.textSecondary, marginTop: 3 },
-  categoryCheck: {
-    position: "absolute",
-    top: 3,
-    right: 3,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  switchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  switchLabel: { fontSize: 14, fontWeight: "600", color: COLORS.text },
-  switchSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  ageRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  switchLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  switchSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+
   ageBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard,
+    borderWidth: 1.5, borderColor: COLORS.border,
   },
-  ageBtnActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+  ageBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  ageBtnText: { fontSize: 13, color: COLORS.textSub, fontWeight: '600' },
+
+  gradDot: {
+    width: 38, height: 38, borderRadius: 19,
+    justifyContent: 'center', alignItems: 'center',
   },
-  ageBtnText: { fontSize: 13, color: COLORS.text, fontWeight: "500" },
-  gradientRow: { flexDirection: "row", gap: 10, marginTop: 6 },
-  gradientDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  gradientDotActive: { borderWidth: 3, borderColor: COLORS.text },
+  gradDotActive: { borderWidth: 3, borderColor: COLORS.text },
+
+  // Preview
   previewCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    overflow: "hidden",
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    marginBottom: 14,
-    ...SHADOW.md,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,
+    overflow: 'hidden', borderWidth: 0.5, borderColor: COLORS.border,
+    marginBottom: 14, ...SHADOW.md,
   },
-  previewBanner: { padding: 14 },
-  previewBannerDate: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.85)",
-    marginBottom: 4,
-  },
-  previewBannerCat: { fontSize: 13, color: "#fff", fontWeight: "600" },
-  previewPill: {
-    backgroundColor: COLORS.surfaceAlt,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  previewPillText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    fontWeight: "500",
-  },
+  previewBanner: { height: 100, justifyContent: 'flex-end', padding: 14, position: 'relative' },
+  previewBannerOverlay: { ...StyleSheet.absoluteFillObject },
+  previewBannerDate: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 3 },
+  previewBannerCat: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  previewBody: { padding: 14 },
+  previewName: { fontSize: 18, fontWeight: '900', color: COLORS.text, textTransform: 'uppercase', marginBottom: 4 },
+  previewVenue: { fontSize: 13, color: COLORS.textSub, marginBottom: 4 },
+  previewDesc: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18 },
+  previewPill: { backgroundColor: COLORS.bgOverlay, paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full },
+  previewPillText: { fontSize: 11, color: COLORS.textSub, fontWeight: '500' },
+
+  // Summary
   summaryCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    overflow: "hidden",
-    marginBottom: 12,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    borderWidth: 0.5, borderColor: COLORS.border, overflow: 'hidden', marginBottom: 12,
   },
   summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    padding: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.border,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    padding: 12, borderBottomWidth: 0.5, borderBottomColor: COLORS.border,
   },
-  summaryLabel: { fontSize: 13, color: COLORS.textSecondary, flex: 0.4 },
-  summaryValue: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.text,
-    flex: 0.6,
-    textAlign: "right",
+  summaryLabel: { fontSize: 13, color: COLORS.textMuted, flex: 0.4 },
+  summaryValue: { fontSize: 13, fontWeight: '600', color: COLORS.text, flex: 0.6, textAlign: 'right' },
+
+  notifCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: COLORS.primary + '18', borderRadius: RADIUS.lg,
+    padding: 14, borderWidth: 0.5, borderColor: COLORS.primary + '44',
   },
-  notifInfo: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    backgroundColor: COLORS.primaryLight,
-    borderRadius: RADIUS.md,
-    padding: 12,
-  },
+  notifText: { flex: 1, fontSize: 13, color: COLORS.primaryLight, lineHeight: 18 },
+
   bottomBar: {
-    padding: 14,
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 0.5,
-    borderTopColor: COLORS.border,
+    padding: 14, backgroundColor: COLORS.bgCard,
+    borderTopWidth: 0.5, borderTopColor: COLORS.border,
   },
   nextBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.lg,
-    paddingVertical: 15,
-    alignItems: "center",
+    backgroundColor: COLORS.primary, borderRadius: RADIUS.full,
+    paddingVertical: 16, alignItems: 'center', ...SHADOW.glow,
   },
-  nextBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  nextBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   publishBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.lg,
-    paddingVertical: 15,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: COLORS.primary, borderRadius: RADIUS.full,
+    paddingVertical: 16, ...SHADOW.glow,
   },
-  publishBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  publishBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 });

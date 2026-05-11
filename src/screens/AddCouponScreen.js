@@ -1,109 +1,51 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  StyleSheet,
-  SafeAreaView,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useApp } from "../context/AppContext";
-import { COLORS, RADIUS, SHADOW } from "../utils/theme";
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../context/AppContext';
+import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
 const COUPON_TYPES = [
-  {
-    key: "bebida",
-    icon: "🍹",
-    label: "Bebida Grátis",
-    desc: "Uma bebida do cardápio",
-    color: "#1D9E75",
-  },
-  {
-    key: "comida",
-    icon: "🍕",
-    label: "Comida Grátis",
-    desc: "Um item do cardápio de comidas",
-    color: "#D85A30",
-  },
-  {
-    key: "desconto",
-    icon: "🎟",
-    label: "Desconto",
-    desc: "Porcentagem ou valor de desconto",
-    color: "#BA7517",
-  },
-  {
-    key: "experiencia",
-    icon: "🎧",
-    label: "Experiência",
-    desc: "Autógrafo, foto, acesso VIP etc.",
-    color: "#533AB7",
-  },
-  {
-    key: "brinde",
-    icon: "🎁",
-    label: "Brinde",
-    desc: "Item especial como lembrança",
-    color: "#D85A30",
-  },
-  {
-    key: "acesso",
-    icon: "🚪",
-    label: "Acesso Especial",
-    desc: "Área VIP, backstage etc.",
-    color: "#0C447C",
-  },
+  { key: 'bebida', icon: '🥃', label: 'Free Shot', color: '#E83B5C' },
+  { key: 'comida', icon: '🍕', label: 'Comida Grátis', color: '#D85A30' },
+  { key: 'desconto', icon: '🎟', label: 'Desconto', color: '#F59E0B' },
+  { key: 'experiencia', icon: '⭐', label: 'Experiência VIP', color: '#7B2FBE' },
+  { key: 'brinde', icon: '🎁', label: 'Brinde', color: '#059669' },
+  { key: 'acesso', icon: '🚪', label: 'Acesso Especial', color: '#0C447C' },
 ];
 
 const EXPIRY_OPTIONS = [
-  { key: null, label: "Sem validade" },
-  { key: "00:00", label: "Meia-noite" },
-  { key: "01:00", label: "01:00" },
-  { key: "02:00", label: "02:00" },
-  { key: "23:00", label: "23:00" },
-  { key: "22:00", label: "22:00" },
+  { key: null, label: 'Sem validade' },
+  { key: '00:00', label: 'Meia-noite' },
+  { key: '01:00', label: '01:00' },
+  { key: '02:00', label: '02:00' },
+  { key: '22:00', label: '22:00' },
+  { key: '23:00', label: '23:00' },
 ];
 
 export default function AddCouponScreen({ navigation }) {
-  const { addCoupon, businessStats, events } = useApp();
-  const [step, setStep] = useState(1); // 1: type, 2: details, 3: confirm
+  const { addCoupon, businessStats } = useApp();
+  const [step, setStep] = useState(1);
   const [selectedType, setSelectedType] = useState(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [conditions, setConditions] = useState("");
-  const [qty, setQty] = useState("50");
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [conditions, setConditions] = useState('');
+  const [qty, setQty] = useState('50');
   const [expiresAt, setExpiresAt] = useState(null);
 
   function handleNext() {
-    if (step === 1 && !selectedType) {
-      Alert.alert("Selecione um tipo de cupom");
-      return;
-    }
+    if (step === 1 && !selectedType) { Alert.alert('Selecione um tipo de cupom'); return; }
     if (step === 2) {
-      if (!title.trim()) {
-        Alert.alert("Adicione um título");
-        return;
-      }
-      if (!description.trim()) {
-        Alert.alert("Adicione uma descrição");
-        return;
-      }
-      if (!qty || parseInt(qty) < 1) {
-        Alert.alert("Adicione uma quantidade válida");
-        return;
-      }
+      if (!title.trim()) { Alert.alert('Adicione um título'); return; }
+      if (!description.trim()) { Alert.alert('Adicione uma descrição'); return; }
+      if (!qty || parseInt(qty) < 1) { Alert.alert('Quantidade inválida'); return; }
     }
     if (step < 3) setStep(step + 1);
   }
 
   function handleSubmit() {
-    const typeInfo = COUPON_TYPES.find((t) => t.key === selectedType);
-    const newCoupon = {
+    const typeInfo = COUPON_TYPES.find(t => t.key === selectedType);
+    addCoupon({
       eventId: businessStats.activeEventId,
       eventName: businessStats.activeEventName,
       venue: businessStats.venueName,
@@ -112,93 +54,57 @@ export default function AddCouponScreen({ navigation }) {
       icon: typeInfo.icon,
       title: title.trim(),
       description: description.trim(),
-      conditions: conditions.trim() || "Válido apenas hoje. Um por pessoa.",
+      conditions: conditions.trim() || 'Válido apenas hoje. Um por pessoa.',
       expiresAt,
       totalQty: parseInt(qty),
-      isNearby: true,
-      gradient: [typeInfo.color, typeInfo.color + "AA"],
+      timerSeconds: 0,
+      gradient: [typeInfo.color, typeInfo.color + '88'],
       highlightColor: typeInfo.color,
-    };
-
-    addCoupon(newCoupon);
-    Alert.alert(
-      "🎉 Cupom criado!",
-      `"${title}" foi publicado. Usuários próximos serão notificados imediatamente.`,
-      [{ text: "OK", onPress: () => navigation.goBack() }],
-    );
+    });
+    Alert.alert('🎉 Cupom publicado!', `"${title}" foi enviado para usuários próximos!`,
+      [{ text: 'OK', onPress: () => navigation.goBack() }]);
   }
 
-  const typeInfo = COUPON_TYPES.find((t) => t.key === selectedType);
+  const typeInfo = COUPON_TYPES.find(t => t.key === selectedType);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => (step > 1 ? setStep(step - 1) : navigation.goBack())}
-          style={styles.backBtn}
-        >
-          <Ionicons name="chevron-back" size={20} color="#fff" />
+    <SafeAreaView style={s.safe} edges={['top']}>
+      {/* Header */}
+      <View style={s.header}>
+        <TouchableOpacity style={s.backBtn} onPress={() => step > 1 ? setStep(step - 1) : navigation.goBack()}>
+          <Ionicons name="chevron-back" size={20} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Criar cupom</Text>
-        <View style={styles.stepIndicator}>
-          <Text style={styles.stepText}>{step}/3</Text>
+        <Text style={s.headerTitle}>Criar Cupom</Text>
+        <View style={s.stepBadge}>
+          <Text style={s.stepBadgeText}>{step}/3</Text>
         </View>
       </View>
 
-      {/* Progress bar */}
-      <View style={styles.progressBar}>
-        <View
-          style={[styles.progressFill, { width: `${(step / 3) * 100}%` }]}
-        />
+      {/* Progress */}
+      <View style={s.progressBar}>
+        <View style={[s.progressFill, { width: `${(step / 3) * 100}%` }]} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* STEP 1: Choose type */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+          {/* STEP 1 — Type */}
           {step === 1 && (
-            <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Que tipo de cupom?</Text>
-              <Text style={styles.stepSub}>
-                Escolha o que você quer oferecer aos seus clientes
-              </Text>
-              <View style={styles.typesGrid}>
-                {COUPON_TYPES.map((t) => (
-                  <TouchableOpacity
-                    key={t.key}
-                    style={[
-                      styles.typeCard,
-                      selectedType === t.key && {
-                        borderColor: t.color,
-                        borderWidth: 2,
-                      },
-                    ]}
-                    onPress={() => setSelectedType(t.key)}
-                  >
-                    <View
-                      style={[
-                        styles.typeIconCircle,
-                        { backgroundColor: t.color + "22" },
-                      ]}
-                    >
-                      <Text style={styles.typeIcon}>{t.icon}</Text>
+            <View style={s.stepContent}>
+              <Text style={s.stepTitle}>Que tipo de cupom?</Text>
+              <Text style={s.stepSub}>Escolha o que você quer oferecer</Text>
+              <View style={s.typesGrid}>
+                {COUPON_TYPES.map(t => (
+                  <TouchableOpacity key={t.key}
+                    style={[s.typeCard, selectedType === t.key && { borderColor: t.color, backgroundColor: t.color + '18' }]}
+                    onPress={() => setSelectedType(t.key)}>
+                    <View style={[s.typeIconCircle, { backgroundColor: t.color + '33' }]}>
+                      <Text style={s.typeIcon}>{t.icon}</Text>
                     </View>
-                    <Text
-                      style={[
-                        styles.typeLabel,
-                        selectedType === t.key && { color: t.color },
-                      ]}
-                    >
-                      {t.label}
-                    </Text>
-                    <Text style={styles.typeDesc}>{t.desc}</Text>
+                    <Text style={[s.typeLabel, selectedType === t.key && { color: t.color }]}>{t.label}</Text>
                     {selectedType === t.key && (
-                      <View
-                        style={[styles.typeCheck, { backgroundColor: t.color }]}
-                      >
-                        <Ionicons name="checkmark" size={12} color="#fff" />
+                      <View style={[s.typeCheck, { backgroundColor: t.color }]}>
+                        <Ionicons name="checkmark" size={11} color="#fff" />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -207,223 +113,104 @@ export default function AddCouponScreen({ navigation }) {
             </View>
           )}
 
-          {/* STEP 2: Details */}
+          {/* STEP 2 — Details */}
           {step === 2 && typeInfo && (
-            <View style={styles.stepContent}>
-              <View
-                style={[
-                  styles.typePreview,
-                  {
-                    backgroundColor: typeInfo.color + "18",
-                    borderColor: typeInfo.color + "44",
-                  },
-                ]}
-              >
-                <Text style={styles.typePreviewIcon}>{typeInfo.icon}</Text>
-                <Text
-                  style={[styles.typePreviewLabel, { color: typeInfo.color }]}
-                >
-                  {typeInfo.label}
-                </Text>
+            <View style={s.stepContent}>
+              <View style={[s.typePreviewRow, { backgroundColor: typeInfo.color + '22', borderColor: typeInfo.color + '55' }]}>
+                <Text style={{ fontSize: 28, marginRight: 10 }}>{typeInfo.icon}</Text>
+                <Text style={[s.typePreviewLabel, { color: typeInfo.color }]}>{typeInfo.label}</Text>
               </View>
 
-              <Text style={styles.fieldLabel}>Título do cupom *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder={`Ex: ${typeInfo.key === "bebida" ? "Caipirinha grátis para quem chegar até meia-noite" : typeInfo.key === "experiencia" ? "Foto + autógrafo com o artista" : "Descrição do cupom"}`}
-                placeholderTextColor={COLORS.textMuted}
-                value={title}
-                onChangeText={setTitle}
-                maxLength={60}
-              />
-              <Text style={styles.charCount}>{title.length}/60</Text>
+              <Text style={s.fieldLabel}>Título *</Text>
+              <TextInput style={s.input} placeholder="Ex: Free Shot para Vibbers Gold" placeholderTextColor={COLORS.textMuted} value={title} onChangeText={setTitle} maxLength={60} />
+              <Text style={s.charCount}>{title.length}/60</Text>
 
-              <Text style={styles.fieldLabel}>Descrição detalhada *</Text>
-              <TextInput
-                style={[styles.input, styles.inputMulti]}
-                placeholder="Explique o que o cliente vai receber e como funciona..."
-                placeholderTextColor={COLORS.textMuted}
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                maxLength={200}
-              />
-              <Text style={styles.charCount}>{description.length}/200</Text>
+              <Text style={s.fieldLabel}>Descrição *</Text>
+              <TextInput style={[s.input, s.inputMulti]} placeholder="Descreva o que o cliente vai receber..." placeholderTextColor={COLORS.textMuted} value={description} onChangeText={setDescription} multiline maxLength={200} />
+              <Text style={s.charCount}>{description.length}/200</Text>
 
-              <Text style={styles.fieldLabel}>Condições (opcional)</Text>
-              <TextInput
-                style={[styles.input, styles.inputMulti]}
-                placeholder="Ex: Válido 1 por CPF. Não cumulativo com outras promoções."
-                placeholderTextColor={COLORS.textMuted}
-                value={conditions}
-                onChangeText={setConditions}
-                multiline
-                maxLength={150}
-              />
+              <Text style={s.fieldLabel}>Condições (opcional)</Text>
+              <TextInput style={s.input} placeholder="Ex: Válido 1 por CPF. Não cumulativo." placeholderTextColor={COLORS.textMuted} value={conditions} onChangeText={setConditions} maxLength={150} />
 
-              <Text style={styles.fieldLabel}>Quantidade disponível *</Text>
-              <View style={styles.qtyRow}>
-                <TouchableOpacity
-                  style={styles.qtyBtn}
-                  onPress={() =>
-                    setQty((q) => String(Math.max(1, parseInt(q || "1") - 5)))
-                  }
-                >
-                  <Text style={styles.qtyBtnText}>−5</Text>
+              <Text style={s.fieldLabel}>Quantidade *</Text>
+              <View style={s.qtyRow}>
+                <TouchableOpacity style={s.qtyBtn} onPress={() => setQty(q => String(Math.max(1, parseInt(q || '1') - 5)))}>
+                  <Text style={s.qtyBtnText}>−5</Text>
                 </TouchableOpacity>
-                <TextInput
-                  style={styles.qtyInput}
-                  value={qty}
-                  onChangeText={setQty}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                />
-                <TouchableOpacity
-                  style={styles.qtyBtn}
-                  onPress={() => setQty((q) => String(parseInt(q || "0") + 5))}
-                >
-                  <Text style={styles.qtyBtnText}>+5</Text>
+                <TextInput style={s.qtyInput} value={qty} onChangeText={setQty} keyboardType="number-pad" maxLength={4} />
+                <TouchableOpacity style={s.qtyBtn} onPress={() => setQty(q => String(parseInt(q || '0') + 5))}>
+                  <Text style={s.qtyBtnText}>+5</Text>
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.fieldLabel}>Validade</Text>
-              <View style={styles.expiryGrid}>
-                {EXPIRY_OPTIONS.map((opt) => (
-                  <TouchableOpacity
-                    key={String(opt.key)}
-                    style={[
-                      styles.expiryBtn,
-                      expiresAt === opt.key && {
-                        backgroundColor: COLORS.primary,
-                        borderColor: COLORS.primary,
-                      },
-                    ]}
-                    onPress={() => setExpiresAt(opt.key)}
-                  >
-                    <Text
-                      style={[
-                        styles.expiryBtnText,
-                        expiresAt === opt.key && { color: "#fff" },
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
+              <Text style={s.fieldLabel}>Validade</Text>
+              <View style={s.expiryGrid}>
+                {EXPIRY_OPTIONS.map(opt => (
+                  <TouchableOpacity key={String(opt.key)}
+                    style={[s.expiryBtn, expiresAt === opt.key && { backgroundColor: COLORS.primary, borderColor: COLORS.primary }]}
+                    onPress={() => setExpiresAt(opt.key)}>
+                    <Text style={[s.expiryText, expiresAt === opt.key && { color: '#fff' }]}>{opt.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
           )}
 
-          {/* STEP 3: Preview & Confirm */}
+          {/* STEP 3 — Preview & confirm */}
           {step === 3 && typeInfo && (
-            <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Confirme seu cupom</Text>
-              <Text style={styles.stepSub}>
-                É assim que os usuários vão ver
-              </Text>
+            <View style={s.stepContent}>
+              <Text style={s.stepTitle}>Confirme o cupom</Text>
+              <Text style={s.stepSub}>É assim que os usuários vão ver</Text>
 
-              {/* Preview card */}
-              <View style={styles.previewCard}>
-                <View
-                  style={[
-                    styles.previewBand,
-                    { backgroundColor: typeInfo.color },
-                  ]}
-                >
-                  <Text style={styles.previewIcon}>{typeInfo.icon}</Text>
-                  <View>
-                    <Text style={styles.previewBandType}>{typeInfo.label}</Text>
-                    <Text style={styles.previewBandEvent}>
-                      {businessStats.activeEventName}
-                    </Text>
+              {/* Preview */}
+              <View style={s.previewCard}>
+                <View style={[s.previewBand, { backgroundColor: typeInfo.color }]}>
+                  <Text style={{ fontSize: 26, marginRight: 10 }}>{typeInfo.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.75)', fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 }}>{typeInfo.label}</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#fff' }}>{title}</Text>
                   </View>
-                  <View style={[styles.nearbyPill]}>
-                    <View style={styles.nearbyDot} />
-                    <Text style={styles.nearbyText}>Perto</Text>
+                  <View style={{ alignItems: 'center', gap: 4 }}>
+                    <View style={s.previewNearbyDot} />
+                    <Text style={{ fontSize: 9, color: '#fff' }}>Perto</Text>
                   </View>
                 </View>
-                <View style={styles.previewBody}>
-                  <Text style={styles.previewTitle}>{title}</Text>
-                  <Text style={styles.previewDesc}>{description}</Text>
-                  <View style={styles.previewMeta}>
-                    <Text style={styles.previewMetaText}>
-                      📍 {businessStats.venueName}
-                    </Text>
-                    {expiresAt && (
-                      <Text style={styles.previewMetaText}>
-                        ⏱ Até {expiresAt}
-                      </Text>
-                    )}
+                <View style={s.previewBody}>
+                  <Text style={{ fontSize: 13, color: COLORS.textSub, marginBottom: 8, lineHeight: 18 }}>{description}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 11, color: COLORS.textMuted }}>📍 {businessStats.venueName}</Text>
+                    {expiresAt && <Text style={{ fontSize: 11, color: COLORS.textMuted }}>⏱ Até {expiresAt}</Text>}
                   </View>
-                  <View style={styles.previewQty}>
-                    <Text style={styles.previewQtyText}>
-                      {qty}/{qty} disponíveis
-                    </Text>
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 5 }}>{qty}/{qty} disponíveis</Text>
+                  <View style={s.previewProgress}>
+                    <View style={[s.previewProgressFill, { backgroundColor: typeInfo.color, width: '100%' }]} />
                   </View>
-                  <View style={styles.progressBg}>
-                    <View
-                      style={[
-                        styles.progressFill2,
-                        { width: "100%", backgroundColor: typeInfo.color },
-                      ]}
-                    />
-                  </View>
-                  <View style={styles.previewAction}>
-                    <Text
-                      style={[
-                        styles.previewActionText,
-                        { color: typeInfo.color },
-                      ]}
-                    >
-                      🎯 Você está no local — Resgatar agora →
-                    </Text>
+                  <View style={s.previewCTA}>
+                    <Text style={[s.previewCTAText, { color: typeInfo.color }]}>🎯 Você está no local — Resgatar →</Text>
                   </View>
                 </View>
               </View>
 
               {/* Notification info */}
-              <View style={styles.notifInfo}>
-                <Ionicons
-                  name="notifications"
-                  size={18}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.notifText}>
-                  Usuários próximos serão notificados assim que o cupom for
-                  publicado
-                </Text>
+              <View style={s.notifCard}>
+                <Ionicons name="notifications" size={18} color={COLORS.primary} />
+                <Text style={s.notifText}>Usuários próximos serão notificados instantaneamente após a publicação.</Text>
               </View>
 
               {/* Summary */}
-              <View style={styles.summaryCard}>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Tipo</Text>
-                  <Text style={styles.summaryValue}>
-                    {typeInfo.icon} {typeInfo.label}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Quantidade</Text>
-                  <Text style={styles.summaryValue}>{qty} unidades</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Validade</Text>
-                  <Text style={styles.summaryValue}>
-                    {expiresAt || "Sem limite"}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Evento</Text>
-                  <Text
-                    style={[
-                      styles.summaryValue,
-                      { flex: 1, textAlign: "right" },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {businessStats.activeEventName}
-                  </Text>
-                </View>
+              <View style={s.summaryCard}>
+                {[
+                  ['Tipo', `${typeInfo.icon} ${typeInfo.label}`],
+                  ['Título', title],
+                  ['Quantidade', `${qty} unidades`],
+                  ['Validade', expiresAt || 'Sem limite'],
+                  ['Evento', businessStats.activeEventName],
+                ].map(([label, val]) => (
+                  <View key={label} style={s.summaryRow}>
+                    <Text style={s.summaryLabel}>{label}</Text>
+                    <Text style={s.summaryValue} numberOfLines={1}>{val}</Text>
+                  </View>
+                ))}
               </View>
             </View>
           )}
@@ -431,301 +218,70 @@ export default function AddCouponScreen({ navigation }) {
           <View style={{ height: 20 }} />
         </ScrollView>
 
-        {/* Bottom CTA */}
-        <View style={styles.bottomBar}>
-          {step < 3 ? (
-            <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-              <Text style={styles.nextBtnText}>Continuar →</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.publishBtn} onPress={handleSubmit}>
-              <Ionicons name="send" size={18} color="#fff" />
-              <Text style={styles.publishBtnText}>Publicar cupom agora</Text>
-            </TouchableOpacity>
-          )}
+        <View style={s.bottomBar}>
+          {step < 3
+            ? <TouchableOpacity style={s.nextBtn} onPress={handleNext}>
+                <Text style={s.nextBtnText}>Continuar →</Text>
+              </TouchableOpacity>
+            : <TouchableOpacity style={s.publishBtn} onPress={handleSubmit}>
+                <Ionicons name="send" size={18} color="#fff" />
+                <Text style={s.publishBtnText}>Publicar cupom agora</Text>
+              </TouchableOpacity>
+          }
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    backgroundColor: COLORS.primaryDark,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 14,
-  },
-  backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  stepIndicator: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  stepText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  progressBar: { height: 3, backgroundColor: COLORS.border },
-  progressFill: {
-    height: "100%",
-    backgroundColor: COLORS.primary,
-    transition: "0.3s",
-  },
-  scroll: { flex: 1 },
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, gap: 10 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.bgCard, justifyContent: 'center', alignItems: 'center', borderWidth: 0.5, borderColor: COLORS.border },
+  headerTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: COLORS.text },
+  stepBadge: { backgroundColor: COLORS.primary + '22', paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: COLORS.primary + '55' },
+  stepBadgeText: { color: COLORS.primary, fontSize: 12, fontWeight: '700' },
+  progressBar: { height: 3, backgroundColor: COLORS.bgOverlay },
+  progressFill: { height: '100%', backgroundColor: COLORS.primary },
   stepContent: { padding: 16 },
-  stepTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.text,
-    marginBottom: 6,
-  },
-  stepSub: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 20 },
-  typesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  typeCard: {
-    width: "47%",
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    position: "relative",
-    ...SHADOW.sm,
-  },
-  typeIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  typeIcon: { fontSize: 22 },
-  typeLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.text,
-    marginBottom: 3,
-  },
-  typeDesc: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 15 },
-  typeCheck: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    position: "absolute",
-    top: 10,
-    right: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  typePreview: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: RADIUS.md,
-    padding: 12,
-    marginBottom: 20,
-    borderWidth: 1,
-  },
-  typePreviewIcon: { fontSize: 28 },
-  typePreviewLabel: { fontSize: 14, fontWeight: "600" },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    marginBottom: 6,
-    marginTop: 16,
-  },
-  input: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: 12,
-    fontSize: 14,
-    color: COLORS.text,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  inputMulti: { minHeight: 80, textAlignVertical: "top" },
-  charCount: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    textAlign: "right",
-    marginTop: 4,
-  },
-  qtyRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  qtyBtn: {
-    width: 50,
-    height: 44,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  qtyBtnText: { fontSize: 16, fontWeight: "600", color: COLORS.primary },
-  qtyInput: {
-    flex: 1,
-    height: 44,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.text,
-  },
-  expiryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  expiryBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.full,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  expiryBtnText: { fontSize: 13, color: COLORS.text },
-  previewCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    overflow: "hidden",
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    marginBottom: 14,
-    ...SHADOW.md,
-  },
-  previewBand: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  previewIcon: { fontSize: 26 },
-  previewBandType: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.8)",
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  previewBandEvent: { fontSize: 12, color: "#fff", fontWeight: "500" },
-  nearbyPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
-    marginLeft: "auto",
-  },
-  nearbyDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "#4ade80",
-  },
-  nearbyText: { fontSize: 10, color: "#fff", fontWeight: "600" },
+  stepTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
+  stepSub: { fontSize: 14, color: COLORS.textSub, marginBottom: 18 },
+  typesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  typeCard: { width: '47%', backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, padding: 14, borderWidth: 1.5, borderColor: COLORS.border, position: 'relative' },
+  typeIconCircle: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  typeIcon: { fontSize: 24 },
+  typeLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  typeCheck: { position: 'absolute', top: 10, right: 10, width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  typePreviewRow: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.lg, padding: 14, marginBottom: 16, borderWidth: 1.5 },
+  typePreviewLabel: { fontSize: 15, fontWeight: '800' },
+  fieldLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSub, marginBottom: 8, marginTop: 14, textTransform: 'uppercase', letterSpacing: 0.3 },
+  input: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: 13, fontSize: 14, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border },
+  inputMulti: { minHeight: 80, textAlignVertical: 'top' },
+  charCount: { fontSize: 11, color: COLORS.textMuted, textAlign: 'right', marginTop: 4 },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  qtyBtn: { width: 52, height: 48, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
+  qtyBtnText: { fontSize: 18, fontWeight: '700', color: COLORS.primary },
+  qtyInput: { flex: 1, height: 48, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, textAlign: 'center', fontSize: 20, fontWeight: '800', color: COLORS.text },
+  expiryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  expiryBtn: { paddingHorizontal: 14, paddingVertical: 9, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.border },
+  expiryText: { fontSize: 13, color: COLORS.text },
+  previewCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, overflow: 'hidden', borderWidth: 0.5, borderColor: COLORS.border, marginBottom: 14 },
+  previewBand: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14 },
+  previewNearbyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4ade80' },
   previewBody: { padding: 14 },
-  previewTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  previewDesc: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  previewMeta: { flexDirection: "row", gap: 14, marginBottom: 8 },
-  previewMetaText: { fontSize: 11, color: COLORS.textMuted },
-  previewQty: { marginBottom: 4 },
-  previewQtyText: { fontSize: 11, color: COLORS.textSecondary },
-  progressBg: {
-    height: 4,
-    backgroundColor: COLORS.border,
-    borderRadius: 2,
-    overflow: "hidden",
-    marginBottom: 10,
-  },
-  progressFill2: { height: "100%", borderRadius: 2 },
-  previewAction: {
-    paddingTop: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: COLORS.border,
-  },
-  previewActionText: { fontSize: 13, fontWeight: "600" },
-  notifInfo: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    backgroundColor: COLORS.primaryLight,
-    borderRadius: RADIUS.md,
-    padding: 12,
-    marginBottom: 14,
-  },
-  notifText: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.primaryDark,
-    lineHeight: 18,
-  },
-  summaryCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    overflow: "hidden",
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.border,
-  },
-  summaryLabel: { fontSize: 13, color: COLORS.textSecondary },
-  summaryValue: { fontSize: 13, fontWeight: "600", color: COLORS.text },
-  bottomBar: {
-    padding: 14,
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 0.5,
-    borderTopColor: COLORS.border,
-  },
-  nextBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.lg,
-    paddingVertical: 15,
-    alignItems: "center",
-  },
-  nextBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  publishBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.lg,
-    paddingVertical: 15,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 10,
-  },
-  publishBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  previewProgress: { height: 4, backgroundColor: COLORS.bgOverlay, borderRadius: 2, overflow: 'hidden', marginBottom: 10 },
+  previewProgressFill: { height: '100%', borderRadius: 2 },
+  previewCTA: { paddingTop: 10, borderTopWidth: 0.5, borderTopColor: COLORS.border },
+  previewCTAText: { fontSize: 13, fontWeight: '700' },
+  notifCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: COLORS.primary + '18', borderRadius: RADIUS.lg, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: COLORS.primary + '44' },
+  notifText: { flex: 1, fontSize: 13, color: COLORS.primaryLight, lineHeight: 18 },
+  summaryCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, borderWidth: 0.5, borderColor: COLORS.border, overflow: 'hidden' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 13, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
+  summaryLabel: { fontSize: 13, color: COLORS.textSub },
+  summaryValue: { fontSize: 13, fontWeight: '700', color: COLORS.text, flex: 1, textAlign: 'right' },
+  bottomBar: { padding: 14, backgroundColor: COLORS.bgCard, borderTopWidth: 0.5, borderTopColor: COLORS.border },
+  nextBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 16, alignItems: 'center', ...SHADOW.glow },
+  nextBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  publishBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 16, ...SHADOW.glow },
+  publishBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 });

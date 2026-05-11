@@ -1,20 +1,20 @@
-import { supabase } from "../lib/supabase";
+import { supabase } from '../lib/supabase';
 
 export const eventsService = {
   async getAll() {
     const { data, error } = await supabase
-      .from("events")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .from('events')
+      .select('*')
+      .order('created_at', { ascending: false });
     if (error) return { data: null, error };
     return { data: data.map(_mapEvent), error: null };
   },
 
   async getById(id) {
     const { data, error } = await supabase
-      .from("events")
-      .select("*")
-      .eq("id", id)
+      .from('events')
+      .select('*')
+      .eq('id', id)
       .single();
     if (error) return { data: null, error };
     return { data: _mapEvent(data), error: null };
@@ -22,7 +22,7 @@ export const eventsService = {
 
   async create(event, ownerId) {
     const { data, error } = await supabase
-      .from("events")
+      .from('events')
       .insert({
         owner_id: ownerId,
         name: event.name,
@@ -49,18 +49,11 @@ export const eventsService = {
   },
 
   async updateCrowdLevel(id, level) {
-    const label =
-      level >= 85
-        ? "Lotado"
-        : level >= 60
-          ? "Bastante cheio"
-          : level >= 30
-            ? "Moderado"
-            : "Tranquilo";
+    const label = level >= 85 ? 'Lotado' : level >= 60 ? 'Bastante cheio' : level >= 30 ? 'Moderado' : 'Tranquilo';
     const { error } = await supabase
-      .from("events")
+      .from('events')
       .update({ crowd_level: level, crowd_label: label })
-      .eq("id", id);
+      .eq('id', id);
     return { error };
   },
 };
@@ -77,7 +70,7 @@ function _mapEvent(d) {
     startsAt: d.starts_at,
     endsAt: d.ends_at,
     crowdLevel: d.crowd_level ?? 0,
-    crowdLabel: d.crowd_label ?? "Aguardando",
+    crowdLabel: d.crowd_label ?? 'Aguardando',
     queueMinutes: d.queue_minutes ?? 0,
     rating: d.rating ?? 0,
     reviewCount: d.review_count ?? 0,
@@ -88,7 +81,7 @@ function _mapEvent(d) {
     nextAct: d.next_act,
     price: d.price,
     distanceKm: d.distance_km ?? 0,
-    gradient: d.gradient ?? ["#1D9E75", "#085041"],
+    gradient: d.gradient ?? ['#1D9E75', '#085041'],
     couponsCount: d.coupons_count ?? 0,
     description: d.description,
     ageRestriction: d.age_restriction,

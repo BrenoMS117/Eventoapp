@@ -1,264 +1,164 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useApp } from "../context/AppContext";
-import { COLORS, RADIUS, SHADOW } from "../utils/theme";
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../context/AppContext';
+import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
-function QRPlaceholder({ code, color }) {
+function QRCode({ code, color }) {
   return (
-    <View style={[styles.qrWrapper, { borderColor: color }]}>
-      <View style={styles.qrInner}>
-        {[0, 1, 2, 3, 4, 5, 6].map((row) => (
-          <View key={row} style={styles.qrRow}>
-            {[0, 1, 2, 3, 4, 5, 6].map((col) => {
-              const isCorner =
-                (row < 2 && col < 2) ||
-                (row < 2 && col > 4) ||
-                (row > 4 && col < 2);
-              const isFilled = isCorner || Math.sin(row * col + 1.5) > 0.1;
-              return (
-                <View
-                  key={col}
-                  style={[
-                    styles.qrCell,
-                    { backgroundColor: isFilled ? color : "transparent" },
-                  ]}
-                />
-              );
+    <View style={[s.qrWrap, { borderColor: color }]}>
+      <View style={s.qrGrid}>
+        {[0,1,2,3,4,5,6].map(row => (
+          <View key={row} style={{ flexDirection: 'row', gap: 3 }}>
+            {[0,1,2,3,4,5,6].map(col => {
+              const isCorner = (row < 2 && col < 2) || (row < 2 && col > 4) || (row > 4 && col < 2);
+              const filled = isCorner || Math.sin(row * col + 2.3) > 0.05;
+              return <View key={col} style={[s.qrCell, { backgroundColor: filled ? color : 'transparent' }]} />;
             })}
           </View>
         ))}
       </View>
-      <Text style={[styles.qrCode, { color }]}>{code}</Text>
+      <Text style={[s.qrCode, { color }]}>{code}</Text>
     </View>
   );
 }
 
 export default function CouponDetailScreen({ route, navigation }) {
   const { couponId } = route.params;
-  const { coupons, redeemCoupon, isCouponRedeemed, nearbyEventIds, events } =
-    useApp();
+  const { coupons, redeemCoupon, isCouponRedeemed, nearbyEventIds } = useApp();
   const [showQR, setShowQR] = useState(false);
 
-  const coupon = coupons.find((c) => c.id === couponId);
+  const coupon = coupons.find(c => c.id === couponId);
   if (!coupon) return null;
 
   const isRedeemed = isCouponRedeemed(couponId);
   const isNearby = nearbyEventIds.includes(coupon.eventId);
   const isSoldOut = coupon.remainingQty === 0;
-  const qrCode = `EVT-${couponId.toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-  const pct = coupon.remainingQty / coupon.totalQty;
+  const pct = (coupon.remainingQty / coupon.totalQty) * 100;
+  const qrCode = `LV-${couponId.slice(0, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
   function handleRedeem() {
-    if (!isNearby) {
-      Alert.alert(
-        "📍 Você precisa estar no local",
-        `Chegue até ${coupon.venue} para resgatar este cupom.`,
-      );
-      return;
-    }
-    Alert.alert("Resgatar agora?", `${coupon.title}\n\n${coupon.conditions}`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Confirmar resgate",
-        onPress: () => {
-          const result = redeemCoupon(couponId);
-          if (result.success) setShowQR(true);
-          else Alert.alert("Erro", result.error);
-        },
-      },
+    if (!isNearby) { Alert.alert('📍 Vá ao local', `Chegue até ${coupon.venue} para resgatar este cupom.`); return; }
+    Alert.alert('Resgatar agora?', `${coupon.title}\n\n${coupon.conditions}`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Confirmar', onPress: () => {
+        const r = redeemCoupon(couponId);
+        if (r.success) setShowQR(true);
+        else Alert.alert('Erro', r.error);
+      }},
     ]);
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={[styles.header, { backgroundColor: coupon.highlightColor }]}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-        >
+    <SafeAreaView style={s.safe} edges={['top']}>
+      {/* Header */}
+      <View style={[s.header, { backgroundColor: coupon.highlightColor }]}>
+        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Cupom</Text>
+        <Text style={s.headerTitle}>Cupom</Text>
+        <View style={{ width: 36 }} />
       </View>
+
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={[styles.hero, { backgroundColor: coupon.highlightColor }]}>
-          <Text style={styles.heroIcon}>{coupon.icon}</Text>
-          <View style={styles.heroTypeBadge}>
-            <Text
-              style={[styles.heroTypeText, { color: coupon.highlightColor }]}
-            >
-              {coupon.typeLabel}
-            </Text>
+        {/* Hero */}
+        <View style={[s.hero, { backgroundColor: coupon.highlightColor }]}>
+          <View style={[s.heroGlow, { backgroundColor: coupon.gradient[1] || coupon.highlightColor, opacity: 0.4 }]} />
+          <Text style={s.heroIcon}>{coupon.icon}</Text>
+          <View style={s.heroTypeBadge}>
+            <Text style={[s.heroTypeText, { color: coupon.highlightColor }]}>{coupon.typeLabel.toUpperCase()}</Text>
           </View>
-          <Text style={styles.heroTitle}>{coupon.title}</Text>
-          <Text style={styles.heroVenue}>{coupon.venue}</Text>
+          <Text style={s.heroTitle}>{coupon.title}</Text>
+          <Text style={s.heroVenue}>{coupon.venue} · {coupon.eventName}</Text>
         </View>
 
-        <View style={styles.body}>
+        <View style={s.body}>
+          {/* Status banners */}
           {isRedeemed || showQR ? (
-            <View style={styles.successBanner}>
-              <Ionicons
-                name="checkmark-circle"
-                size={22}
-                color={COLORS.success}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.successTitle}>Cupom resgatado!</Text>
-                <Text style={styles.successSub}>
-                  Apresente o QR Code ao atendente
-                </Text>
+            <View style={s.successBanner}>
+              <Ionicons name="checkmark-circle" size={22} color={COLORS.success} />
+              <View>
+                <Text style={s.successTitle}>Cupom resgatado!</Text>
+                <Text style={s.successSub}>Mostre o QR Code ao atendente</Text>
               </View>
             </View>
           ) : isSoldOut ? (
-            <View style={styles.soldOutBanner}>
+            <View style={s.soldOutBanner}>
               <Ionicons name="close-circle" size={22} color={COLORS.danger} />
               <View>
-                <Text style={styles.soldOutTitle}>Cupons esgotados</Text>
+                <Text style={s.soldOutTitle}>Cupons esgotados</Text>
+                <Text style={s.soldOutSub}>Todos os cupons foram resgatados</Text>
               </View>
             </View>
           ) : isNearby ? (
-            <View style={styles.nearbyBanner}>
-              <View style={styles.nearbyDot} />
+            <View style={[s.nearbyBanner, { borderColor: coupon.highlightColor + '55' }]}>
+              <View style={[s.nearbyDot, { backgroundColor: coupon.highlightColor }]} />
               <View>
-                <Text style={styles.nearbyTitle}>Você está no local!</Text>
-                <Text style={styles.nearbySub}>
-                  Pode resgatar este cupom agora
-                </Text>
+                <Text style={[s.nearbyTitle, { color: coupon.highlightColor }]}>Você está no local!</Text>
+                <Text style={s.nearbySub}>Pode resgatar este cupom agora</Text>
               </View>
             </View>
           ) : (
-            <View style={styles.farBanner}>
-              <Ionicons
-                name="location-outline"
-                size={18}
-                color={COLORS.amber}
-              />
-              <Text style={styles.farText}>
-                Chegue ao {coupon.venue} para resgatar
-              </Text>
+            <View style={s.farBanner}>
+              <Ionicons name="location-outline" size={18} color={COLORS.warning} />
+              <Text style={s.farText}>Chegue a {coupon.venue} para resgatar</Text>
             </View>
           )}
 
+          {/* QR code after redemption */}
           {(isRedeemed || showQR) && (
-            <View style={styles.qrSection}>
-              <QRPlaceholder code={qrCode} color={coupon.highlightColor} />
-              <Text style={styles.qrInstructions}>
-                Mostre este código ao atendente
-              </Text>
+            <View style={s.qrSection}>
+              <QRCode code={qrCode} color={coupon.highlightColor} />
+              <Text style={s.qrInstructions}>Apresente ao atendente do estabelecimento</Text>
             </View>
           )}
 
-          <View style={styles.card}>
-            <Text style={styles.cardSectionTitle}>Sobre este cupom</Text>
-            <Text style={styles.cardText}>{coupon.description}</Text>
+          {/* About */}
+          <View style={s.infoCard}>
+            <Text style={s.infoCardTitle}>Sobre este cupom</Text>
+            <Text style={s.infoCardText}>{coupon.description}</Text>
           </View>
-          <View style={styles.card}>
-            <Text style={styles.cardSectionTitle}>Condições</Text>
-            <Text style={styles.cardText}>{coupon.conditions}</Text>
+
+          {/* Conditions */}
+          <View style={s.infoCard}>
+            <Text style={s.infoCardTitle}>Condições</Text>
+            <Text style={s.infoCardText}>{coupon.conditions}</Text>
             {coupon.expiresAt && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 5,
-                  marginTop: 8,
-                }}
-              >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
                 <Ionicons name="time-outline" size={14} color={COLORS.danger} />
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: COLORS.danger,
-                    fontWeight: "500",
-                  }}
-                >
-                  Válido até {coupon.expiresAt}
-                </Text>
+                <Text style={{ fontSize: 13, color: COLORS.danger, fontWeight: '600' }}>Válido até {coupon.expiresAt}</Text>
               </View>
             )}
           </View>
-          <View style={styles.card}>
-            <Text style={styles.cardSectionTitle}>Disponibilidade</Text>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "baseline",
-                gap: 4,
-                marginBottom: 8,
-              }}
-            >
-              <Text
-                style={{ fontSize: 32, fontWeight: "700", color: COLORS.text }}
-              >
-                {coupon.remainingQty}
-              </Text>
-              <Text style={{ fontSize: 14, color: COLORS.textSecondary }}>
-                /{coupon.totalQty} restantes
-              </Text>
+
+          {/* Availability */}
+          <View style={s.infoCard}>
+            <Text style={s.infoCardTitle}>Disponibilidade</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 10 }}>
+              <Text style={[s.qtyBig, { color: coupon.highlightColor }]}>{coupon.remainingQty}</Text>
+              <Text style={s.qtySub}>/{coupon.totalQty} restantes</Text>
             </View>
-            <View style={styles.progressBg}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${pct * 100}%`,
-                    backgroundColor: coupon.highlightColor,
-                  },
-                ]}
-              />
+            <View style={s.progressBg}>
+              <View style={[s.progressFill, { width: `${pct}%`, backgroundColor: coupon.highlightColor }]} />
             </View>
             {coupon.remainingQty <= 5 && coupon.remainingQty > 0 && (
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: COLORS.danger,
-                  fontWeight: "500",
-                  marginTop: 6,
-                }}
-              >
-                ⚡ Últimas unidades!
-              </Text>
+              <Text style={s.lowStockText}>⚡ Últimas unidades! Resgate agora.</Text>
             )}
           </View>
 
+          {/* CTA */}
           {!isRedeemed && !showQR && !isSoldOut && (
             <TouchableOpacity
-              style={[
-                styles.redeemBtn,
-                {
-                  backgroundColor: isNearby
-                    ? coupon.highlightColor
-                    : COLORS.border,
-                },
-              ]}
-              onPress={handleRedeem}
-            >
-              <Ionicons
-                name="ticket"
-                size={18}
-                color={isNearby ? "#fff" : COLORS.textMuted}
-              />
-              <Text
-                style={[
-                  styles.redeemBtnText,
-                  !isNearby && { color: COLORS.textMuted },
-                ]}
-              >
-                {isNearby
-                  ? "Resgatar cupom agora"
-                  : "Vá ao local para resgatar"}
+              style={[s.redeemBtn, { backgroundColor: isNearby ? coupon.highlightColor : COLORS.bgOverlay, borderColor: isNearby ? coupon.highlightColor : COLORS.border }]}
+              onPress={handleRedeem}>
+              <Ionicons name="ticket" size={20} color={isNearby ? '#fff' : COLORS.textMuted} />
+              <Text style={[s.redeemBtnText, !isNearby && { color: COLORS.textMuted }]}>
+                {isNearby ? 'Resgatar cupom agora' : 'Vá ao local para resgatar'}
               </Text>
             </TouchableOpacity>
           )}
+
           <View style={{ height: 32 }} />
         </View>
       </ScrollView>
@@ -266,151 +166,45 @@ export default function CouponDetailScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 14,
-  },
-  backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: { fontSize: 17, fontWeight: "600", color: "#fff" },
-  hero: {
-    alignItems: "center",
-    paddingTop: 24,
-    paddingBottom: 32,
-    paddingHorizontal: 20,
-  },
-  heroIcon: { fontSize: 52, marginBottom: 12 },
-  heroTypeBadge: {
-    backgroundColor: "rgba(255,255,255,0.9)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    marginBottom: 10,
-  },
-  heroTypeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  heroTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#fff",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  heroVenue: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.8)",
-    textAlign: "center",
-  },
-  body: { padding: 12 },
-  successBanner: {
-    backgroundColor: COLORS.successLight,
-    borderRadius: RADIUS.md,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 12,
-  },
-  successTitle: { fontSize: 14, fontWeight: "600", color: COLORS.success },
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#fff' },
+  hero: { alignItems: 'center', paddingTop: 28, paddingBottom: 36, paddingHorizontal: 20, position: 'relative', overflow: 'hidden' },
+  heroGlow: { ...StyleSheet.absoluteFillObject },
+  heroIcon: { fontSize: 56, marginBottom: 14 },
+  heroTypeBadge: { backgroundColor: 'rgba(255,255,255,0.92)', paddingHorizontal: 14, paddingVertical: 5, borderRadius: RADIUS.full, marginBottom: 10 },
+  heroTypeText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  heroTitle: { fontSize: 22, fontWeight: '900', color: '#fff', textAlign: 'center', marginBottom: 6, textTransform: 'uppercase' },
+  heroVenue: { fontSize: 13, color: 'rgba(255,255,255,0.8)', textAlign: 'center' },
+  body: { padding: 14 },
+  successBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.success + '22', borderRadius: RADIUS.lg, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: COLORS.success + '55' },
+  successTitle: { fontSize: 14, fontWeight: '700', color: COLORS.success },
   successSub: { fontSize: 12, color: COLORS.success },
-  soldOutBanner: {
-    backgroundColor: COLORS.dangerLight,
-    borderRadius: RADIUS.md,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 12,
-  },
-  soldOutTitle: { fontSize: 14, fontWeight: "600", color: COLORS.danger },
-  nearbyBanner: {
-    backgroundColor: COLORS.successLight,
-    borderRadius: RADIUS.md,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 12,
-  },
-  nearbyDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS.success,
-  },
-  nearbyTitle: { fontSize: 14, fontWeight: "600", color: COLORS.success },
-  nearbySub: { fontSize: 12, color: COLORS.success },
-  farBanner: {
-    backgroundColor: COLORS.amberLight,
-    borderRadius: RADIUS.md,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  farText: { fontSize: 13, color: COLORS.amber, flex: 1 },
-  qrSection: { alignItems: "center", marginBottom: 14 },
-  qrWrapper: {
-    borderWidth: 3,
-    borderRadius: RADIUS.lg,
-    padding: 16,
-    alignItems: "center",
-    backgroundColor: COLORS.surface,
-  },
-  qrInner: { gap: 3 },
-  qrRow: { flexDirection: "row", gap: 3 },
+  soldOutBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.danger + '22', borderRadius: RADIUS.lg, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: COLORS.danger + '44' },
+  soldOutTitle: { fontSize: 14, fontWeight: '700', color: COLORS.danger },
+  soldOutSub: { fontSize: 12, color: COLORS.danger },
+  nearbyBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 14, marginBottom: 14, borderWidth: 1.5 },
+  nearbyDot: { width: 12, height: 12, borderRadius: 6 },
+  nearbyTitle: { fontSize: 14, fontWeight: '700' },
+  nearbySub: { fontSize: 12, color: COLORS.textSub },
+  farBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.warning + '22', borderRadius: RADIUS.lg, padding: 12, marginBottom: 14, borderWidth: 0.5, borderColor: COLORS.warning + '44' },
+  farText: { fontSize: 13, color: COLORS.warning, flex: 1, fontWeight: '500' },
+  qrSection: { alignItems: 'center', marginBottom: 14 },
+  qrWrap: { borderWidth: 3, borderRadius: RADIUS.xl, padding: 18, alignItems: 'center', backgroundColor: COLORS.bgCard },
+  qrGrid: { gap: 3 },
   qrCell: { width: 12, height: 12, borderRadius: 2 },
-  qrCode: { fontSize: 12, fontWeight: "700", letterSpacing: 2, marginTop: 10 },
-  qrInstructions: { fontSize: 13, color: COLORS.textSecondary, marginTop: 8 },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  cardSectionTitle: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: COLORS.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  cardText: { fontSize: 14, color: COLORS.text, lineHeight: 20 },
-  progressBg: {
-    height: 6,
-    backgroundColor: COLORS.border,
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  progressFill: { height: "100%", borderRadius: 3 },
-  redeemBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: RADIUS.lg,
-    paddingVertical: 16,
-    marginTop: 6,
-  },
-  redeemBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  qrCode: { fontSize: 13, fontWeight: '800', letterSpacing: 2, marginTop: 12, fontVariant: ['tabular-nums'] },
+  qrInstructions: { fontSize: 13, color: COLORS.textSub, marginTop: 10 },
+  infoCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: COLORS.border },
+  infoCardTitle: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  infoCardText: { fontSize: 14, color: COLORS.text, lineHeight: 21 },
+  qtyBig: { fontSize: 36, fontWeight: '900' },
+  qtySub: { fontSize: 15, color: COLORS.textMuted },
+  progressBg: { height: 8, backgroundColor: COLORS.bgOverlay, borderRadius: 4, overflow: 'hidden', marginBottom: 6 },
+  progressFill: { height: '100%', borderRadius: 4 },
+  lowStockText: { fontSize: 12, color: COLORS.danger, fontWeight: '600' },
+  redeemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: RADIUS.full, paddingVertical: 16, marginTop: 6, borderWidth: 1.5, ...SHADOW.glow },
+  redeemBtnText: { fontSize: 16, fontWeight: '800', color: '#fff' },
 });

@@ -1,92 +1,87 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useApp } from "../context/AppContext";
-import { COLORS, RADIUS, SHADOW } from "../utils/theme";
-import { validate } from "../utils/validation";
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Dimensions, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../context/AppContext';
+import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
-const POST_TYPES = [
-  { key: "geral", label: "Geral", icon: "💬" },
-  { key: "lotacao", label: "Lotação", icon: "👥" },
-  { key: "dica", label: "Dica", icon: "💡" },
-  { key: "alerta", label: "Alerta", icon: "⚠️" },
-  { key: "acessibilidade", label: "Acessib.", icon: "♿" },
-];
+const { width } = Dimensions.get('window');
 
-const TYPE_COLORS = {
-  geral: { bg: COLORS.primaryLight, text: COLORS.primaryDark },
-  lotacao: { bg: COLORS.warningLight, text: COLORS.warning },
-  dica: { bg: "#E6F1FB", text: "#0C447C" },
-  alerta: { bg: COLORS.dangerLight, text: COLORS.danger },
-  acessibilidade: { bg: COLORS.primaryLight, text: COLORS.primaryDark },
+const HEAT_COLORS = {
+  BLAZING: '#FF4500', HOT: '#E83B5C', WARM: '#F59E0B', COOL: '#3B82F6',
 };
 
-function PostCard({ post, onLike }) {
-  const typeColor = TYPE_COLORS[post.type] || TYPE_COLORS.geral;
+const POST_TYPES = [
+  { key: 'geral', label: 'Geral', icon: '💬' },
+  { key: 'lotacao', label: 'Crowd', icon: '👥' },
+  { key: 'dica', label: 'Tip', icon: '💡' },
+  { key: 'alerta', label: 'Alert', icon: '⚡' },
+  { key: 'acessibilidade', label: 'Access', icon: '♿' },
+];
+
+function VibeMini({ value }) {
+  const color = value > 70 ? COLORS.primary : value > 40 ? COLORS.purple : '#3B82F6';
   return (
-    <View style={styles.postCard}>
-      <View style={styles.postLeft}>
-        <View style={[styles.avatar, { backgroundColor: post.user.color }]}>
-          <Text style={[styles.avatarText, { color: post.user.textColor }]}>
-            {post.user.initials}
-          </Text>
+    <View style={{ height: 4, width: 60, backgroundColor: COLORS.bgOverlay, borderRadius: 2, overflow: 'hidden' }}>
+      <View style={{ height: '100%', width: `${value}%`, backgroundColor: color, borderRadius: 2 }} />
+    </View>
+  );
+}
+
+function PostCard({ post, onLike }) {
+  const heatColor = HEAT_COLORS[post.heatLevel] || COLORS.primary;
+  return (
+    <View style={s.postCard}>
+      {/* Heat level tag */}
+      {post.heatLevel && (
+        <View style={[s.heatTag, { backgroundColor: heatColor }]}>
+          <Text style={s.heatTagText}>HEAT LEVEL: {post.heatLevel} 🔥</Text>
         </View>
-        {post.verified && (
-          <View style={styles.verifiedDot}>
-            <Ionicons name="checkmark" size={8} color="#fff" />
-          </View>
-        )}
+      )}
+
+      {/* Image placeholder area */}
+      <View style={[s.postImageArea, { backgroundColor: post.user.color + '33' }]}>
+        <Text style={{ fontSize: 32 }}>
+          {post.type === 'alerta' ? '⚡' : post.type === 'dica' ? '💡' : '🎵'}
+        </Text>
       </View>
-      <View style={styles.postBody}>
-        <View style={styles.postHeader}>
-          <Text style={styles.postName}>{post.user.name}</Text>
-          {post.verified && (
-            <View style={styles.verifiedBadge}>
-              <Text style={styles.verifiedText}>📍 No local</Text>
+
+      {/* Footer */}
+      <View style={s.postFooter}>
+        <View style={s.postUser}>
+          <View style={[s.avatar, { backgroundColor: post.user.color }]}>
+            <Text style={s.avatarText}>{post.user.initials}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.userName}>{post.user.name}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="location-outline" size={10} color={COLORS.textMuted} />
+              <Text style={s.userLocation}>{post.eventName}</Text>
             </View>
-          )}
-          <Text style={styles.postTime}>{post.time}</Text>
+          </View>
+          <TouchableOpacity style={s.locationPin}>
+            <Ionicons name="location" size={16} color={COLORS.primary} />
+          </TouchableOpacity>
         </View>
-        <Text style={styles.postEventName}>{post.eventName}</Text>
-        <Text style={styles.postText}>{post.text}</Text>
-        <View style={styles.postFooter}>
-          <View style={[styles.typeBadge, { backgroundColor: typeColor.bg }]}>
-            <Text style={[styles.typeBadgeText, { color: typeColor.text }]}>
-              {POST_TYPES.find((t) => t.key === post.type)?.icon} {post.tag}
-            </Text>
-          </View>
-          <View style={styles.postActions}>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => onLike(post.id)}
-            >
-              <Ionicons
-                name="heart-outline"
-                size={14}
-                color={COLORS.textSecondary}
-              />
-              <Text style={styles.actionText}>{post.likes}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn}>
-              <Ionicons
-                name="chatbubble-outline"
-                size={14}
-                color={COLORS.textSecondary}
-              />
-              <Text style={styles.actionText}>{post.replies}</Text>
-            </TouchableOpacity>
-          </View>
+
+        {post.text ? <Text style={s.postText} numberOfLines={2}>{post.text}</Text> : null}
+
+        <View style={s.postActions}>
+          <TouchableOpacity style={s.actionBtn} onPress={() => onLike(post.id)}>
+            <View style={s.actionBubble}>
+              <Text style={{ fontSize: 18 }}>❤️</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.actionBtn}>
+            <View style={s.actionBubble}>
+              <Text style={{ fontSize: 18 }}>⭐</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.actionBtn}>
+            <View style={[s.actionBubble, { backgroundColor: COLORS.primary + '33' }]}>
+              <Text style={{ fontSize: 18 }}>🔥</Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -94,393 +89,158 @@ function PostCard({ post, onLike }) {
 }
 
 export default function FeedScreen() {
-  const {
-    feedPosts,
-    events,
-    addFeedPost,
-    likePost,
-    nearbyEventIds,
-    currentUser,
-    logout,
-  } = useApp();
+  const { feedPosts, events, addFeedPost, likePost, nearbyEventIds, logout } = useApp();
   const [composing, setComposing] = useState(false);
-  const [newText, setNewText] = useState("");
-  const [textError, setTextError] = useState("");
+  const [newText, setNewText] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [eventError, setEventError] = useState("");
-  const [selectedType, setSelectedType] = useState("geral");
-
-  const sortedPosts = [...feedPosts].sort((a, b) => a.timeAgo - b.timeAgo);
-
-  function validatePost() {
-    let valid = true;
-    const tErr = validate.minLength(newText, 3, "Post");
-    setTextError(tErr);
-    if (tErr) valid = false;
-    if (!selectedEvent) {
-      setEventError("Selecione o evento.");
-      valid = false;
-    } else setEventError("");
-    return valid;
-  }
+  const [selectedType, setSelectedType] = useState('geral');
+  const [textErr, setTextErr] = useState('');
 
   function submitPost() {
-    if (!validatePost()) return;
+    if (!newText.trim() || newText.trim().length < 3) { setTextErr('Mínimo 3 caracteres.'); return; }
+    if (!selectedEvent) { setTextErr('Selecione um evento.'); return; }
     addFeedPost({
       eventId: selectedEvent.id,
       eventName: selectedEvent.name,
       text: newText.trim(),
-      tag: `#${POST_TYPES.find((t) => t.key === selectedType)?.label || "Geral"}`,
+      tag: `#${POST_TYPES.find(t => t.key === selectedType)?.label || 'Geral'}`,
       type: selectedType,
     });
-    setNewText("");
-    setComposing(false);
-    setSelectedEvent(null);
-    setSelectedType("geral");
-    setTextError("");
-    setEventError("");
-  }
-
-  function handleLogout() {
-    Alert.alert("Sair da conta", "Deseja realmente sair?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Sair", style: "destructive", onPress: () => logout() },
-    ]);
+    setNewText(''); setComposing(false); setSelectedEvent(null); setSelectedType('geral'); setTextErr('');
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>📡 Feed ao vivo</Text>
-          <Text style={styles.headerSub}>{feedPosts.length} posts agora</Text>
+    <SafeAreaView style={s.safe} edges={['top']}>
+      {/* Header */}
+      <View style={s.header}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="pulse" size={18} color={COLORS.primary} />
+          <Text style={s.logo}>LiveVibe</Text>
         </View>
-        <TouchableOpacity
-          style={styles.composeBtn}
-          onPress={() => setComposing(true)}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
-          <Text style={styles.composeBtnText}>Postar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons
-            name="log-out-outline"
-            size={20}
-            color="rgba(255,255,255,0.8)"
-          />
-        </TouchableOpacity>
+        <Text style={s.headerTitle}>Community</Text>
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          <TouchableOpacity style={s.postBtn} onPress={() => setComposing(v => !v)}>
+            <Ionicons name="add" size={18} color="#fff" />
+            <Text style={s.postBtnText}>Post</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.iconBtn} onPress={() => Alert.alert('Sair?', '', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Sair', onPress: logout }])}>
+            <Ionicons name="person-circle-outline" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {composing && (
-          <View style={styles.composer}>
-            <Text style={styles.composerLabel}>Selecione o evento</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginBottom: 4 }}
-            >
-              {events
-                .filter((e) => e.isLive || nearbyEventIds.includes(e.id))
-                .map((e) => (
-                  <TouchableOpacity
-                    key={e.id}
-                    style={[
-                      styles.eventChip,
-                      selectedEvent?.id === e.id && styles.eventChipSelected,
-                    ]}
-                    onPress={() => {
-                      setSelectedEvent(e);
-                      setEventError("");
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.eventChipText,
-                        selectedEvent?.id === e.id && { color: "#fff" },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {e.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-            </ScrollView>
-            {eventError ? (
-              <Text style={styles.inlineError}>{eventError}</Text>
-            ) : (
-              <View style={{ height: 10 }} />
-            )}
-
-            <Text style={styles.composerLabel}>Tipo</Text>
-            <View style={styles.typeRow}>
-              {POST_TYPES.map((t) => (
-                <TouchableOpacity
-                  key={t.key}
-                  style={[
-                    styles.typeBtn,
-                    selectedType === t.key && styles.typeBtnActive,
-                  ]}
-                  onPress={() => setSelectedType(t.key)}
-                >
-                  <Text
-                    style={[
-                      styles.typeBtnText,
-                      selectedType === t.key && { color: "#fff" },
-                    ]}
-                  >
-                    {t.icon} {t.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TextInput
-              style={[
-                styles.composerInput,
-                textError && styles.composerInputError,
-              ]}
-              placeholder="O que está acontecendo agora? (mín. 3 caracteres)"
-              placeholderTextColor={COLORS.textMuted}
-              value={newText}
-              onChangeText={(v) => {
-                setNewText(v);
-                setTextError(validate.minLength(v, 3, "Post"));
-              }}
-              multiline
-              autoFocus
-              maxLength={280}
-            />
-            {textError ? (
-              <Text style={styles.inlineError}>{textError}</Text>
-            ) : null}
-            <Text style={styles.charCount}>{newText.length}/280</Text>
-
-            <View style={styles.composerActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => {
-                  setComposing(false);
-                  setTextError("");
-                  setEventError("");
-                }}
-              >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
+      {/* Composer */}
+      {composing && (
+        <View style={s.composer}>
+          <Text style={s.composerLabel}>Evento</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+            {events.filter(e => e.isLive || nearbyEventIds.includes(e.id)).map(e => (
+              <TouchableOpacity key={e.id}
+                style={[s.eventChip, selectedEvent?.id === e.id && s.eventChipOn]}
+                onPress={() => { setSelectedEvent(e); setTextErr(''); }}>
+                <Text style={[s.eventChipText, selectedEvent?.id === e.id && { color: '#fff' }]} numberOfLines={1}>{e.name}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.postBtn} onPress={submitPost}>
-                <Text style={styles.postBtnText}>Publicar →</Text>
+            ))}
+          </ScrollView>
+          <Text style={s.composerLabel}>Tipo</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            {POST_TYPES.map(t => (
+              <TouchableOpacity key={t.key}
+                style={[s.typeChip, selectedType === t.key && s.typeChipOn]}
+                onPress={() => setSelectedType(t.key)}>
+                <Text style={[s.typeChipText, selectedType === t.key && { color: '#fff' }]}>{t.icon} {t.label}</Text>
               </TouchableOpacity>
-            </View>
+            ))}
           </View>
-        )}
+          <TextInput
+            style={[s.composerInput, textErr && { borderColor: COLORS.danger }]}
+            placeholder="O que está acontecendo agora?"
+            placeholderTextColor={COLORS.textMuted}
+            value={newText}
+            onChangeText={v => { setNewText(v); setTextErr(''); }}
+            multiline autoFocus maxLength={280}
+          />
+          {textErr ? <Text style={s.errText}>{textErr}</Text> : null}
+          <Text style={s.charCount}>{newText.length}/280</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+            <TouchableOpacity style={s.cancelBtn} onPress={() => { setComposing(false); setTextErr(''); }}>
+              <Text style={{ fontSize: 14, color: COLORS.textSub }}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.submitBtn} onPress={submitPost}>
+              <Text style={{ fontSize: 14, color: '#fff', fontWeight: '700' }}>Publicar →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
-        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {sortedPosts.map((post) => (
-            <PostCard key={post.id} post={post} onLike={likePost} />
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <Text style={[s.sectionTitle, { paddingHorizontal: 16, marginBottom: 14 }]}>Community Feed</Text>
+
+        {/* Vibe tag tooltip hint */}
+        <View style={s.vibeTagHint}>
+          <Text style={s.vibeTagText}>Vibe Tag</Text>
+        </View>
+
+        {/* Posts grid */}
+        <View style={s.postsGrid}>
+          {feedPosts.map(post => (
+            <View key={post.id} style={s.postWrapper}>
+              <PostCard post={post} onLike={likePost} />
+            </View>
           ))}
-          <View style={{ height: 24 }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </View>
+
+        <View style={{ height: 32 }} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    backgroundColor: COLORS.primaryDark,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  headerTitle: { fontSize: 18, fontWeight: "600", color: "#fff" },
-  headerSub: { fontSize: 12, color: "#9FE1CB", marginTop: 2 },
-  composeBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: RADIUS.full,
-  },
-  composeBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
-  logoutBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  composer: {
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.border,
-    padding: 14,
-  },
-  composerLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  eventChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.full,
-    marginRight: 8,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    maxWidth: 180,
-  },
-  eventChipSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  eventChipText: { fontSize: 12, color: COLORS.text, fontWeight: "500" },
-  typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
-  typeBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.full,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  typeBtnActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  typeBtnText: { fontSize: 12, color: COLORS.text },
-  composerInput: {
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.md,
-    padding: 12,
-    fontSize: 14,
-    color: COLORS.text,
-    minHeight: 80,
-    textAlignVertical: "top",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  composerInputError: {
-    borderColor: COLORS.danger,
-    backgroundColor: "#FFF8F8",
-  },
-  inlineError: {
-    fontSize: 12,
-    color: COLORS.danger,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  charCount: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    textAlign: "right",
-    marginTop: 4,
-  },
-  composerActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
-    marginTop: 10,
-  },
-  cancelBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: RADIUS.md,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  cancelBtnText: { fontSize: 14, color: COLORS.textSecondary },
-  postBtn: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 9,
-    borderRadius: RADIUS.md,
-  },
-  postBtnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  scroll: { flex: 1 },
-  postCard: {
-    backgroundColor: COLORS.surface,
-    marginHorizontal: 12,
-    marginTop: 10,
-    borderRadius: RADIUS.lg,
-    padding: 12,
-    flexDirection: "row",
-    gap: 10,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    ...SHADOW.sm,
-  },
-  postLeft: { alignItems: "center", position: "relative" },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: { fontSize: 13, fontWeight: "600" },
-  verifiedDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "absolute",
-    bottom: -2,
-    right: -2,
-    borderWidth: 1.5,
-    borderColor: COLORS.surface,
-  },
-  postBody: { flex: 1 },
-  postHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 2,
-  },
-  postName: { fontSize: 13, fontWeight: "600", color: COLORS.text },
-  verifiedBadge: {
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: RADIUS.full,
-  },
-  verifiedText: { fontSize: 9, color: COLORS.primaryDark, fontWeight: "600" },
-  postTime: { fontSize: 11, color: COLORS.textMuted, marginLeft: "auto" },
-  postEventName: {
-    fontSize: 11,
-    color: COLORS.primary,
-    fontWeight: "500",
-    marginBottom: 4,
-  },
-  postText: { fontSize: 13, color: COLORS.text, lineHeight: 19 },
-  postFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
-  },
-  typeBadgeText: { fontSize: 10, fontWeight: "600" },
-  postActions: { flexDirection: "row", gap: 12 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  actionText: { fontSize: 12, color: COLORS.textSecondary },
+const CARD_W = (width - 48) / 2;
+
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  logo: { fontSize: 16, fontWeight: '900', color: COLORS.text },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
+  iconBtn: { padding: 4 },
+  postBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.full },
+  postBtnText: { fontSize: 13, color: '#fff', fontWeight: '700' },
+
+  composer: { backgroundColor: COLORS.bgCard, padding: 14, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
+  composerLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  eventChip: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: COLORS.bgOverlay, borderRadius: RADIUS.full, marginRight: 8, borderWidth: 0.5, borderColor: COLORS.border },
+  eventChipOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  eventChipText: { fontSize: 12, color: COLORS.textSub, fontWeight: '500' },
+  typeChip: { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: COLORS.bgOverlay, borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: COLORS.border },
+  typeChipOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  typeChipText: { fontSize: 12, color: COLORS.textSub },
+  composerInput: { backgroundColor: COLORS.bgOverlay, borderRadius: RADIUS.md, padding: 12, fontSize: 14, color: COLORS.text, minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: COLORS.border },
+  errText: { fontSize: 12, color: COLORS.danger, marginTop: 4 },
+  charCount: { fontSize: 11, color: COLORS.textMuted, textAlign: 'right', marginTop: 4 },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: RADIUS.md, borderWidth: 0.5, borderColor: COLORS.border },
+  submitBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 9, borderRadius: RADIUS.md },
+
+  sectionTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
+  vibeTagHint: { alignSelf: 'center', backgroundColor: COLORS.bgCard, paddingHorizontal: 14, paddingVertical: 6, borderRadius: RADIUS.lg, marginBottom: 12, borderWidth: 0.5, borderColor: COLORS.border },
+  vibeTagText: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+
+  postsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 14 },
+  postWrapper: { width: CARD_W },
+
+  postCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, overflow: 'hidden', borderWidth: 0.5, borderColor: COLORS.border, ...SHADOW.sm },
+  heatTag: { paddingHorizontal: 10, paddingVertical: 6 },
+  heatTagText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
+  postImageArea: { height: 160, justifyContent: 'center', alignItems: 'center' },
+  postFooter: { padding: 10 },
+  postUser: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  avatar: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  userName: { fontSize: 12, fontWeight: '700', color: COLORS.text },
+  userLocation: { fontSize: 10, color: COLORS.textMuted },
+  locationPin: { padding: 2 },
+  postText: { fontSize: 12, color: COLORS.textSub, lineHeight: 17, marginBottom: 8 },
+  postActions: { flexDirection: 'row', gap: 6 },
+  actionBtn: {},
+  actionBubble: { width: 38, height: 38, borderRadius: 10, backgroundColor: COLORS.bgOverlay, justifyContent: 'center', alignItems: 'center' },
 });

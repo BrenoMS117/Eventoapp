@@ -1,12 +1,9 @@
-import { supabase } from "../lib/supabase";
+import { supabase } from '../lib/supabase';
 
 export const authService = {
   // Login com e-mail/senha
   async signIn(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { user: null, error: _translateError(error.message) };
 
     const profile = await authService.getProfile(data.user.id);
@@ -19,23 +16,17 @@ export const authService = {
     if (error) return { user: null, error: _translateError(error.message) };
 
     // Cria perfil na tabela profiles
-    const avatar = name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-    const { error: profileError } = await supabase.from("profiles").insert({
+    const avatar = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       name,
       role,
       avatar,
-      venue_name: role === "business" ? venueName : null,
-      venue_id: role === "business" ? `v_${data.user.id.slice(0, 8)}` : null,
+      venue_name: role === 'business' ? venueName : null,
+      venue_id: role === 'business' ? `v_${data.user.id.slice(0, 8)}` : null,
     });
 
-    if (profileError)
-      return { user: null, error: "Erro ao criar perfil. Tente novamente." };
+    if (profileError) return { user: null, error: 'Erro ao criar perfil. Tente novamente.' };
 
     const profile = await authService.getProfile(data.user.id);
     return { user: { ...data.user, ...profile }, error: null };
@@ -50,9 +41,9 @@ export const authService = {
   // Busca perfil do usuário
   async getProfile(userId) {
     const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
       .single();
     if (!data) return {};
     return {
@@ -66,9 +57,7 @@ export const authService = {
 
   // Recupera sessão ativa (para manter login ao reabrir app)
   async getSession() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
 
     const profile = await authService.getProfile(session.user.id);
@@ -77,14 +66,10 @@ export const authService = {
 };
 
 function _translateError(msg) {
-  if (msg.includes("Invalid login credentials"))
-    return "E-mail ou senha incorretos.";
-  if (msg.includes("Email not confirmed"))
-    return "Confirme seu e-mail antes de entrar.";
-  if (msg.includes("User already registered"))
-    return "Este e-mail já está cadastrado.";
-  if (msg.includes("Password should be"))
-    return "A senha deve ter pelo menos 6 caracteres.";
-  if (msg.includes("Unable to validate email")) return "E-mail inválido.";
-  return "Erro inesperado. Tente novamente.";
+  if (msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
+  if (msg.includes('Email not confirmed')) return 'Confirme seu e-mail antes de entrar.';
+  if (msg.includes('User already registered')) return 'Este e-mail já está cadastrado.';
+  if (msg.includes('Password should be')) return 'A senha deve ter pelo menos 6 caracteres.';
+  if (msg.includes('Unable to validate email')) return 'E-mail inválido.';
+  return 'Erro inesperado. Tente novamente.';
 }
