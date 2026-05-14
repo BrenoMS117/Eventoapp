@@ -5,367 +5,466 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
 
-const COUPON_FILTERS = [
-  "Todos",
-  "Próximos",
-  "🍹 Bebida",
-  "🍕 Comida",
-  "🎧 Experiência",
-  "🎟 Desconto",
-];
-const TYPE_FILTER_MAP = {
-  "🍹 Bebida": "bebida",
-  "🍕 Comida": "comida",
-  "🎧 Experiência": "experiencia",
-  "🎟 Desconto": "desconto",
-};
-
-function CouponCard({ coupon, onPress, isRedeemed }) {
-  const pct = coupon.remainingQty / coupon.totalQty;
-  const isLow = coupon.remainingQty <= 5 && coupon.remainingQty > 0;
-  const isSoldOut = coupon.remainingQty === 0;
-
+function QRCode({ codigo, cor }) {
   return (
-    <TouchableOpacity
-      style={[styles.card, isSoldOut && styles.cardFaded]}
-      onPress={onPress}
-      activeOpacity={0.88}
-      disabled={isSoldOut && !isRedeemed}
-    >
-      <View
-        style={[styles.cardBand, { backgroundColor: coupon.highlightColor }]}
-      >
-        <Text style={styles.bandIcon}>{coupon.icon}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bandType}>{coupon.typeLabel}</Text>
-          <Text style={styles.bandEvent} numberOfLines={1}>
-            {coupon.eventName}
-          </Text>
-        </View>
-        {coupon.isNearby && !isSoldOut && !isRedeemed && (
-          <View style={styles.nearbyPill}>
-            <View style={styles.nearbyDot} />
-            <Text style={styles.nearbyText}>Perto</Text>
+    <View style={[s.qrWrap, { borderColor: cor }]}>
+      <View style={s.qrGrid}>
+        {[0, 1, 2, 3, 4, 5, 6].map((linha) => (
+          <View key={linha} style={{ flexDirection: "row", gap: 3 }}>
+            {[0, 1, 2, 3, 4, 5, 6].map((col) => {
+              const canto =
+                (linha < 2 && col < 2) ||
+                (linha < 2 && col > 4) ||
+                (linha > 4 && col < 2);
+              const preenchido = canto || Math.sin(linha * col + 2.3) > 0.05;
+              return (
+                <View
+                  key={col}
+                  style={[
+                    s.qrCelula,
+                    { backgroundColor: preenchido ? cor : "transparent" },
+                  ]}
+                />
+              );
+            })}
           </View>
-        )}
-        {isRedeemed && (
-          <View style={styles.redeemedPill}>
-            <Text style={styles.redeemedPillText}>✓ Resgatado</Text>
-          </View>
-        )}
-        {isSoldOut && (
-          <View style={styles.soldOutPill}>
-            <Text style={styles.soldOutPillText}>Esgotado</Text>
-          </View>
-        )}
+        ))}
       </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardTitle}>{coupon.title}</Text>
-        <Text style={styles.cardDesc} numberOfLines={2}>
-          {coupon.description}
-        </Text>
-        <View style={styles.cardMeta}>
-          <View style={styles.metaRow}>
-            <Ionicons
-              name="location-outline"
-              size={11}
-              color={COLORS.textMuted}
-            />
-            <Text style={styles.metaText}>{coupon.venue}</Text>
-          </View>
-          {coupon.expiresAt && (
-            <View style={styles.metaRow}>
-              <Ionicons
-                name="time-outline"
-                size={11}
-                color={COLORS.textMuted}
-              />
-              <Text style={styles.metaText}>Até {coupon.expiresAt}</Text>
-            </View>
-          )}
-        </View>
-        <Text style={[styles.qtyLabel, isLow && { color: COLORS.danger }]}>
-          {isSoldOut
-            ? "Esgotado"
-            : isLow
-              ? `⚡ Apenas ${coupon.remainingQty} restantes!`
-              : `${coupon.remainingQty} de ${coupon.totalQty} disponíveis`}
-        </Text>
-        <View style={styles.progressBg}>
-          <View
-            style={[
-              styles.progressFill,
-              {
-                width: `${pct * 100}%`,
-                backgroundColor: isLow ? COLORS.danger : coupon.highlightColor,
-              },
-            ]}
-          />
-        </View>
-        {!isSoldOut && !isRedeemed && (
-          <View style={styles.cardAction}>
-            <Text
-              style={[styles.actionLabel, { color: coupon.highlightColor }]}
-            >
-              {coupon.isNearby
-                ? "🎯 Você está no local — Resgatar agora →"
-                : "📍 Vá ao local para resgatar"}
-            </Text>
-          </View>
-        )}
-        {isRedeemed && (
-          <View style={styles.cardAction}>
-            <Text
-              style={{ fontSize: 12, color: COLORS.success, fontWeight: "500" }}
-            >
-              ✅ Apresente ao atendente
-            </Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
+      <Text style={[s.qrCodigo, { color: cor }]}>{codigo}</Text>
+    </View>
   );
 }
 
-export default function CouponsScreen({ navigation }) {
-  const { coupons, isCouponRedeemed, nearbyEventIds } = useApp();
-  const [filter, setFilter] = useState("Todos");
+export default function CouponDetailScreen({ route, navigation }) {
+  const { couponId } = route.params;
+  const { coupons, redeemCoupon, isCouponRedeemed, nearbyEventIds } = useApp();
+  const [mostrarQR, setMostrarQR] = useState(false);
 
-  const filtered = coupons.filter((c) => {
-    if (filter === "Próximos") return nearbyEventIds.includes(c.eventId);
-    if (TYPE_FILTER_MAP[filter]) return c.type === TYPE_FILTER_MAP[filter];
-    return true;
-  });
+  const cupom = coupons.find((c) => c.id === couponId);
+  if (!cupom) return null;
 
-  const nearbyCoupons = coupons.filter(
-    (c) => nearbyEventIds.includes(c.eventId) && !isCouponRedeemed(c.id),
-  );
+  const resgatado = isCouponRedeemed(couponId);
+  const isProximo = nearbyEventIds.includes(cupom.eventId);
+  const esgotado = cupom.remainingQty === 0;
+  const pct = (cupom.remainingQty / cupom.totalQty) * 100;
+  const codigoQR = `LV-${couponId.slice(0, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+
+  function handleResgatar() {
+    if (!isProximo) {
+      Alert.alert(
+        "📍 Vá ao local",
+        `Chegue até ${cupom.venue} para resgatar este cupom.`,
+      );
+      return;
+    }
+    Alert.alert("Resgatar agora?", `${cupom.title}\n\n${cupom.conditions}`, [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Confirmar",
+        onPress: () => {
+          const r = redeemCoupon(couponId);
+          if (r.success) setMostrarQR(true);
+          else Alert.alert("Erro", r.error);
+        },
+      },
+    ]);
+  }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🎟 Cupons</Text>
-        <Text style={styles.headerSub}>
-          {nearbyCoupons.length} disponíveis perto de você
-        </Text>
+    <SafeAreaView style={s.safe} edges={["top"]}>
+      {/* Cabeçalho */}
+      <View style={[s.header, { backgroundColor: cupom.highlightColor }]}>
+        <TouchableOpacity
+          style={s.voltarBtn}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={20} color="#fff" />
+        </TouchableOpacity>
+        <Text style={s.headerTitulo}>Cupom</Text>
+        <View style={{ width: 36 }} />
       </View>
-      {nearbyCoupons.length > 0 && (
-        <View style={styles.alertBanner}>
-          <View style={styles.alertDot} />
-          <Text style={styles.alertText}>
-            <Text style={{ fontWeight: "700" }}>
-              {nearbyCoupons.length} cupons
-            </Text>{" "}
-            disponíveis nos eventos próximos!
-          </Text>
-        </View>
-      )}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterScroll}
-        contentContainerStyle={styles.filterContent}
-      >
-        {COUPON_FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.filterBtn, filter === f && styles.filterBtnActive]}
-            onPress={() => setFilter(f)}
-          >
+
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Hero */}
+        <View style={[s.hero, { backgroundColor: cupom.highlightColor }]}>
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                backgroundColor: cupom.gradient?.[1] || cupom.highlightColor,
+                opacity: 0.4,
+              },
+            ]}
+          />
+          <Text style={s.heroIcon}>{cupom.icon}</Text>
+          <View style={s.heroBadgeTipo}>
             <Text
-              style={[
-                styles.filterText,
-                filter === f && styles.filterTextActive,
-              ]}
+              style={[s.heroBadgeTipoTexto, { color: cupom.highlightColor }]}
             >
-              {f}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {filtered.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🎟</Text>
-            <Text style={styles.emptyTitle}>Nenhum cupom aqui</Text>
-            <Text style={styles.emptySub}>
-              Explore eventos para encontrar cupons exclusivos
+              {cupom.typeLabel.toUpperCase()}
             </Text>
           </View>
-        ) : (
-          filtered.map((c) => (
-            <CouponCard
-              key={c.id}
-              coupon={c}
-              isRedeemed={isCouponRedeemed(c.id)}
-              onPress={() =>
-                navigation.navigate("CouponDetail", { couponId: c.id })
-              }
-            />
-          ))
-        )}
-        <View style={{ height: 24 }} />
+          <Text style={s.heroTitulo}>{cupom.title}</Text>
+          <Text style={s.heroVenue}>
+            {cupom.venue} · {cupom.eventName}
+          </Text>
+        </View>
+
+        <View style={s.corpo}>
+          {/* Banners de status */}
+          {resgatado || mostrarQR ? (
+            <View style={s.bannerSucesso}>
+              <Ionicons
+                name="checkmark-circle"
+                size={22}
+                color={COLORS.success}
+              />
+              <View>
+                <Text style={s.bannerSucessoTitulo}>Cupom resgatado!</Text>
+                <Text style={s.bannerSucessoSub}>
+                  Mostre o QR Code ao atendente
+                </Text>
+              </View>
+            </View>
+          ) : esgotado ? (
+            <View style={s.bannerEsgotado}>
+              <Ionicons name="close-circle" size={22} color={COLORS.danger} />
+              <View>
+                <Text style={s.bannerEsgotadoTitulo}>Cupons esgotados</Text>
+                <Text style={s.bannerEsgotadoSub}>
+                  Todos os cupons foram resgatados
+                </Text>
+              </View>
+            </View>
+          ) : isProximo ? (
+            <View
+              style={[
+                s.bannerProximo,
+                { borderColor: cupom.highlightColor + "55" },
+              ]}
+            >
+              <View
+                style={[
+                  s.proximoDot,
+                  { backgroundColor: cupom.highlightColor },
+                ]}
+              />
+              <View>
+                <Text
+                  style={[
+                    s.bannerProximoTitulo,
+                    { color: cupom.highlightColor },
+                  ]}
+                >
+                  Você está no local!
+                </Text>
+                <Text style={s.bannerProximoSub}>
+                  Pode resgatar este cupom agora
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={s.bannerLonge}>
+              <Ionicons
+                name="location-outline"
+                size={18}
+                color={COLORS.warning}
+              />
+              <Text style={s.bannerLongeTexto}>
+                Chegue até {cupom.venue} para resgatar
+              </Text>
+            </View>
+          )}
+
+          {/* QR Code após resgate */}
+          {(resgatado || mostrarQR) && (
+            <View style={s.qrSecao}>
+              <QRCode codigo={codigoQR} cor={cupom.highlightColor} />
+              <Text style={s.qrInstrucoes}>
+                Apresente ao atendente do estabelecimento
+              </Text>
+            </View>
+          )}
+
+          {/* Sobre o cupom */}
+          <View style={s.infoCard}>
+            <Text style={s.infoCardTitulo}>SOBRE ESTE CUPOM</Text>
+            <Text style={s.infoCardTexto}>{cupom.description}</Text>
+          </View>
+
+          {/* Condições */}
+          <View style={s.infoCard}>
+            <Text style={s.infoCardTitulo}>CONDIÇÕES DE USO</Text>
+            <Text style={s.infoCardTexto}>{cupom.conditions}</Text>
+            {cupom.expiresAt && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 10,
+                }}
+              >
+                <Ionicons name="time-outline" size={14} color={COLORS.danger} />
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: COLORS.danger,
+                    fontWeight: "600",
+                  }}
+                >
+                  Válido até {cupom.expiresAt}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Disponibilidade */}
+          <View style={s.infoCard}>
+            <Text style={s.infoCardTitulo}>DISPONIBILIDADE</Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "baseline",
+                gap: 4,
+                marginBottom: 10,
+              }}
+            >
+              <Text style={[s.qtdGrande, { color: cupom.highlightColor }]}>
+                {cupom.remainingQty}
+              </Text>
+              <Text style={s.qtdSub}>/{cupom.totalQty} restantes</Text>
+            </View>
+            <View style={s.progressBg}>
+              <View
+                style={[
+                  s.progressFill,
+                  { width: `${pct}%`, backgroundColor: cupom.highlightColor },
+                ]}
+              />
+            </View>
+            {cupom.remainingQty <= 5 && cupom.remainingQty > 0 && (
+              <Text style={s.estoqueTexto}>
+                ⚡ Últimas unidades! Resgate agora.
+              </Text>
+            )}
+          </View>
+
+          {/* Botão de resgate */}
+          {!resgatado && !mostrarQR && !esgotado && (
+            <TouchableOpacity
+              style={[
+                s.resgatarBtn,
+                {
+                  backgroundColor: isProximo
+                    ? cupom.highlightColor
+                    : COLORS.bgOverlay,
+                  borderColor: isProximo ? cupom.highlightColor : COLORS.border,
+                },
+              ]}
+              onPress={handleResgatar}
+            >
+              <Ionicons
+                name="ticket"
+                size={20}
+                color={isProximo ? "#fff" : COLORS.textMuted}
+              />
+              <Text
+                style={[
+                  s.resgatarBtnTexto,
+                  !isProximo && { color: COLORS.textMuted },
+                ]}
+              >
+                {isProximo
+                  ? "Resgatar cupom agora"
+                  : "Vá ao local para resgatar"}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={{ height: 32 }} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: COLORS.bg },
   header: {
-    backgroundColor: COLORS.primaryDark,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingTop: 10,
     paddingBottom: 14,
   },
-  headerTitle: { fontSize: 18, fontWeight: "600", color: "#fff" },
-  headerSub: { fontSize: 12, color: "#9FE1CB", marginTop: 2 },
-  alertBanner: {
-    backgroundColor: COLORS.amberLight,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  alertDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.amber,
-  },
-  alertText: { fontSize: 13, color: COLORS.amber, flex: 1 },
-  filterScroll: {
-    maxHeight: 48,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.border,
-  },
-  filterContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
+  voltarBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    justifyContent: "center",
     alignItems: "center",
   },
-  filterBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surface,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  filterBtnActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  filterText: { fontSize: 12, color: COLORS.textSecondary },
-  filterTextActive: { color: "#fff", fontWeight: "600" },
-  scroll: { flex: 1 },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    marginHorizontal: 12,
-    marginTop: 12,
+  headerTitulo: { fontSize: 17, fontWeight: "700", color: "#fff" },
+  hero: {
+    alignItems: "center",
+    paddingTop: 28,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+    position: "relative",
     overflow: "hidden",
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    ...SHADOW.sm,
   },
-  cardFaded: { opacity: 0.6 },
-  cardBand: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  heroIcon: { fontSize: 56, marginBottom: 14 },
+  heroBadgeTipo: {
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: RADIUS.full,
+    marginBottom: 10,
   },
-  bandIcon: { fontSize: 24 },
-  bandType: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.8)",
-    fontWeight: "600",
+  heroBadgeTipoTexto: { fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  heroTitulo: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 6,
     textTransform: "uppercase",
   },
-  bandEvent: { fontSize: 12, color: "#fff", fontWeight: "500" },
-  nearbyPill: {
+  heroVenue: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    textAlign: "center",
+  },
+  corpo: { padding: 14 },
+  bannerSucesso: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
+    gap: 12,
+    backgroundColor: COLORS.success + "22",
+    borderRadius: RADIUS.lg,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 0.5,
+    borderColor: COLORS.success + "55",
   },
-  nearbyDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "#4ade80",
+  bannerSucessoTitulo: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.success,
   },
-  nearbyText: { fontSize: 10, color: "#fff", fontWeight: "600" },
-  redeemedPill: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
+  bannerSucessoSub: { fontSize: 12, color: COLORS.success },
+  bannerEsgotado: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: COLORS.danger + "22",
+    borderRadius: RADIUS.lg,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 0.5,
+    borderColor: COLORS.danger + "44",
   },
-  redeemedPillText: { fontSize: 10, color: "#fff", fontWeight: "600" },
-  soldOutPill: {
-    backgroundColor: "rgba(0,0,0,0.25)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
+  bannerEsgotadoTitulo: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.danger,
   },
-  soldOutPillText: { fontSize: 10, color: "#fff", fontWeight: "600" },
-  cardBody: { padding: 12 },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text,
-    marginBottom: 4,
+  bannerEsgotadoSub: { fontSize: 12, color: COLORS.danger },
+  bannerProximo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.lg,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1.5,
   },
-  cardDesc: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
-  cardMeta: { flexDirection: "row", gap: 14, marginTop: 8, marginBottom: 8 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 3 },
-  metaText: { fontSize: 11, color: COLORS.textMuted },
-  qtyLabel: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
+  proximoDot: { width: 12, height: 12, borderRadius: 6 },
+  bannerProximoTitulo: { fontSize: 14, fontWeight: "700" },
+  bannerProximoSub: { fontSize: 12, color: COLORS.textSub },
+  bannerLonge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: COLORS.warning + "22",
+    borderRadius: RADIUS.lg,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 0.5,
+    borderColor: COLORS.warning + "44",
+  },
+  bannerLongeTexto: {
+    fontSize: 13,
+    color: COLORS.warning,
+    flex: 1,
     fontWeight: "500",
-    marginBottom: 4,
   },
+  qrSecao: { alignItems: "center", marginBottom: 14 },
+  qrWrap: {
+    borderWidth: 3,
+    borderRadius: RADIUS.xl,
+    padding: 18,
+    alignItems: "center",
+    backgroundColor: COLORS.bgCard,
+  },
+  qrGrid: { gap: 3 },
+  qrCelula: { width: 12, height: 12, borderRadius: 2 },
+  qrCodigo: {
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 2,
+    marginTop: 12,
+  },
+  qrInstrucoes: { fontSize: 13, color: COLORS.textSub, marginTop: 10 },
+  infoCard: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.lg,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 0.5,
+    borderColor: COLORS.border,
+  },
+  infoCardTitulo: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: COLORS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  infoCardTexto: { fontSize: 14, color: COLORS.text, lineHeight: 21 },
+  qtdGrande: { fontSize: 36, fontWeight: "900" },
+  qtdSub: { fontSize: 15, color: COLORS.textMuted },
   progressBg: {
-    height: 4,
-    backgroundColor: COLORS.border,
-    borderRadius: 2,
+    height: 8,
+    backgroundColor: COLORS.bgOverlay,
+    borderRadius: 4,
     overflow: "hidden",
-  },
-  progressFill: { height: "100%", borderRadius: 2 },
-  cardAction: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: COLORS.border,
-  },
-  actionLabel: { fontSize: 13, fontWeight: "600" },
-  empty: { alignItems: "center", paddingTop: 80 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.text,
     marginBottom: 6,
   },
-  emptySub: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    paddingHorizontal: 32,
+  progressFill: { height: "100%", borderRadius: 4 },
+  estoqueTexto: { fontSize: 12, color: COLORS.danger, fontWeight: "600" },
+  resgatarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    borderRadius: RADIUS.full,
+    paddingVertical: 16,
+    marginTop: 6,
+    borderWidth: 1.5,
+    ...SHADOW.glow,
   },
+  resgatarBtnTexto: { fontSize: 16, fontWeight: "800", color: "#fff" },
 });
