@@ -215,11 +215,16 @@ export default function NewEventScreen({ navigation }) {
       photos: fotos,
       coverPhoto: fotos[0] || null,
     });
-    Alert.alert(
+    if (Platform.OS === 'web') {
+    window.alert(`Evento "${nome}" publicado com sucesso!`);
+    navigation.goBack();
+    } else {
+      Alert.alert(
       "🚀 Evento publicado!",
       `"${nome}" está no ar! Usuários próximos já podem visualizá-lo.`,
       [{ text: "Ótimo!", onPress: () => navigation.goBack() }],
-    );
+      );
+    }
   }
 
   const catInfo = CATEGORIAS.find((c) => c.key === categoria);

@@ -73,6 +73,17 @@ export function AppProvider({ children }) {
         feedService.getAll(),
       ]);
       if (eventsRes.data) setEvents(eventsRes.data);
+      if (user?.role === 'business') {
+        const myEvent = eventsRes.data.find(e => e.ownerId === user.id);
+        if (myEvent) {
+          setBusinessStats(prev => ({
+            ...prev,
+            activeEventId: myEvent.id,
+            activeEventName: myEvent.name,
+            venueName: user.venueName || prev.venueName,
+          }));
+        }
+      }
       if (couponsRes.data) setCoupons(couponsRes.data);
       if (feedRes.data) setFeedPosts(feedRes.data);
       if (user) {

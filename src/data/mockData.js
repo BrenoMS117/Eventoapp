@@ -349,7 +349,7 @@ export const COUPONS = [
 export const BUSINESS_STATS = {
   venueId: "v1",
   venueName: "Beco do Batman Bar",
-  activeEventId: "3",
+  activeEventId: "00000000-0000-0000-0000-000000000003",
   activeEventName: "Jazz Cafe Jam",
   checkedIn: 130,
   checkedInChange: "+23%",

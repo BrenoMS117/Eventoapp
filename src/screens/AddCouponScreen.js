@@ -83,11 +83,16 @@ export default function AddCouponScreen({ navigation }) {
       gradient: [tipoInfo.cor, tipoInfo.cor + "88"],
       highlightColor: tipoInfo.cor,
     });
-    Alert.alert(
-      "🎉 Cupom publicado!",
+    if(Platform.OS === 'web'){
+    window.alert(`Cupom "${titulo}" publicado com sucesso!`);
+    navigation.goBack();
+    } else{
+      Alert.alert(
+      "Cupom publicado!",
       `"${titulo}" foi enviado para usuários próximos!`,
       [{ text: "OK", onPress: () => navigation.goBack() }],
     );
+    }
   }
 
   const tipoInfo = TIPOS_CUPOM.find((t) => t.key === tipoSelecionado);

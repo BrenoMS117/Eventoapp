@@ -61,6 +61,7 @@ export const eventsService = {
 function _mapEvent(d) {
   return {
     id: d.id,
+    ownerId: d.owner_id,
     name: d.name,
     venue: d.venue,
     address: d.address,
