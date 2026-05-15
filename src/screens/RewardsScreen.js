@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -141,12 +142,16 @@ export default function RewardsScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={s.iconBtn}
-            onPress={() =>
-              Alert.alert("Sair", "Deseja sair da conta?", [
-                { text: "Cancelar", style: "cancel" },
-                { text: "Sair", onPress: logout },
-              ])
-            }
+            onPress={() => {
+               if (Platform.OS === 'web') {
+                 if (window.confirm('Deseja sair?')) logout();
+                 } else {
+                  Alert.alert('Sair', 'Deseja sair?', [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Sair', onPress: logout },
+                  ]);
+                }
+             }}
           >
             <Ionicons
               name="person-circle-outline"

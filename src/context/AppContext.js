@@ -12,6 +12,8 @@ try {
   const url = require("../lib/supabase").supabase.supabaseUrl;
   SUPABASE_CONFIGURED = url && !url.includes("SEU_PROJETO");
 } catch (e) {}
+console.log("URL:", require("../lib/supabase").supabase.supabaseUrl);
+console.log("CONFIGURED:", SUPABASE_CONFIGURED);
 
 export function AppProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
