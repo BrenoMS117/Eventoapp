@@ -12,7 +12,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
-import { BADGES, USER_PROFILE } from "../data/mockData";
+const BADGES = [
+  { id: "b1", icon: "🎵", label: "Frequentador", locked: false },
+  { id: "b2", icon: "🔥", label: "Agitador", locked: false },
+  { id: "b3", icon: "⭐", label: "Top Vibber", locked: true },
+  { id: "b4", icon: "🏆", label: "Lendário", locked: true },
+];
+
+const DEFAULT_PROFILE = {
+  username: "Vibber",
+  vibberStatus: "Bronze",
+  vibberXP: 0,
+  vibberNextLevel: 1000,
+};
 
 function BarraVibber({ xp, proximo }) {
   const pct = Math.min(100, (xp / proximo) * 100);
@@ -94,7 +106,7 @@ export default function RewardsScreen() {
     currentUser,
     logout,
   } = useApp();
-  const perfil = USER_PROFILE;
+  const perfil = DEFAULT_PROFILE;
 
   function handleResgatar(cupom) {
     if (!nearbyEventIds.includes(cupom.eventId)) {

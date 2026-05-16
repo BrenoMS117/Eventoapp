@@ -39,6 +39,7 @@ export const couponsService = {
         is_nearby: true,
         gradient: coupon.gradient,
         highlight_color: coupon.highlightColor,
+        redemption_rules: coupon.redemptionRules ?? null,
       })
       .select()
       .single();
@@ -97,5 +98,6 @@ function _mapCoupon(d) {
     isRedeemed: false, // computed from redemptions
     gradient: d.gradient ?? ['#1D9E75', '#085041'],
     highlightColor: d.highlight_color ?? '#0D9E75',
+    redemptionRules: d.redemption_rules ?? null,
   };
 }

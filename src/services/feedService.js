@@ -5,8 +5,11 @@ export const feedService = {
     const { data, error } = await supabase
       .from('feed_posts')
       .select('*')
+      // Exclude posts that have already expired on the server side.
+      // Posts with no expires_at are treated as permanent.
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
     if (error) return { data: null, error };
     return { data: data.map(_mapPost), error: null };
   },
@@ -16,6 +19,7 @@ export const feedService = {
       .from('feed_posts')
       .select('*')
       .eq('event_id', eventId)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false });
     if (error) return { data: null, error };
     return { data: data.map(_mapPost), error: null };
@@ -35,6 +39,8 @@ export const feedService = {
         tag: post.tag,
         type: post.type,
         verified: post.verified ?? false,
+        expires_at: post.expiresAt ?? null,
+        dislikes: 0,
       })
       .select()
       .single();
@@ -48,11 +54,28 @@ export const feedService = {
       .select('likes')
       .eq('id', postId)
       .single();
-    if (!post) return;
-    await supabase.from('feed_posts').update({ likes: post.likes + 1 }).eq('id', postId);
+    if (!post) return { error: 'Post não encontrado.' };
+    const { error } = await supabase
+      .from('feed_posts')
+      .update({ likes: post.likes + 1 })
+      .eq('id', postId);
+    return { error };
   },
 
-  // Realtime subscription
+  async dislike(postId) {
+    const { data: post } = await supabase
+      .from('feed_posts')
+      .select('dislikes')
+      .eq('id', postId)
+      .single();
+    if (!post) return { error: 'Post não encontrado.' };
+    const { error } = await supabase
+      .from('feed_posts')
+      .update({ dislikes: (post.dislikes ?? 0) + 1 })
+      .eq('id', postId);
+    return { error };
+  },
+
   subscribe(callback) {
     return supabase
       .channel('feed_posts')
@@ -65,6 +88,7 @@ export const feedService = {
 
 function _mapPost(d) {
   const timeAgo = Math.floor((Date.now() - new Date(d.created_at).getTime()) / 60000);
+  const expiresAt = d.expires_at ? new Date(d.expires_at) : null;
   return {
     id: d.id,
     eventId: d.event_id,
@@ -79,9 +103,11 @@ function _mapPost(d) {
     tag: d.tag,
     type: d.type ?? 'geral',
     likes: d.likes ?? 0,
+    dislikes: d.dislikes ?? 0,
     replies: d.replies ?? 0,
     verified: d.verified ?? false,
     time: timeAgo === 0 ? 'agora mesmo' : `há ${timeAgo} min`,
     timeAgo,
+    expiresAt,
   };
 }

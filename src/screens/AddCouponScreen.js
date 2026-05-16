@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
+import { CouponSchema } from "../validation/CouponSchema";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
 
 const TIPOS_CUPOM = [
@@ -33,6 +34,11 @@ const OPCOES_VALIDADE = [
   { key: "23:00", label: "23:00" },
 ];
 
+const RESTRICAO_USUARIO = [
+  { key: "all", label: "Todos" },
+  { key: "user", label: "Apenas usuários" },
+];
+
 export default function AddCouponScreen({ navigation }) {
   const { addCoupon, businessStats } = useApp();
   const [etapa, setEtapa] = useState(1);
@@ -42,6 +48,8 @@ export default function AddCouponScreen({ navigation }) {
   const [condicoes, setCondicoes] = useState("");
   const [quantidade, setQuantidade] = useState("50");
   const [validade, setValidade] = useState(null);
+  const [maxPerUser, setMaxPerUser] = useState(1);
+  const [userTypeRestriction, setUserTypeRestriction] = useState("all");
 
   function avancar() {
     if (etapa === 1 && !tipoSelecionado) {
@@ -67,22 +75,22 @@ export default function AddCouponScreen({ navigation }) {
 
   function publicar() {
     const tipoInfo = TIPOS_CUPOM.find((t) => t.key === tipoSelecionado);
-    addCoupon({
-      eventId: businessStats.activeEventId,
-      eventName: businessStats.activeEventName,
-      venue: businessStats.venueName,
-      type: tipoSelecionado,
-      typeLabel: tipoInfo.label,
-      icon: tipoInfo.icon,
-      title: titulo.trim(),
-      description: descricao.trim(),
-      conditions: condicoes.trim() || "Válido apenas hoje. Um por pessoa.",
-      expiresAt: validade,
-      totalQty: parseInt(quantidade),
-      timerSeconds: validade ? 3600 : 0,
-      gradient: [tipoInfo.cor, tipoInfo.cor + "88"],
-      highlightColor: tipoInfo.cor,
-    });
+    const dto = CouponSchema.toDTO(
+      {
+        eventId: businessStats.activeEventId,
+        eventName: businessStats.activeEventName,
+        venue: businessStats.venueName,
+        type: tipoSelecionado,
+        title: titulo,
+        description: descricao,
+        conditions: condicoes,
+        totalQty: quantidade,
+        expiresAt: validade,
+        redemptionRules: { maxPerUser, userTypeRestriction },
+      },
+      tipoInfo,
+    );
+    addCoupon(dto);
     if(Platform.OS === 'web'){
     window.alert(`Cupom "${titulo}" publicado com sucesso!`);
     navigation.goBack();
@@ -289,6 +297,63 @@ export default function AddCouponScreen({ navigation }) {
                   </TouchableOpacity>
                 ))}
               </View>
+
+              <View style={s.regrasTitulo}>
+                <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.primary} />
+                <Text style={s.regrasTituloTexto}>Regras de Resgate</Text>
+              </View>
+
+              <Text style={s.fieldLabel}>Limite por usuário</Text>
+              <View style={s.qtdRow}>
+                <TouchableOpacity
+                  style={s.qtdBtn}
+                  onPress={() => setMaxPerUser((n) => Math.max(1, n - 1))}
+                >
+                  <Text style={s.qtdBtnTexto}>−</Text>
+                </TouchableOpacity>
+                <View style={[s.qtdInput, { justifyContent: "center", alignItems: "center" }]}>
+                  <Text style={{ fontSize: 20, fontWeight: "800", color: COLORS.text }}>
+                    {maxPerUser}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={s.qtdBtn}
+                  onPress={() => setMaxPerUser((n) => Math.min(10, n + 1))}
+                >
+                  <Text style={s.qtdBtnTexto}>+</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>
+                {maxPerUser === 1
+                  ? "Cada usuário pode resgatar 1 vez"
+                  : `Cada usuário pode resgatar até ${maxPerUser} vezes`}
+              </Text>
+
+              <Text style={s.fieldLabel}>Quem pode resgatar?</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {RESTRICAO_USUARIO.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[
+                      s.validadeBtn,
+                      userTypeRestriction === opt.key && {
+                        backgroundColor: COLORS.primary,
+                        borderColor: COLORS.primary,
+                      },
+                    ]}
+                    onPress={() => setUserTypeRestriction(opt.key)}
+                  >
+                    <Text
+                      style={[
+                        s.validadeBtnTexto,
+                        userTypeRestriction === opt.key && { color: "#fff" },
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           )}
 
@@ -403,22 +468,45 @@ export default function AddCouponScreen({ navigation }) {
                 </Text>
               </View>
 
-              {/* Resumo */}
-              <View style={s.resumoCard}>
-                {[
-                  ["Tipo", `${tipoInfo.icon} ${tipoInfo.label}`],
-                  ["Título", titulo],
-                  ["Quantidade", `${quantidade} unidades`],
-                  ["Validade", validade || "Sem limite"],
-                  ["Evento", businessStats.activeEventName],
-                ].map(([label, val]) => (
-                  <View key={label} style={s.resumoRow}>
-                    <Text style={s.resumoLabel}>{label}</Text>
-                    <Text style={s.resumoVal} numberOfLines={1}>
-                      {val}
-                    </Text>
+              {/* Resumo com edição por seção */}
+              {[
+                {
+                  etapa: 1,
+                  titulo: 'Tipo',
+                  rows: [["Tipo", `${tipoInfo.icon} ${tipoInfo.label}`]],
+                },
+                {
+                  etapa: 2,
+                  titulo: 'Detalhes',
+                  rows: [
+                    ["Título", titulo],
+                    ["Quantidade", `${quantidade} unidades`],
+                    ["Validade", validade || "Sem limite"],
+                    ["Limite/usuário", `${maxPerUser} resgate${maxPerUser > 1 ? "s" : ""}`],
+                    ["Acesso", RESTRICAO_USUARIO.find((r) => r.key === userTypeRestriction)?.label ?? "Todos"],
+                  ],
+                },
+              ].map((secao) => (
+                <View key={secao.titulo} style={[s.resumoCard, { marginBottom: 8 }]}>
+                  <View style={s.resumoSecaoHeader}>
+                    <Text style={s.resumoSecaoTitulo}>{secao.titulo}</Text>
+                    <TouchableOpacity onPress={() => setEtapa(secao.etapa)}>
+                      <Text style={s.resumoEditarBtn}>Editar</Text>
+                    </TouchableOpacity>
                   </View>
-                ))}
+                  {secao.rows.map(([label, val]) => (
+                    <View key={label} style={s.resumoRow}>
+                      <Text style={s.resumoLabel}>{label}</Text>
+                      <Text style={s.resumoVal} numberOfLines={1}>{val}</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+              <View style={s.resumoCard}>
+                <View style={s.resumoRow}>
+                  <Text style={s.resumoLabel}>Evento</Text>
+                  <Text style={s.resumoVal} numberOfLines={1}>{businessStats.activeEventName}</Text>
+                </View>
               </View>
             </View>
           )}
@@ -682,4 +770,33 @@ const s = StyleSheet.create({
     ...SHADOW.glow,
   },
   publicarBtnTexto: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  regrasTitulo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 22,
+    marginBottom: 4,
+    paddingBottom: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.border,
+  },
+  regrasTituloTexto: { fontSize: 14, fontWeight: "700", color: COLORS.primary },
+  resumoSecaoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.bgOverlay,
+  },
+  resumoSecaoTitulo: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  resumoEditarBtn: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
 });

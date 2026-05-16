@@ -1,61 +1,52 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { authService } from "../services/authService";
 import { eventsService } from "../services/eventsService";
 import { couponsService } from "../services/couponsService";
 import { feedService } from "../services/feedService";
-import { EVENTS, FEED_POSTS, COUPONS, BUSINESS_STATS } from "../data/mockData";
+import { geoService } from "../services/geo/GeoService";
+import { createPermissionStrategy } from "../permissions/PermissionStrategy";
 
 const AppContext = createContext(null);
-
-let SUPABASE_CONFIGURED = false;
-try {
-  const url = require("../lib/supabase").supabase.supabaseUrl;
-  SUPABASE_CONFIGURED = url && !url.includes("SEU_PROJETO");
-} catch (e) {}
-console.log("URL:", require("../lib/supabase").supabase.supabaseUrl);
-console.log("CONFIGURED:", SUPABASE_CONFIGURED);
 
 export function AppProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
-  const [events, setEvents] = useState(EVENTS);
-  const [feedPosts, setFeedPosts] = useState(FEED_POSTS);
-  const [coupons, setCoupons] = useState(COUPONS);
-  const [businessStats, setBusinessStats] = useState(BUSINESS_STATS);
+  const [events, setEvents] = useState([]);
+  const [feedPosts, setFeedPosts] = useState([]);
+  const [coupons, setCoupons] = useState([]);
+  const [businessStats, setBusinessStats] = useState({
+    activeEventId: null,
+    activeEventName: null,
+    venueName: null,
+    checkedIn: 0,
+    checkedInChange: '+0',
+    rating: '—',
+    reviewsToday: 0,
+    recentReviews: [],
+    heatLevel: null,
+    couponsRedeemed: 0,
+    couponsTotal: 0,
+  });
   const [dataLoading, setDataLoading] = useState(false);
-  const [nearbyEventIds] = useState(["1", "5"]);
-  const [redeemedCoupons, setRedeemedCoupons] = useState(["c3"]);
+  const [userCoords, setUserCoords] = useState(null);
+  const [nearbyEventIds, setNearbyEventIds] = useState([]);
+  const [redeemedCoupons, setRedeemedCoupons] = useState([]);
+  const geoWatchRef = useRef(null);
   const [selectedEventFilter, setSelectedEventFilter] = useState("Todos");
 
   useEffect(() => {
     initSession();
-    if (!SUPABASE_CONFIGURED) {
-      const interval = setInterval(() => {
-        setEvents((prev) =>
-          prev.map((event) => {
-            if (!event.isLive) return event;
-            const delta = Math.floor(Math.random() * 6) - 3;
-            return {
-              ...event,
-              crowdLevel: Math.max(5, Math.min(100, event.crowdLevel + delta)),
-            };
-          }),
-        );
-      }, 30000);
-      return () => clearInterval(interval);
-    }
   }, []);
 
   async function initSession() {
     setAuthLoading(true);
     try {
-      if (SUPABASE_CONFIGURED) {
-        const user = await authService.getSession();
-        if (user) {
-          setCurrentUser(user);
-          await loadData(user);
-        }
+      const user = await authService.getSession();
+      if (user) {
+        setCurrentUser(user);
+        await loadData(user);
+        initGeo(user);
       }
     } catch (e) {
       console.log("Session error:", e);
@@ -72,9 +63,17 @@ export function AppProvider({ children }) {
         couponsService.getAll(),
         feedService.getAll(),
       ]);
-      if (eventsRes.data) setEvents(eventsRes.data);
+      if (eventsRes.data) {
+        setEvents(eventsRes.data);
+        // Recalculate nearby IDs with the freshly loaded events if we already
+        // have a position (e.g. user refreshes while the app is already running).
+        setUserCoords(prev => {
+          if (prev) _updateNearbyIds(prev, eventsRes.data, user?.role);
+          return prev;
+        });
+      }
       if (user?.role === 'business') {
-        const myEvent = eventsRes.data.find(e => e.ownerId === user.id);
+        const myEvent = eventsRes.data?.find(e => e.ownerId === user.id);
         if (myEvent) {
           setBusinessStats(prev => ({
             ...prev,
@@ -97,44 +96,53 @@ export function AppProvider({ children }) {
     }
   }
 
+  // ── Geolocation ───────────────────────────────────────────────────────
+
+  function _updateNearbyIds(coords, eventsArr, role) {
+    const { nearbyIds } = geoService.filterNearbyEvents(coords, eventsArr, role ?? 'user');
+    setNearbyEventIds(nearbyIds);
+  }
+
+  function startGeoWatch(role) {
+    // Stop any existing watcher before starting a new one.
+    if (geoWatchRef.current) geoService.clearWatch(geoWatchRef.current);
+
+    geoWatchRef.current = geoService.watchPosition((result) => {
+      if (!result.coords) return;
+      setUserCoords(result.coords);
+      // Access the latest events snapshot via the setter callback to avoid
+      // stale closure — setEvents is stable, but we need the current value.
+      setEvents(current => {
+        _updateNearbyIds(result.coords, current, role);
+        return current;
+      });
+    });
+  }
+
+  async function initGeo(user) {
+    const result = await geoService.getPosition();
+    if (!result.coords) return;
+    setUserCoords(result.coords);
+    setEvents(current => {
+      _updateNearbyIds(result.coords, current, user?.role);
+      return current;
+    });
+    startGeoWatch(user?.role);
+  }
+
+  function stopGeoWatch() {
+    if (geoWatchRef.current) {
+      geoService.clearWatch(geoWatchRef.current);
+      geoWatchRef.current = null;
+    }
+    setUserCoords(null);
+    setNearbyEventIds([]);
+  }
+
   // ── AUTH ─────────────────────────────────────────────────────
   async function login(email, password) {
     setAuthError("");
     setAuthLoading(true);
-    if (!SUPABASE_CONFIGURED) {
-      const MOCK = [
-        {
-          id: "u1",
-          name: "João Silva",
-          email: "joao@email.com",
-          password: "123456",
-          role: "user",
-          avatar: "JS",
-        },
-        {
-          id: "b1",
-          name: "Beco do Batman Bar",
-          email: "beco@email.com",
-          password: "123456",
-          role: "business",
-          avatar: "BB",
-          venueName: "Beco do Batman Bar",
-          venueId: "v1",
-        },
-      ];
-      const user = MOCK.find(
-        (u) =>
-          u.email.toLowerCase() === email.toLowerCase() &&
-          u.password === password,
-      );
-      setAuthLoading(false);
-      if (!user) {
-        setAuthError("E-mail ou senha incorretos.");
-        return false;
-      }
-      setCurrentUser(user);
-      return true;
-    }
     const { user, error } = await authService.signIn(email, password);
     setAuthLoading(false);
     if (error) {
@@ -143,32 +151,13 @@ export function AppProvider({ children }) {
     }
     setCurrentUser(user);
     await loadData(user);
+    initGeo(user);
     return true;
   }
 
   async function register({ name, email, password, role, venueName }) {
     setAuthError("");
     setAuthLoading(true);
-    if (!SUPABASE_CONFIGURED) {
-      const avatar = name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-      setCurrentUser({
-        id: `u${Date.now()}`,
-        name,
-        email,
-        role,
-        avatar,
-        ...(role === "business"
-          ? { venueName, venueId: `v${Date.now()}` }
-          : {}),
-      });
-      setAuthLoading(false);
-      return true;
-    }
     const { user, error } = await authService.signUp({
       email,
       password,
@@ -186,55 +175,79 @@ export function AppProvider({ children }) {
   }
 
   async function logout() {
-    if (SUPABASE_CONFIGURED) await authService.signOut();
+    await authService.signOut();
+    stopGeoWatch();
     setCurrentUser(null);
     setAuthError("");
-    setEvents(EVENTS);
-    setCoupons(COUPONS);
-    setFeedPosts(FEED_POSTS);
-    setRedeemedCoupons(["c3"]);
+    setEvents([]);
+    setCoupons([]);
+    setFeedPosts([]);
+    setRedeemedCoupons([]);
   }
 
   // ── EVENTS ───────────────────────────────────────────────────
-  async function addEvent(newEvent) {
-    let event = {
-      ...newEvent,
-      id: `e${Date.now()}`,
-      isLive: false,
-      checkedInCount: 0,
-      reviewCount: 0,
-      rating: 0,
-      couponsCount: 0,
-      crowdLevel: 0,
-      crowdLabel: "Aguardando",
-      queueMinutes: 0,
-      photos: newEvent.photos || [],
-      coverPhoto: (newEvent.photos && newEvent.photos[0]) || null,
-    };
-    if (SUPABASE_CONFIGURED && currentUser?.id) {
-      const result = await eventsService.create(newEvent, currentUser.id);
-      if (result.data) event = result.data;
+  /**
+   * Atualiza apenas os campos permitidos para o papel do usuário.
+   * A lista de campos permitidos é governada por PermissionRules.
+   */
+  async function updateEventFields(eventId, fields) {
+    const perms = createPermissionStrategy(currentUser?.role);
+    const allowed = Object.fromEntries(
+      Object.entries(fields).filter(([key]) => perms.canEditEventField(key)),
+    );
+    if (Object.keys(allowed).length === 0) return { error: 'Campos não permitidos.' };
+    const result = await eventsService.updateFields(eventId, allowed);
+    if (!result.error) {
+      setEvents((prev) =>
+        prev.map((e) => (e.id === eventId ? { ...e, ...allowed } : e)),
+      );
     }
-    setEvents((prev) => [event, ...prev]);
-    return event;
+    return result;
   }
 
-  // Adiciona foto a um evento existente
-  function addEventPhoto(eventId, uri) {
+  async function closeEvent(eventId) {
+    const perms = createPermissionStrategy(currentUser?.role);
+    if (!perms.canEditEventField('status')) {
+      return { error: 'Sem permissão para encerrar eventos.' };
+    }
+    const result = await eventsService.closeEvent(eventId);
+    if (!result.error) {
+      setEvents((prev) =>
+        prev.map((e) => (e.id === eventId ? { ...e, isLive: false } : e)),
+      );
+    }
+    return result;
+  }
+
+  async function addEvent(newEvent) {
+    if (!currentUser?.id) return null;
+    const result = await eventsService.create(newEvent, currentUser.id);
+    if (!result.data) return null;
+    setEvents((prev) => [result.data, ...prev]);
+    return result.data;
+  }
+
+  async function addEventPhoto(eventId, uri) {
+    const result = await eventsService.uploadPhoto(eventId, uri);
+    const finalUri = result.url || uri;
     setEvents((prev) =>
       prev.map((e) => {
         if (e.id !== eventId) return e;
-        const photos = [...(e.photos || []), uri];
+        const photos = [...(e.photos || []), finalUri];
         return { ...e, photos, coverPhoto: photos[0] };
       }),
     );
   }
 
-  // Remove foto de um evento
-  function removeEventPhoto(eventId, idx) {
+  async function removeEventPhoto(eventId, idx) {
     setEvents((prev) =>
       prev.map((e) => {
         if (e.id !== eventId) return e;
+        const uri = (e.photos || [])[idx];
+        if (uri?.includes('/event-photos/')) {
+          const storagePath = uri.split('/event-photos/')[1];
+          if (storagePath) eventsService.removePhoto(storagePath);
+        }
         const photos = (e.photos || []).filter((_, i) => i !== idx);
         return { ...e, photos, coverPhoto: photos[0] || null };
       }),
@@ -243,13 +256,40 @@ export function AppProvider({ children }) {
 
   // ── COUPONS ──────────────────────────────────────────────────
   async function redeemCoupon(couponId) {
+    const perms = createPermissionStrategy(currentUser?.role);
+    if (!perms.canRedeemCoupons()) {
+      return { success: false, error: 'Donos de estabelecimento não podem resgatar cupons.' };
+    }
     const coupon = coupons.find((c) => c.id === couponId);
     if (!coupon) return { success: false, error: "Cupom não encontrado." };
     if (redeemedCoupons.includes(couponId))
       return { success: false, error: "Cupom já resgatado." };
     if (coupon.remainingQty <= 0)
       return { success: false, error: "Cupons esgotados." };
-    if (SUPABASE_CONFIGURED && currentUser?.id) {
+
+    // ── Geofence check ──────────────────────────────────────────────────
+    const event = events.find((e) => e.id === coupon.eventId);
+    if (event?.lat != null && event?.lng != null) {
+      // Event has coordinates: run a precise real-time geofence check.
+      const posResult = await geoService.getPosition();
+      if (!posResult.coords) {
+        return { success: false, error: "Não foi possível verificar sua localização. Ative o GPS e tente novamente." };
+      }
+      const fence = geoService.checkGeofence(
+        posResult.coords,
+        { lat: event.lat, lng: event.lng },
+        currentUser?.role ?? 'user',
+      );
+      if (!fence.isInside) {
+        return { success: false, error: fence.message };
+      }
+    } else if (!nearbyEventIds.includes(coupon.eventId)) {
+      // Fallback for events without coordinates: use the cached nearby list.
+      return { success: false, error: `Chegue até ${coupon.venue} para resgatar este cupom.` };
+    }
+    // ────────────────────────────────────────────────────────────────────
+
+    if (currentUser?.id) {
       const result = await couponsService.redeem(couponId, currentUser.id);
       if (!result.success) return result;
     }
@@ -276,7 +316,7 @@ export function AppProvider({ children }) {
       isNearby: true,
       remainingQty: newCoupon.totalQty,
     };
-    if (SUPABASE_CONFIGURED && currentUser?.id) {
+    if (currentUser?.id) {
       const result = await couponsService.create(newCoupon, currentUser.id);
       if (result.data) coupon = { ...result.data, isRedeemed: false };
     }
@@ -297,17 +337,19 @@ export function AppProvider({ children }) {
 
   // ── FEED ─────────────────────────────────────────────────────
   async function addFeedPost(post) {
+    const perms = createPermissionStrategy(currentUser?.role);
+    if (!perms.canPostToFeed()) return;
     let newPost = {
       ...post,
       id: `p${Date.now()}`,
       time: "agora",
       timeAgo: 0,
       likes: 0,
-      fire: 0,
-      stars: 0,
+      dislikes: 0,
       replies: 0,
       verified: nearbyEventIds.includes(post.eventId),
       photos: post.photos || [],
+      expiresAt: post.expiresAt ? new Date(post.expiresAt) : null,
       user: currentUser
         ? {
             name: currentUser.name.split(" ")[0],
@@ -317,18 +359,35 @@ export function AppProvider({ children }) {
           }
         : { name: "Você", initials: "VC", color: "#E83B5C", textColor: "#fff" },
     };
-    if (SUPABASE_CONFIGURED && currentUser?.id) {
+    if (currentUser?.id) {
       const result = await feedService.create(post, currentUser);
       if (result.data) newPost = { ...result.data, photos: post.photos || [] };
     }
     setFeedPosts((prev) => [newPost, ...prev]);
   }
 
-  function likePost(postId) {
+  async function likePost(postId) {
     setFeedPosts((prev) =>
       prev.map((p) => (p.id === postId ? { ...p, likes: p.likes + 1 } : p)),
     );
-    if (SUPABASE_CONFIGURED) feedService.like(postId);
+    const { error } = await feedService.like(postId);
+    if (error) {
+      setFeedPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, likes: p.likes - 1 } : p)),
+      );
+    }
+  }
+
+  async function dislikePost(postId) {
+    setFeedPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, dislikes: (p.dislikes ?? 0) + 1 } : p)),
+    );
+    const { error } = await feedService.dislike(postId);
+    if (error) {
+      setFeedPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, dislikes: (p.dislikes ?? 0) - 1 } : p)),
+      );
+    }
   }
 
   const value = {
@@ -337,7 +396,6 @@ export function AppProvider({ children }) {
     setAuthError,
     authLoading,
     dataLoading,
-    isSupabaseConfigured: SUPABASE_CONFIGURED,
     login,
     register,
     logout,
@@ -345,6 +403,7 @@ export function AppProvider({ children }) {
     feedPosts,
     coupons,
     businessStats,
+    userCoords,
     nearbyEventIds,
     redeemedCoupons,
     selectedEventFilter,
@@ -352,8 +411,11 @@ export function AppProvider({ children }) {
     redeemCoupon,
     addCoupon,
     addEvent,
+    updateEventFields,
+    closeEvent,
     addFeedPost,
     likePost,
+    dislikePost,
     addEventPhoto,
     removeEventPhoto,
     getCouponsForEvent: (eventId) =>

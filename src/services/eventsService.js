@@ -41,11 +41,70 @@ export const eventsService = {
         distance_km: 0.5,
         gradient: event.gradient,
         age_restriction: event.ageRestriction,
+        lat: event.lat ?? null,
+        lng: event.lng ?? null,
       })
       .select()
       .single();
     if (error) return { data: null, error };
     return { data: _mapEvent(data), error: null };
+  },
+
+  async search(query, category) {
+    let q = supabase.from('events').select('*');
+    if (category && category !== 'todos') q = q.eq('category', category);
+    if (query) q = q.or(`name.ilike.%${query}%,venue.ilike.%${query}%`);
+    q = q.order('created_at', { ascending: false }).limit(50);
+    const { data, error } = await q;
+    if (error) return { data: null, error };
+    return { data: data.map(_mapEvent), error: null };
+  },
+
+  /**
+   * Atualiza campos permitidos de um evento.
+   * Apenas as chaves presentes em `fields` são enviadas ao banco.
+   * @param {string} id
+   * @param {{ nextAct?: string, endsAt?: string }} fields
+   */
+  async updateFields(id, fields) {
+    const columnMap = { nextAct: 'next_act', endsAt: 'ends_at' };
+    const patch = {};
+    for (const [key, col] of Object.entries(columnMap)) {
+      if (fields[key] !== undefined) patch[col] = fields[key];
+    }
+    if (Object.keys(patch).length === 0) return { error: null };
+    const { error } = await supabase.from('events').update(patch).eq('id', id);
+    return { error };
+  },
+
+  async closeEvent(id) {
+    const { error } = await supabase
+      .from('events')
+      .update({ is_live: false })
+      .eq('id', id);
+    return { error };
+  },
+
+  async uploadPhoto(eventId, uri) {
+    const ext = (uri.split('.').pop() || 'jpg').toLowerCase().split('?')[0];
+    const path = `${eventId}/${Date.now()}.${ext}`;
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const { error } = await supabase.storage
+      .from('event-photos')
+      .upload(path, blob, { contentType: blob.type || 'image/jpeg' });
+    if (error) return { url: null, path: null, error };
+    const { data: { publicUrl } } = supabase.storage
+      .from('event-photos')
+      .getPublicUrl(path);
+    return { url: publicUrl, path, error: null };
+  },
+
+  async removePhoto(path) {
+    const { error } = await supabase.storage
+      .from('event-photos')
+      .remove([path]);
+    return { error };
   },
 
   async updateCrowdLevel(id, level) {
@@ -86,5 +145,7 @@ function _mapEvent(d) {
     couponsCount: d.coupons_count ?? 0,
     description: d.description,
     ageRestriction: d.age_restriction,
+    lat: d.lat ?? null,
+    lng: d.lng ?? null,
   };
 }

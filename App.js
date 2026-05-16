@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -18,7 +18,6 @@ import RegisterScreen from './src/screens/auth/RegisterScreen';
 // User screens
 import ExploreScreen from './src/screens/ExploreScreen';
 import FeedScreen from './src/screens/FeedScreen';
-import HeatmapScreen from './src/screens/HeatmapScreen';
 import RewardsScreen from './src/screens/RewardsScreen';
 import EventDetailScreen from './src/screens/EventDetailScreen';
 import CouponDetailScreen from './src/screens/CouponDetailScreen';
@@ -82,21 +81,19 @@ function TabBar({ state, descriptors, navigation }) {
         const icons = {
           Home: ['home', 'home-outline'],
           Community: ['people', 'people-outline'],
-          Heatmap: ['map', 'map-outline'],
           Rewards: ['gift', 'gift-outline'],
           Painel: ['business', 'business-outline'],
         };
         const iconPair = icons[route.name] || ['ellipse', 'ellipse-outline'];
         const iconName = focused ? iconPair[0] : iconPair[1];
         const label = options.tabBarLabel || route.name;
-        const isHeatmap = route.name === 'Heatmap';
         return (
           <View
             key={route.key}
             style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
           >
-            <View
-              onTouchEnd={() => {
+            <Pressable
+              onPress={() => {
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                 if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
               }}
@@ -106,23 +103,20 @@ function TabBar({ state, descriptors, navigation }) {
                 paddingVertical: 4,
                 paddingHorizontal: 12,
                 borderRadius: 20,
-                backgroundColor: isHeatmap && focused ? COLORS.primary + '22' : 'transparent',
               }}
             >
               <Ionicons
                 name={iconName}
-                size={isHeatmap ? 26 : 22}
-                color={focused
-                  ? (isHeatmap ? COLORS.primary : COLORS.primaryLight)
-                  : COLORS.textMuted}
+                size={22}
+                color={focused ? COLORS.primaryLight : COLORS.textMuted}
               />
               <Text style={{
                 fontSize: 9,
                 marginTop: 2,
-                color: focused ? (isHeatmap ? COLORS.primary : COLORS.primaryLight) : COLORS.textMuted,
+                color: focused ? COLORS.primaryLight : COLORS.textMuted,
                 fontWeight: focused ? '700' : '400',
               }}>{label}</Text>
-            </View>
+            </Pressable>
           </View>
         );
       })}
@@ -135,7 +129,6 @@ function UserTabs() {
     <Tab.Navigator tabBar={props => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tab.Screen name="Home" component={ExploreNavigator} options={{ tabBarLabel: 'Home' }} />
       <Tab.Screen name="Community" component={FeedScreen} options={{ tabBarLabel: 'Community' }} />
-      <Tab.Screen name="Heatmap" component={HeatmapScreen} options={{ tabBarLabel: 'Heatmap' }} />
       <Tab.Screen name="Rewards" component={RewardsScreen} options={{ tabBarLabel: 'Rewards' }} />
     </Tab.Navigator>
   );
@@ -146,7 +139,6 @@ function BusinessTabs() {
     <Tab.Navigator tabBar={props => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tab.Screen name="Home" component={ExploreNavigator} options={{ tabBarLabel: 'Home' }} />
       <Tab.Screen name="Community" component={FeedScreen} options={{ tabBarLabel: 'Community' }} />
-      <Tab.Screen name="Heatmap" component={HeatmapScreen} options={{ tabBarLabel: 'Heatmap' }} />
       <Tab.Screen name="Rewards" component={RewardsScreen} options={{ tabBarLabel: 'Rewards' }} />
       <Tab.Screen name="Painel" component={BusinessNavigator} options={{ tabBarLabel: 'Painel' }} />
     </Tab.Navigator>

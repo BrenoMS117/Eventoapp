@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   StyleSheet,
   Alert,
   Platform,
@@ -11,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
+import { usePermissions } from "../hooks/usePermissions";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
 import { PhotoManager } from "../components/ImageCarousel";
 
@@ -53,14 +55,60 @@ export default function BusinessPanelScreen({ navigation }) {
     events,
     addEventPhoto,
     removeEventPhoto,
+    updateEventFields,
+    closeEvent,
   } = useApp();
+  const perms = usePermissions();
   const [statusLotacao, setStatusLotacao] = useState("moderado");
   const [secaoFotos, setSecaoFotos] = useState(false);
+  const [novoArtista, setNovoArtista] = useState("");
+  const [novoHorarioFim, setNovoHorarioFim] = useState("");
+  const [salvando, setSalvando] = useState(false);
 
   const meusCupons = coupons.filter(
     (c) => c.eventId === businessStats.activeEventId,
   );
   const eventoAtivo = events.find((e) => e.id === businessStats.activeEventId);
+
+  async function handleSalvarCampos() {
+    if (!eventoAtivo) return;
+    const fields = {};
+    if (perms.canEditEventField('nextAct') && novoArtista.trim())
+      fields.nextAct = novoArtista.trim();
+    if (perms.canEditEventField('endsAt') && novoHorarioFim.trim())
+      fields.endsAt = novoHorarioFim.trim();
+    if (Object.keys(fields).length === 0) return;
+    setSalvando(true);
+    const result = await updateEventFields(eventoAtivo.id, fields);
+    setSalvando(false);
+    if (result.error) {
+      Alert.alert("Erro", "Não foi possível salvar. Tente novamente.");
+    } else {
+      setNovoArtista("");
+      setNovoHorarioFim("");
+      Alert.alert("✅ Salvo", "Informações do evento atualizadas.");
+    }
+  }
+
+  function handleEncerrarEvento() {
+    if (!eventoAtivo) return;
+    Alert.alert(
+      "Encerrar Evento",
+      `Deseja encerrar "${eventoAtivo.name}"? Esta ação não pode ser desfeita.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Encerrar",
+          style: "destructive",
+          onPress: async () => {
+            const result = await closeEvent(eventoAtivo.id);
+            if (result.error) Alert.alert("Erro", "Não foi possível encerrar o evento.");
+            else Alert.alert("Evento encerrado", `"${eventoAtivo.name}" foi encerrado.`);
+          },
+        },
+      ],
+    );
+  }
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -197,6 +245,78 @@ export default function BusinessPanelScreen({ navigation }) {
             </View>
           ))}
         </View>
+
+        {/* Gerenciar Evento — campos restritos por permissão */}
+        {eventoAtivo && (
+          <View style={s.secao}>
+            <Text style={s.secaoTitulo}>Gerenciar Evento</Text>
+
+            {perms.canEditEventField('nextAct') && (
+              <View style={s.editCampo}>
+                <Text style={s.editLabel}>Próximo Artista</Text>
+                <Text style={s.editAtual}>
+                  Atual: {eventoAtivo.nextAct || "—"}
+                </Text>
+                <View style={s.editRow}>
+                  <TextInput
+                    style={s.editInput}
+                    placeholder="Nome do artista ou atração"
+                    placeholderTextColor={COLORS.textMuted}
+                    value={novoArtista}
+                    onChangeText={setNovoArtista}
+                    maxLength={80}
+                  />
+                </View>
+              </View>
+            )}
+
+            {perms.canEditEventField('endsAt') && (
+              <View style={s.editCampo}>
+                <Text style={s.editLabel}>Horário de Término</Text>
+                <Text style={s.editAtual}>
+                  Atual: {eventoAtivo.endsAt || "—"}
+                </Text>
+                <View style={s.editRow}>
+                  <TextInput
+                    style={s.editInput}
+                    placeholder="Ex: 02:00"
+                    placeholderTextColor={COLORS.textMuted}
+                    value={novoHorarioFim}
+                    onChangeText={setNovoHorarioFim}
+                    maxLength={5}
+                    keyboardType="numbers-and-punctuation"
+                  />
+                </View>
+              </View>
+            )}
+
+            {(perms.canEditEventField('nextAct') || perms.canEditEventField('endsAt')) && (
+              <TouchableOpacity
+                style={[s.salvarBtn, salvando && { opacity: 0.6 }]}
+                onPress={handleSalvarCampos}
+                disabled={salvando}
+              >
+                <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+                <Text style={s.salvarBtnTexto}>
+                  {salvando ? "Salvando..." : "Salvar alterações"}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {perms.canEditEventField('status') && (
+              <TouchableOpacity
+                style={s.encerrarBtn}
+                onPress={handleEncerrarEvento}
+                disabled={eventoAtivo && !eventoAtivo.isLive}
+              >
+                <Ionicons name="stop-circle-outline" size={16} color={COLORS.danger} />
+                <Text style={s.encerrarBtnTexto}>
+                  {eventoAtivo?.isLive ? "Encerrar Evento" : "Evento já encerrado"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* Controle de lotação */}
         <View style={s.secao}>
@@ -658,4 +778,62 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.full,
   },
   impulsionarBtnTexto: { color: "#fff", fontWeight: "800", fontSize: 13 },
+
+  // ── Gerenciar Evento ──────────────────────────────────────────
+  editCampo: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.lg,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 0.5,
+    borderColor: COLORS.border,
+  },
+  editLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  editAtual: {
+    fontSize: 12,
+    color: COLORS.textSub,
+    marginBottom: 8,
+  },
+  editRow: { flexDirection: "row", gap: 8 },
+  editInput: {
+    flex: 1,
+    backgroundColor: COLORS.bgOverlay,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  salvarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingVertical: 11,
+    marginBottom: 10,
+  },
+  salvarBtnTexto: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  encerrarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: COLORS.danger + "18",
+    borderRadius: RADIUS.md,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: COLORS.danger + "44",
+  },
+  encerrarBtnTexto: { color: COLORS.danger, fontWeight: "700", fontSize: 14 },
 });

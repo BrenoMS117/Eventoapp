@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
+import { eventsService } from "../services/eventsService";
 import { COLORS, RADIUS } from "../utils/theme";
 
 const { width } = Dimensions.get("window");
@@ -62,18 +63,23 @@ function VibeMeter({ value }) {
 }
 
 export default function ExploreScreen({ navigation }) {
-  const { events, logout } = useApp();
+  const { logout } = useApp();
   const [cat, setCat] = useState("todos");
   const [busca, setBusca] = useState("");
+  const [filtrados, setFiltrados] = useState([]);
+  const debounceRef = useRef(null);
 
-  const filtrados = events.filter((e) => {
-    const matchCat = cat === "todos" || e.category === cat;
-    const matchBusca =
-      !busca ||
-      e.name.toLowerCase().includes(busca.toLowerCase()) ||
-      e.venue.toLowerCase().includes(busca.toLowerCase());
-    return matchCat && matchBusca;
-  });
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(fetchFiltered, busca ? 400 : 0);
+    return () => clearTimeout(debounceRef.current);
+  }, [busca, cat]);
+
+  async function fetchFiltered() {
+    const result = await eventsService.search(busca.trim(), cat);
+    if (result.data) setFiltrados(result.data);
+  }
+
   const heroEvento = filtrados.find((e) => e.isLive) || filtrados[0];
 
   return (
