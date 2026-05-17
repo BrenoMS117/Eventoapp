@@ -16,6 +16,7 @@ import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
 
 // User screens
+import HomeScreen from './src/screens/HomeScreen';
 import ExploreScreen from './src/screens/ExploreScreen';
 import FeedScreen from './src/screens/FeedScreen';
 import RewardsScreen from './src/screens/RewardsScreen';
@@ -45,7 +46,8 @@ function AuthNavigator() {
 function ExploreNavigator() {
   return (
     <ExploreStack.Navigator screenOptions={{ headerShown: false }}>
-      <ExploreStack.Screen name="ExploreMain" component={ExploreScreen} />
+      <ExploreStack.Screen name="HomeMain" component={HomeScreen} />
+      <ExploreStack.Screen name="Explore" component={ExploreScreen} />
       <ExploreStack.Screen name="EventDetail" component={EventDetailScreen} />
       <ExploreStack.Screen name="CouponDetail" component={CouponDetailScreen} />
     </ExploreStack.Navigator>
