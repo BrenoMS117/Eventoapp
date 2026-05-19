@@ -77,6 +77,14 @@ export const eventsService = {
     return { error };
   },
 
+  async startEvent(id) {
+    const { error } = await supabase
+      .from('events')
+      .update({ is_live: true })
+      .eq('id', id);
+    return { error };
+  },
+
   async closeEvent(id) {
     const { error } = await supabase
       .from('events')
@@ -104,6 +112,20 @@ export const eventsService = {
     const { error } = await supabase.storage
       .from('event-photos')
       .remove([path]);
+    return { error };
+  },
+
+  async savePhotoUrl(eventId, url) {
+    const { data } = await supabase
+      .from('events')
+      .select('photos')
+      .eq('id', eventId)
+      .single();
+    const photos = [...(data?.photos ?? []), url];
+    const { error } = await supabase
+      .from('events')
+      .update({ photos })
+      .eq('id', eventId);
     return { error };
   },
 
@@ -147,5 +169,6 @@ function _mapEvent(d) {
     ageRestriction: d.age_restriction,
     lat: d.lat ?? null,
     lng: d.lng ?? null,
+    photos: d.photos ?? [],
   };
 }

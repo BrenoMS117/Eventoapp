@@ -91,6 +91,7 @@ function _mapPost(d) {
   const expiresAt = d.expires_at ? new Date(d.expires_at) : null;
   return {
     id: d.id,
+    authorId: d.user_id,   // used by SocialEngagementStrategy
     eventId: d.event_id,
     eventName: d.event_name,
     user: {

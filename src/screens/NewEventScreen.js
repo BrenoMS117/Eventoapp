@@ -18,7 +18,7 @@ import { useApp } from "../context/AppContext";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
 import { PhotoManager } from "../components/ImageCarousel";
 import { geoService } from "../services/geo/GeoService";
-import { EventSchema } from "../validation/EventSchema";
+import { EventSchema, validateDate, validateEndTime, isOvernight } from "../validation/EventSchema";
 
 const CATEGORIAS = [
   { key: "rave", label: "Rave", icon: "🎧" },
@@ -98,11 +98,11 @@ function IndicadorEtapa({ atual }) {
 }
 
 export default function NewEventScreen({ navigation }) {
-  const { addEvent, currentUser } = useApp();
+  const { addEvent, addEventPhoto, currentUser } = useApp();
   const [etapa, setEtapa] = useState(0);
   const [fotos, setFotos] = useState([]);
+  const [publicando, setPublicando] = useState(false);
   const [geoCoords, setGeoCoords] = useState(null);
-  const [geoStatus, setGeoStatus] = useState('idle');
   const [gpsStatus, setGpsStatus] = useState('idle');
 
   const {
@@ -153,20 +153,6 @@ export default function NewEventScreen({ navigation }) {
     if (valid) setEtapa((s) => s + 1);
   }
 
-  async function handleGeocode() {
-    const v = getValues();
-    const parts = [v.endereco, v.bairro, v.cidade].filter(Boolean);
-    if (parts.length === 0) return;
-    setGeoStatus('loading');
-    const coords = await geoService.geocodeAddress(`${parts.join(', ')}, Brasil`);
-    if (coords) {
-      setGeoCoords(coords);
-      setGeoStatus('found');
-    } else {
-      setGeoStatus('error');
-    }
-  }
-
   async function handleUseCurrentLocation() {
     setGpsStatus('loading');
     const { coords, error } = await geoService.getPosition();
@@ -200,40 +186,53 @@ export default function NewEventScreen({ navigation }) {
       Alert.alert("Verifique os dados", Object.values(schemaErrors)[0]);
       return;
     }
-    const catInfo = CATEGORIAS.find((c) => c.key === v.categoria);
-    const created = await addEvent({
-      name: v.nome.trim(),
-      venue: v.venue.trim() || currentUser?.venueName || "Meu estabelecimento",
-      address: `${v.endereco.trim()}${v.bairro ? ` - ${v.bairro.trim()}` : ""}`,
-      category: v.categoria,
-      categoryLabel: catInfo?.label || v.categoria,
-      startsAt: v.horarioInicio,
-      endsAt: v.horarioFim || null,
-      price: v.entrada_gratis ? "Gratuito" : v.preco.trim(),
-      accessible: v.acessivel,
-      accessibilityNotes: v.acessivel ? v.notasAcessibilidade.trim() : null,
-      nowPlaying: null,
-      nextAct: v.artista.trim() || null,
-      description: v.descricao.trim(),
-      distanceKm: 0.5,
-      gradient: GRADIENTES[v.gradienteIdx].colors,
-      ageRestriction: v.faixaEtaria,
-      lat: geoCoords?.lat ?? null,
-      lng: geoCoords?.lng ?? null,
-    });
-    if (!created) {
-      Alert.alert("Erro", "Não foi possível publicar o evento. Verifique sua conexão e tente novamente.");
-      return;
-    }
-    if (Platform.OS === "web") {
-      window.alert(`Evento "${v.nome}" publicado com sucesso!`);
-      navigation.goBack();
-    } else {
-      Alert.alert(
-        "🚀 Evento publicado!",
-        `"${v.nome}" está no ar! Usuários próximos já podem visualizá-lo.`,
-        [{ text: "Ótimo!", onPress: () => navigation.goBack() }],
-      );
+
+    setPublicando(true);
+    try {
+      const catInfo = CATEGORIAS.find((c) => c.key === v.categoria);
+      const created = await addEvent({
+        name: v.nome.trim(),
+        venue: v.venue.trim() || currentUser?.venueName || "Meu estabelecimento",
+        address: `${v.endereco.trim()}${v.bairro ? ` - ${v.bairro.trim()}` : ""}`,
+        category: v.categoria,
+        categoryLabel: catInfo?.label || v.categoria,
+        startsAt: v.horarioInicio,
+        endsAt: v.horarioFim || null,
+        price: v.entrada_gratis ? "Gratuito" : v.preco.trim(),
+        accessible: v.acessivel,
+        accessibilityNotes: v.acessivel ? v.notasAcessibilidade.trim() : null,
+        nowPlaying: null,
+        nextAct: v.artista.trim() || null,
+        description: v.descricao.trim(),
+        distanceKm: 0.5,
+        gradient: GRADIENTES[v.gradienteIdx].colors,
+        ageRestriction: v.faixaEtaria,
+        lat: geoCoords?.lat ?? null,
+        lng: geoCoords?.lng ?? null,
+      });
+
+      if (!created) {
+        Alert.alert("Erro", "Não foi possível publicar o evento. Verifique sua conexão e tente novamente.");
+        return;
+      }
+
+      // Upload photos sequentially after the event is created.
+      for (const uri of fotos) {
+        await addEventPhoto(created.id, uri);
+      }
+
+      if (Platform.OS === "web") {
+        window.alert(`Evento "${v.nome}" publicado com sucesso!`);
+        navigation.goBack();
+      } else {
+        Alert.alert(
+          "🚀 Evento publicado!",
+          `"${v.nome}" está no ar! Usuários próximos já podem visualizá-lo.`,
+          [{ text: "Ótimo!", onPress: () => navigation.goBack() }],
+        );
+      }
+    } finally {
+      setPublicando(false);
     }
   }
 
@@ -348,8 +347,7 @@ export default function NewEventScreen({ navigation }) {
                 control={control}
                 name="data"
                 rules={{
-                  validate: (v) =>
-                    /^\d{2}\/\d{2}\/\d{4}$/.test(v.trim()) || "Formato: DD/MM/AAAA.",
+                  validate: (v) => validateDate(v),
                 }}
                 render={({ field: { onChange, value } }) => (
                   <View style={[s.inputRow, errors.data && s.inputRowErro]}>
@@ -414,14 +412,7 @@ export default function NewEventScreen({ navigation }) {
                     control={control}
                     name="horarioFim"
                     rules={{
-                      validate: (v) => {
-                        if (!v.trim()) return true;
-                        if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(v.trim()))
-                          return 'Formato: HH:MM (ex: 04:00).';
-                        if (v.trim() === (getValues('horarioInicio') ?? '').trim())
-                          return 'Término deve ser diferente do início.';
-                        return true;
-                      },
+                      validate: (v) => validateEndTime(v, getValues('horarioInicio')),
                     }}
                     render={({ field: { onChange, value } }) => (
                       <View style={[s.inputRow, errors.horarioFim && s.inputRowErro]}>
@@ -444,6 +435,9 @@ export default function NewEventScreen({ navigation }) {
                   />
                   {errors.horarioFim && (
                     <Text style={s.erroTexto}>{errors.horarioFim.message}</Text>
+                  )}
+                  {!errors.horarioFim && isOvernight(watch('horarioInicio'), watch('horarioFim')) && (
+                    <Text style={s.diaSegTexto}>Término no dia seguinte</Text>
                   )}
                 </View>
               </View>
@@ -545,32 +539,6 @@ export default function NewEventScreen({ navigation }) {
                 </View>
               ))}
 
-              <TouchableOpacity
-                style={[s.geoBtn, geoStatus === 'found' && s.geoBtnOk]}
-                onPress={handleGeocode}
-                disabled={geoStatus === 'loading'}
-              >
-                {geoStatus === 'loading' ? (
-                  <Text style={s.geoBtnTexto}>Buscando localização...</Text>
-                ) : geoStatus === 'found' ? (
-                  <>
-                    <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-                    <Text style={[s.geoBtnTexto, { color: COLORS.success }]}>
-                      Localização encontrada
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Ionicons name="navigate-outline" size={16} color={COLORS.primary} />
-                    <Text style={s.geoBtnTexto}>Buscar coordenadas do endereço</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              {geoStatus === 'error' && (
-                <Text style={[s.erroTexto, { marginTop: 6 }]}>
-                  Endereço não encontrado. O evento será publicado sem coordenadas precisas.
-                </Text>
-              )}
             </View>
           )}
 
@@ -931,9 +899,19 @@ export default function NewEventScreen({ navigation }) {
               <Text style={s.proximoBtnTexto}>Continuar →</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={s.publicarBtn} onPress={publicar}>
+            <TouchableOpacity
+              style={[s.publicarBtn, publicando && { opacity: 0.6 }]}
+              onPress={publicar}
+              disabled={publicando}
+            >
               <Ionicons name="rocket-outline" size={20} color="#fff" />
-              <Text style={s.publicarBtnTexto}>Publicar evento agora</Text>
+              <Text style={s.publicarBtnTexto}>
+                {publicando
+                  ? fotos.length > 0
+                    ? 'Enviando fotos...'
+                    : 'Publicando...'
+                  : 'Publicar evento agora'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1030,6 +1008,7 @@ const s = StyleSheet.create({
   inputInner: { flex: 1, fontSize: 15, color: COLORS.text },
   charCount: { fontSize: 11, color: COLORS.textMuted, textAlign: "right", marginTop: 4 },
   erroTexto: { fontSize: 12, color: COLORS.danger, marginTop: 4 },
+  diaSegTexto: { fontSize: 12, color: COLORS.warning, marginTop: 4 },
   categoriaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   catBtn: {
     width: "22%",

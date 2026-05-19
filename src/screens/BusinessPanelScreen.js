@@ -151,7 +151,7 @@ function EmptyState({ currentUser, onLogout, onCreateEvent }) {
 // STATE 2 — InactivePanel
 // Owner has past events but none is live right now.
 // ─────────────────────────────────────────────────────────────────────────────
-function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreateEvent, navigation }) {
+function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreateEvent, onStartEvent, navigation }) {
   const ultimoEvento = meusEventos[0];
 
   const totalCriadosGeral  = meusCupons.length;
@@ -235,25 +235,25 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
         )}
 
         {/* Lista de todos os eventos */}
-        {meusEventos.length > 1 && (
-          <View style={s.secao}>
-            <Text style={s.secaoTitulo}>Todos os eventos</Text>
-            {meusEventos.map((e) => (
-              <View key={e.id} style={s.eventoHistoricoRow}>
-                <View style={[s.eventoHistoricoDot, { backgroundColor: e.isLive ? COLORS.success : COLORS.bgOverlay }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.eventoHistoricoNome} numberOfLines={1}>{e.name}</Text>
-                  <Text style={s.eventoHistoricoData}>{formatDate(e.startsAt)} · {e.venue}</Text>
-                </View>
-                <View style={[s.statusBadge, { backgroundColor: e.isLive ? COLORS.success + "22" : COLORS.bgOverlay }]}>
-                  <Text style={[s.statusBadgeTexto, { color: e.isLive ? COLORS.success : COLORS.textMuted }]}>
-                    {e.isLive ? "Ao vivo" : "Encerrado"}
-                  </Text>
-                </View>
+        <View style={s.secao}>
+          <Text style={s.secaoTitulo}>Meus eventos</Text>
+          {meusEventos.map((e) => (
+            <View key={e.id} style={s.eventoHistoricoRow}>
+              <View style={[s.eventoHistoricoDot, { backgroundColor: e.isLive ? COLORS.success : COLORS.bgOverlay }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.eventoHistoricoNome} numberOfLines={1}>{e.name}</Text>
+                <Text style={s.eventoHistoricoData}>{formatDate(e.startsAt)} · {e.venue}</Text>
               </View>
-            ))}
-          </View>
-        )}
+              <TouchableOpacity
+                style={s.iniciarBtn}
+                onPress={() => onStartEvent(e.id, e.name)}
+              >
+                <Ionicons name="play-circle-outline" size={14} color={COLORS.success} />
+                <Text style={s.iniciarBtnTexto}>Iniciar</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
 
         {/* CTA: criar novo evento */}
         <View style={{ paddingHorizontal: 12, marginTop: 24 }}>
@@ -555,7 +555,7 @@ function ActivePanel({
 export default function BusinessPanelScreen({ navigation }) {
   const {
     events, coupons, currentUser, businessStats, dataLoading,
-    logout, addEventPhoto, removeEventPhoto, updateEventFields, closeEvent,
+    logout, addEventPhoto, removeEventPhoto, updateEventFields, startEvent, closeEvent,
   } = useApp();
 
   // ── Ownership derivation ──────────────────────────────────────────────────
@@ -608,6 +608,23 @@ export default function BusinessPanelScreen({ navigation }) {
 
   const onCreateEvent = () => navigation.navigate("NewEvent");
 
+  function onStartEvent(eventId, eventName) {
+    Alert.alert(
+      "Iniciar Evento",
+      `Deseja colocar "${eventName}" ao vivo agora?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Iniciar",
+          onPress: async () => {
+            const result = await startEvent(eventId);
+            if (result.error) Alert.alert("Erro", "Não foi possível iniciar o evento.");
+          },
+        },
+      ],
+    );
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
   if (panelState === 'loading') {
     return (
@@ -636,6 +653,7 @@ export default function BusinessPanelScreen({ navigation }) {
         meusCupons={meusCupons}
         onLogout={handleLogout}
         onCreateEvent={onCreateEvent}
+        onStartEvent={onStartEvent}
         navigation={navigation}
       />
     );
@@ -783,6 +801,13 @@ const s = StyleSheet.create({
   eventoHistoricoDot: { width: 10, height: 10, borderRadius: 5 },
   eventoHistoricoNome: { fontSize: 13, fontWeight: "700", color: COLORS.text },
   eventoHistoricoData: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  iniciarBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: COLORS.success + "22", paddingHorizontal: 10,
+    paddingVertical: 5, borderRadius: RADIUS.full,
+    borderWidth: 0.5, borderColor: COLORS.success + "66",
+  },
+  iniciarBtnTexto: { fontSize: 11, color: COLORS.success, fontWeight: "700" },
 
   // Crowd control
   lotacaoBtn: {

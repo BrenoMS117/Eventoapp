@@ -10,6 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { AppProvider, useApp } from './src/context/AppContext';
 import { COLORS } from './src/utils/theme';
+import { useNotifications } from './src/hooks/useNotifications';
+import { NotificationBanner } from './src/components/NotificationBanner';
 
 // Auth
 import LoginScreen from './src/screens/auth/LoginScreen';
@@ -147,11 +149,24 @@ function BusinessTabs() {
   );
 }
 
+// Headless component — drives notification evaluations while mounted.
+function NotificationEngine() {
+  useNotifications();
+  return null;
+}
+
 function AppNavigator() {
   const { currentUser } = useApp();
-  if (!currentUser) return <AuthNavigator />;
-  if (currentUser.role === 'business') return <BusinessTabs />;
-  return <UserTabs />;
+  return (
+    <>
+      {currentUser && <NotificationEngine />}
+      {!currentUser
+        ? <AuthNavigator />
+        : currentUser.role === 'business'
+        ? <BusinessTabs />
+        : <UserTabs />}
+    </>
+  );
 }
 
 export default function App() {
@@ -162,6 +177,8 @@ export default function App() {
           <StatusBar style="light" backgroundColor={COLORS.bg} />
           <AppNavigator />
         </NavigationContainer>
+        {/* Banner floats above NavigationContainer on every screen */}
+        <NotificationBanner />
       </AppProvider>
     </SafeAreaProvider>
   );

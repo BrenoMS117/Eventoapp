@@ -31,6 +31,7 @@ export function AppProvider({ children }) {
   const [dataLoading, setDataLoading] = useState(false);
   const [userCoords, setUserCoords] = useState(null);
   const [nearbyEventIds, setNearbyEventIds] = useState([]);
+  const [geoError, setGeoError] = useState(false);
   const [redeemedCoupons, setRedeemedCoupons] = useState([]);
   const geoWatchRef = useRef(null);
   const [selectedEventFilter, setSelectedEventFilter] = useState("Todos");
@@ -121,7 +122,11 @@ export function AppProvider({ children }) {
 
   async function initGeo(user) {
     const result = await geoService.getPosition();
-    if (!result.coords) return;
+    if (!result.coords) {
+      setGeoError(true);
+      return;
+    }
+    setGeoError(false);
     setUserCoords(result.coords);
     setEvents(current => {
       _updateNearbyIds(result.coords, current, user?.role);
@@ -137,6 +142,7 @@ export function AppProvider({ children }) {
     }
     setUserCoords(null);
     setNearbyEventIds([]);
+    setGeoError(false);
   }
 
   // ── AUTH ─────────────────────────────────────────────────────
@@ -205,6 +211,16 @@ export function AppProvider({ children }) {
     return result;
   }
 
+  async function startEvent(eventId) {
+    const result = await eventsService.startEvent(eventId);
+    if (!result.error) {
+      setEvents((prev) =>
+        prev.map((e) => (e.id === eventId ? { ...e, isLive: true } : e)),
+      );
+    }
+    return result;
+  }
+
   async function closeEvent(eventId) {
     const perms = createPermissionStrategy(currentUser?.role);
     if (!perms.canEditEventField('status')) {
@@ -229,7 +245,9 @@ export function AppProvider({ children }) {
 
   async function addEventPhoto(eventId, uri) {
     const result = await eventsService.uploadPhoto(eventId, uri);
-    const finalUri = result.url || uri;
+    if (result.error || !result.url) return { error: result.error };
+    const finalUri = result.url;
+    await eventsService.savePhotoUrl(eventId, finalUri);
     setEvents((prev) =>
       prev.map((e) => {
         if (e.id !== eventId) return e;
@@ -237,6 +255,7 @@ export function AppProvider({ children }) {
         return { ...e, photos, coverPhoto: photos[0] };
       }),
     );
+    return { url: finalUri };
   }
 
   async function removeEventPhoto(eventId, idx) {
@@ -405,6 +424,7 @@ export function AppProvider({ children }) {
     businessStats,
     userCoords,
     nearbyEventIds,
+    geoError,
     redeemedCoupons,
     selectedEventFilter,
     setSelectedEventFilter,
@@ -412,6 +432,7 @@ export function AppProvider({ children }) {
     addCoupon,
     addEvent,
     updateEventFields,
+    startEvent,
     closeEvent,
     addFeedPost,
     likePost,

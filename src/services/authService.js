@@ -52,6 +52,7 @@ export const authService = {
       avatar: data.avatar,
       venueName: data.venue_name,
       venueId: data.venue_id,
+      planType: data.plan_type ?? null,
     };
   },
 
