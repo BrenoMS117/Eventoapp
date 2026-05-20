@@ -18,14 +18,14 @@ import { validate } from "../../utils/validation";
 const CONTAS_DEMO = [
   {
     label: "Usuário",
-    email: "joao@email.com",
+    email: "dantas@dantas.com",
     password: "123456",
     icon: "👤",
     cor: COLORS.primary,
   },
   {
     label: "Estabelecimento",
-    email: "beco@email.com",
+    email: "claudio@gmail.com",
     password: "123456",
     icon: "🏢",
     cor: COLORS.purple,

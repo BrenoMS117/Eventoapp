@@ -170,5 +170,6 @@ function _mapEvent(d) {
     lat: d.lat ?? null,
     lng: d.lng ?? null,
     photos: d.photos ?? [],
+    coverPhoto: d.photos?.[0] ?? null,
   };
 }

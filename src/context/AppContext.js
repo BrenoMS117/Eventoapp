@@ -5,6 +5,7 @@ import { couponsService } from "../services/couponsService";
 import { feedService } from "../services/feedService";
 import { geoService } from "../services/geo/GeoService";
 import { createPermissionStrategy } from "../permissions/PermissionStrategy";
+import { storageService } from '../services/storageService';
 
 const AppContext = createContext(null);
 
@@ -255,6 +256,33 @@ export function AppProvider({ children }) {
         return { ...e, photos, coverPhoto: photos[0] };
       }),
     );
+  setEvents((prev) =>
+    prev.map((e) => {
+      if (e.id !== eventId) return e;
+      const photos = [...(e.photos || []), uri];
+      return { ...e, photos, coverPhoto: photos[0] };
+    }),
+  );
+
+  if (SUPABASE_CONFIGURED && currentUser?.id) {
+    const { url, error } = await storageService.uploadEventPhoto(uri, currentUser.id);
+    if (error) {
+      console.log('Erro upload foto:', error);
+      return;
+    }
+    setEvents((prev) =>
+      prev.map((e) => {
+        if (e.id !== eventId) return e;
+        const photos = (e.photos || []).map((p) => (p === uri ? url : p));
+        return { ...e, photos, coverPhoto: photos[0] };
+      }),
+    );
+    const event = events.find((e) => e.id === eventId);
+    if (event) {
+      const updatedPhotos = (event.photos || []).map((p) => (p === uri ? url : p));
+      await storageService.saveEventPhotos(eventId, updatedPhotos);
+    }
+  }
     return { url: finalUri };
   }
 
