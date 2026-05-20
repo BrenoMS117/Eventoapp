@@ -11,9 +11,16 @@ import { ILocationProvider } from '../ILocationProvider';
  *   No other file in the project needs to change.
  */
 export class ExpoLocationProvider extends ILocationProvider {
+  constructor() {
+    super();
+    /** true once the user has granted foreground permission in this session */
+    this._permissionGranted = false;
+  }
+
   async requestPermission() {
     const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
     const granted = status === ExpoLocation.PermissionStatus.GRANTED;
+    this._permissionGranted = granted;
     return {
       granted,
       error: granted ? null : 'Permissão de localização negada pelo usuário.',
@@ -22,8 +29,11 @@ export class ExpoLocationProvider extends ILocationProvider {
 
   async getCurrentPosition() {
     try {
-      const perm = await this.requestPermission();
-      if (!perm.granted) return { coords: null, error: perm.error };
+      // Skip the permission round-trip when we already know it's granted.
+      if (!this._permissionGranted) {
+        const perm = await this.requestPermission();
+        if (!perm.granted) return { coords: null, error: perm.error };
+      }
 
       const loc = await ExpoLocation.getCurrentPositionAsync({
         accuracy: ExpoLocation.Accuracy.Balanced,

@@ -5,7 +5,8 @@ import { couponsService } from "../services/couponsService";
 import { feedService } from "../services/feedService";
 import { geoService } from "../services/geo/GeoService";
 import { createPermissionStrategy } from "../permissions/PermissionStrategy";
-import { storageService } from '../services/storageService';
+import { crowdManagementService } from "../services/crowd/CrowdManagementService";
+import { ratingService } from "../services/ratings/RatingService";
 
 const AppContext = createContext(null);
 
@@ -34,8 +35,40 @@ export function AppProvider({ children }) {
   const [nearbyEventIds, setNearbyEventIds] = useState([]);
   const [geoError, setGeoError] = useState(false);
   const [redeemedCoupons, setRedeemedCoupons] = useState([]);
+  const [checkedInEventIds, setCheckedInEventIds] = useState([]);
+  /** Record<eventId, { counts, userVote, featured }> — lazy-loaded per event */
+  const [eventRatingMap, setEventRatingMap] = useState({});
+  /** Prevents double-subscription across concurrent calls */
+  const subscribedRatingsRef = useRef(new Set());
   const geoWatchRef = useRef(null);
   const [selectedEventFilter, setSelectedEventFilter] = useState("Todos");
+
+  // ── Crowd management bootstrap ────────────────────────────────────────────
+  // Set the update callback once at mount (setEvents is stable, so safe here).
+  useEffect(() => {
+    crowdManagementService.setUpdateCallback((eventId, patch) => {
+      setEvents((prev) =>
+        prev.map((e) => (e.id === eventId ? { ...e, ...patch } : e)),
+      );
+    });
+    return () => crowdManagementService.reset();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Auto check-out: geo exit (5 km discovery radius acts as exit threshold) ─
+  useEffect(() => {
+    if (!currentUser) return;
+    // Only auto-evict events that have geographic coordinates.
+    // Events without coords are never included in nearbyEventIds (filterNearbyEvents
+    // skips them), so getStaleCheckIns would always flag them as stale — causing an
+    // immediate auto-checkout right after check-in. Filter those out here.
+    const stale = crowdManagementService.getStaleCheckIns(nearbyEventIds).filter((id) => {
+      const ev = events.find((e) => e.id === id);
+      return ev?.lat != null && ev?.lng != null;
+    });
+    if (stale.length === 0) return;
+    stale.forEach((id) => crowdManagementService.checkOut(id));
+    setCheckedInEventIds((prev) => prev.filter((id) => !stale.includes(id)));
+  }, [nearbyEventIds, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     initSession();
@@ -49,6 +82,7 @@ export function AppProvider({ children }) {
         setCurrentUser(user);
         await loadData(user);
         initGeo(user);
+        crowdManagementService.startRealtimeSubscription();
       }
     } catch (e) {
       console.log("Session error:", e);
@@ -159,6 +193,7 @@ export function AppProvider({ children }) {
     setCurrentUser(user);
     await loadData(user);
     initGeo(user);
+    crowdManagementService.startRealtimeSubscription();
     return true;
   }
 
@@ -182,6 +217,9 @@ export function AppProvider({ children }) {
   }
 
   async function logout() {
+    crowdManagementService.reset();
+    ratingService.reset();
+    subscribedRatingsRef.current.clear();
     await authService.signOut();
     stopGeoWatch();
     setCurrentUser(null);
@@ -190,6 +228,8 @@ export function AppProvider({ children }) {
     setCoupons([]);
     setFeedPosts([]);
     setRedeemedCoupons([]);
+    setCheckedInEventIds([]);
+    setEventRatingMap({});
   }
 
   // ── EVENTS ───────────────────────────────────────────────────
@@ -236,6 +276,80 @@ export function AppProvider({ children }) {
     return result;
   }
 
+  // ── CROWD CHECK-IN / CHECK-OUT ────────────────────────────────────────────
+
+  /**
+   * Check the current user into a live event.
+   *
+   * Rules:
+   *  • Event must be live.
+   *  • Proximity gate:
+   *      – event with coords + GPS available → precise geofence (≤ 150 m)
+   *      – event with coords + no GPS        → blocked
+   *      – event without coords              → nearbyEventIds fallback (≤ 5 km);
+   *                                            if also absent there, allow anyway
+   *                                            (can't verify — test/legacy events)
+   *  • Single-event rule: auto check-out from any other event before proceeding.
+   */
+  async function checkIn(eventId) {
+    if (crowdManagementService.isCheckedIn(eventId)) {
+      return { error: null, alreadyIn: true };
+    }
+
+    const event = events.find((e) => e.id === eventId);
+    if (!event?.isLive) {
+      return { error: 'O evento precisa estar ao vivo para fazer check-in.' };
+    }
+
+    // ── Proximity check ──────────────────────────────────────────────────
+    if (event.lat != null && event.lng != null) {
+      // Event has precise coordinates: enforce geofence.
+      if (!userCoords) {
+        return { error: 'Ative o GPS para fazer check-in.' };
+      }
+      const fence = geoService.checkGeofence(
+        userCoords,
+        { lat: event.lat, lng: event.lng },
+        'user',
+      );
+      if (!fence.isInside) {
+        return { error: `Você precisa estar no local para fazer check-in. ${fence.message}` };
+      }
+    }
+    // Events without coordinates: nearbyEventIds is a best-effort fallback
+    // (filterNearbyEvents skips events with null coords, so this is advisory only).
+    // We allow check-in even if the event isn't listed — can't geo-verify.
+    // ─────────────────────────────────────────────────────────────────────
+
+    // ── Single-event rule: auto checkout from every other checked-in event ─
+    const otherIds = crowdManagementService.getCheckedInEventIds().filter((id) => id !== eventId);
+    if (otherIds.length > 0) {
+      await Promise.all(otherIds.map((id) => crowdManagementService.checkOut(id)));
+      setCheckedInEventIds((prev) => prev.filter((id) => !otherIds.includes(id)));
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
+    const result = await crowdManagementService.checkIn(eventId);
+    if (!result.error && !result.alreadyIn) {
+      setCheckedInEventIds((prev) => [...prev, eventId]);
+      if (event.endsAt) {
+        crowdManagementService.scheduleAutoCheckOut(eventId, event.endsAt);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Manually check the current user out from an event.
+   */
+  async function checkOut(eventId) {
+    const result = await crowdManagementService.checkOut(eventId);
+    if (!result.error && !result.notIn) {
+      setCheckedInEventIds((prev) => prev.filter((id) => id !== eventId));
+    }
+    return result;
+  }
+
   async function addEvent(newEvent) {
     if (!currentUser?.id) return null;
     const result = await eventsService.create(newEvent, currentUser.id);
@@ -256,33 +370,6 @@ export function AppProvider({ children }) {
         return { ...e, photos, coverPhoto: photos[0] };
       }),
     );
-  setEvents((prev) =>
-    prev.map((e) => {
-      if (e.id !== eventId) return e;
-      const photos = [...(e.photos || []), uri];
-      return { ...e, photos, coverPhoto: photos[0] };
-    }),
-  );
-
-  if (SUPABASE_CONFIGURED && currentUser?.id) {
-    const { url, error } = await storageService.uploadEventPhoto(uri, currentUser.id);
-    if (error) {
-      console.log('Erro upload foto:', error);
-      return;
-    }
-    setEvents((prev) =>
-      prev.map((e) => {
-        if (e.id !== eventId) return e;
-        const photos = (e.photos || []).map((p) => (p === uri ? url : p));
-        return { ...e, photos, coverPhoto: photos[0] };
-      }),
-    );
-    const event = events.find((e) => e.id === eventId);
-    if (event) {
-      const updatedPhotos = (event.photos || []).map((p) => (p === uri ? url : p));
-      await storageService.saveEventPhotos(eventId, updatedPhotos);
-    }
-  }
     return { url: finalUri };
   }
 
@@ -314,16 +401,14 @@ export function AppProvider({ children }) {
     if (coupon.remainingQty <= 0)
       return { success: false, error: "Cupons esgotados." };
 
-    // ── Geofence check ──────────────────────────────────────────────────
+    // ── Geofence check (uses cached userCoords — no GPS round-trip) ────────
     const event = events.find((e) => e.id === coupon.eventId);
     if (event?.lat != null && event?.lng != null) {
-      // Event has coordinates: run a precise real-time geofence check.
-      const posResult = await geoService.getPosition();
-      if (!posResult.coords) {
-        return { success: false, error: "Não foi possível verificar sua localização. Ative o GPS e tente novamente." };
+      if (!userCoords) {
+        return { success: false, error: "Ative o GPS e tente novamente." };
       }
       const fence = geoService.checkGeofence(
-        posResult.coords,
+        userCoords,
         { lat: event.lat, lng: event.lng },
         currentUser?.role ?? 'user',
       );
@@ -331,7 +416,6 @@ export function AppProvider({ children }) {
         return { success: false, error: fence.message };
       }
     } else if (!nearbyEventIds.includes(coupon.eventId)) {
-      // Fallback for events without coordinates: use the cached nearby list.
       return { success: false, error: `Chegue até ${coupon.venue} para resgatar este cupom.` };
     }
     // ────────────────────────────────────────────────────────────────────
@@ -352,6 +436,18 @@ export function AppProvider({ children }) {
       ...prev,
       couponsRedeemed: (prev.couponsRedeemed || 0) + 1,
     }));
+    // Auto check-in when redeeming a coupon at the event location
+    if (coupon.eventId && !crowdManagementService.isCheckedIn(coupon.eventId)) {
+      const ev = events.find((e) => e.id === coupon.eventId);
+      if (ev?.isLive) {
+        crowdManagementService.checkIn(coupon.eventId).then((r) => {
+          if (!r.error && !r.alreadyIn) {
+            setCheckedInEventIds((prev) => [...prev, coupon.eventId]);
+            if (ev.endsAt) crowdManagementService.scheduleAutoCheckOut(coupon.eventId, ev.endsAt);
+          }
+        });
+      }
+    }
     return { success: true };
   }
 
@@ -380,6 +476,144 @@ export function AppProvider({ children }) {
       couponsTotal: (prev.couponsTotal || 0) + newCoupon.totalQty,
     }));
     return coupon;
+  }
+
+  // ── RATINGS ──────────────────────────────────────────────────────────────
+
+  /** Load initial counts + user's vote for an event, then update state. */
+  async function _loadEventRatings(eventId) {
+    const [countsRes, voteRes] = await Promise.all([
+      ratingService.fetchCounts(eventId),
+      currentUser?.id
+        ? ratingService.fetchUserVote(eventId, currentUser.id)
+        : Promise.resolve({ category: null, error: null }),
+    ]);
+    const counts   = countsRes.data ?? {};
+    const userVote = voteRes.category ?? null;
+    const featured = ratingService.computeFeatured(counts);
+    setEventRatingMap((prev) => ({
+      ...prev,
+      [eventId]: { counts, userVote, featured },
+    }));
+  }
+
+  /**
+   * Idempotent: subscribes to Realtime for a specific event's ratings,
+   * then fetches the current state. Safe to call from multiple screens.
+   */
+  function subscribeToEventRatings(eventId) {
+    if (subscribedRatingsRef.current.has(eventId)) return;
+    subscribedRatingsRef.current.add(eventId);
+
+    ratingService.subscribeToEvent(eventId, (eid, counts) => {
+      const featured = ratingService.computeFeatured(counts);
+      setEventRatingMap((prev) => ({
+        ...prev,
+        [eid]: { ...(prev[eid] ?? {}), counts, featured },
+      }));
+    });
+    _loadEventRatings(eventId);
+  }
+
+  /**
+   * Returns true when the current user is allowed to vote on an event.
+   * Uses already-cached userCoords — no GPS call, instant result.
+   *
+   * Priority:
+   *   1. user is checked in at this event → true  (presence already proven)
+   *   2. role === 'business'              → false  (owners read-only)
+   *   3. event has coords + GPS cached    → precise geofence (≤ 150 m)
+   *   4. event has coords + no GPS        → false  (can't verify)
+   *   5. event has NO coords              → true   (can't verify either way, allow)
+   */
+  function canVoteOnEvent(eventId) {
+    if (!currentUser?.id) return false;
+    // Check-in proves physical presence — bypass all geo checks.
+    if (crowdManagementService.isCheckedIn(eventId)) return true;
+    if (currentUser.role === 'business') return false;
+    const event = events.find((e) => e.id === eventId);
+    if (!event) return false;
+    if (event.lat != null && event.lng != null) {
+      // Coordinates available: require GPS and geofence.
+      if (!userCoords) return false;
+      return geoService.checkGeofence(
+        userCoords,
+        { lat: event.lat, lng: event.lng },
+        'user',
+      ).isInside;
+    }
+    // No coordinates on this event: cannot geo-verify, so allow.
+    return true;
+  }
+
+  /**
+   * Submit or update a vote.
+   *
+   * Access control:
+   *   • role === 'business'  → blocked (owners cannot vote)
+   *   • Checked-in users     → presence already proven, skip geo check
+   *   • event with coords    → geofence against cached userCoords (no GPS call)
+   *   • event without coords → allowed (can't verify location)
+   *
+   * On success: optimistic update to eventRatingMap; Realtime confirms
+   * and also updates events.rating / events.reviewCount via DB trigger.
+   */
+  async function submitRating(eventId, category) {
+    if (!currentUser?.id) return { error: 'Faça login para avaliar.' };
+
+    // ── Role check ─────────────────────────────────────────────────────
+    if (currentUser.role === 'business') {
+      return { error: 'Donos de estabelecimento não podem avaliar eventos.' };
+    }
+
+    // ── Presence check ─────────────────────────────────────────────────
+    // Check-in is the strongest proof of presence — skip geo entirely.
+    const alreadyCheckedIn = crowdManagementService.isCheckedIn(eventId);
+    if (!alreadyCheckedIn) {
+      const event = events.find((e) => e.id === eventId);
+      if (event?.lat != null && event?.lng != null) {
+        // Precise geofence using cached coords (zero latency).
+        if (!userCoords) {
+          return { error: 'Ative o GPS para enviar uma avaliação.' };
+        }
+        const fence = geoService.checkGeofence(
+          userCoords,
+          { lat: event.lat, lng: event.lng },
+          'user',
+        );
+        if (!fence.isInside) {
+          return { error: `Você precisa estar no local para avaliar. ${fence.message}` };
+        }
+      }
+      // No coordinates on the event: can't verify, allow voting.
+    }
+    // ────────────────────────────────────────────────────────────────────
+
+    // ── Optimistic update ──────────────────────────────────────────────
+    setEventRatingMap((prev) => {
+      const current  = prev[eventId] ?? { counts: {}, userVote: null };
+      const oldVote  = current.userVote;
+      const newCounts = { ...current.counts };
+
+      // Remove old vote if changing
+      if (oldVote && oldVote !== category) {
+        newCounts[oldVote] = Math.max(0, (newCounts[oldVote] ?? 0) - 1);
+      }
+      // Add new vote (only if not already selected)
+      if (oldVote !== category) {
+        newCounts[category] = (newCounts[category] ?? 0) + 1;
+      }
+      const featured = ratingService.computeFeatured(newCounts);
+      return { ...prev, [eventId]: { counts: newCounts, userVote: category, featured } };
+    });
+
+    // ── Persist ────────────────────────────────────────────────────────
+    const result = await ratingService.submitVote(eventId, currentUser.id, category);
+    if (result.error) {
+      // Rollback: re-fetch authoritative state
+      _loadEventRatings(eventId);
+    }
+    return result;
   }
 
   // ── FEED ─────────────────────────────────────────────────────
@@ -462,6 +696,17 @@ export function AppProvider({ children }) {
     updateEventFields,
     startEvent,
     closeEvent,
+    checkIn,
+    checkOut,
+    checkedInEventIds,
+    isCheckedIn: (eventId) => crowdManagementService.isCheckedIn(eventId),
+    // ── Ratings ─────────────────────────────────────────────────────────────
+    eventRatingMap,
+    getEventRatings: (eventId) =>
+      eventRatingMap[eventId] ?? { counts: {}, userVote: null, featured: null },
+    subscribeToEventRatings,
+    submitRating,
+    canVoteOnEvent,
     addFeedPost,
     likePost,
     dislikePost,

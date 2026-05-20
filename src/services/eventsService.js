@@ -171,5 +171,6 @@ function _mapEvent(d) {
     lng: d.lng ?? null,
     photos: d.photos ?? [],
     coverPhoto: d.photos?.[0] ?? null,
+    maxCapacity: d.max_capacity ?? null,
   };
 }
