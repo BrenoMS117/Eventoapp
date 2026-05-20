@@ -216,9 +216,19 @@ export default function NewEventScreen({ navigation }) {
         return;
       }
 
-      // Upload photos sequentially after the event is created.
-      for (const uri of fotos) {
-        await addEventPhoto(created.id, uri);
+      if (Platform.OS === 'web') {
+        window.alert(`Evento "${v.nome}" publicado com sucesso!`);
+        navigation.goBack();
+      } else {
+          Alert.alert(
+          "🚀 Evento publicado!",
+          `"${v.nome}" está no ar!`,
+          [{ text: "Ótimo!", onPress: () => navigation.goBack() }],
+      );
+      }
+      
+      if (fotos.length > 0 && created?.id) {
+        fotos.forEach(uri => addEventPhoto(created.id, uri));
       }
 
       if (Platform.OS === "web") {

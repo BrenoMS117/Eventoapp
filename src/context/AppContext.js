@@ -9,6 +9,14 @@ import { storageService } from '../services/storageService';
 
 const AppContext = createContext(null);
 
+let _supabaseReady = false;
+try {
+  const { supabase } = require("../lib/supabase");
+  _supabaseReady = !!supabase;
+} catch (e) {
+  _supabaseReady = false;
+}
+
 export function AppProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [authError, setAuthError] = useState("");
@@ -244,47 +252,40 @@ export function AppProvider({ children }) {
     return result.data;
   }
 
-  async function addEventPhoto(eventId, uri) {
-    const result = await eventsService.uploadPhoto(eventId, uri);
-    if (result.error || !result.url) return { error: result.error };
-    const finalUri = result.url;
-    await eventsService.savePhotoUrl(eventId, finalUri);
-    setEvents((prev) =>
-      prev.map((e) => {
-        if (e.id !== eventId) return e;
-        const photos = [...(e.photos || []), finalUri];
-        return { ...e, photos, coverPhoto: photos[0] };
-      }),
-    );
-  setEvents((prev) =>
-    prev.map((e) => {
-      if (e.id !== eventId) return e;
-      const photos = [...(e.photos || []), uri];
-      return { ...e, photos, coverPhoto: photos[0] };
-    }),
-  );
-
-  if (SUPABASE_CONFIGURED && currentUser?.id) {
-    const { url, error } = await storageService.uploadEventPhoto(uri, currentUser.id);
-    if (error) {
-      console.log('Erro upload foto:', error);
+async function addEventPhoto(eventId, uri) {
+  console.log('2.5 AQUI');
+  
+  try {
+    if (!_supabaseReady || !currentUser?.id) {
+      console.log('Supabase não pronto ou sem usuário');
       return;
     }
+
+    const result = await eventsService.uploadPhoto(eventId, uri);
+    console.log('5. uploadPhoto result:', JSON.stringify(result));
+
+    if (result.error || !result.url) {
+      console.log('6. ERRO no upload:', JSON.stringify(result.error));
+      return { error: result.error };
+    }
+
+    const saveResult = await eventsService.savePhotoUrl(eventId, result.url);
+    console.log('8. savePhotoUrl result:', JSON.stringify(saveResult));
+
     setEvents((prev) =>
       prev.map((e) => {
         if (e.id !== eventId) return e;
-        const photos = (e.photos || []).map((p) => (p === uri ? url : p));
+        const photos = [...(e.photos || []), result.url];
         return { ...e, photos, coverPhoto: photos[0] };
       }),
     );
-    const event = events.find((e) => e.id === eventId);
-    if (event) {
-      const updatedPhotos = (event.photos || []).map((p) => (p === uri ? url : p));
-      await storageService.saveEventPhotos(eventId, updatedPhotos);
-    }
+
+    console.log('9. estado local atualizado');
+    return { url: result.url };
+  } catch (e) {
+    console.log('ERRO CATCH:', e.message);
   }
-    return { url: finalUri };
-  }
+}
 
   async function removeEventPhoto(eventId, idx) {
     setEvents((prev) =>

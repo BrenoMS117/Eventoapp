@@ -72,7 +72,7 @@ export function PhotoManager({ photos = [], onAdd, onRemove, maxPhotos = 8 }) {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsMultipleSelection: false,
       quality: 0.7,
       aspect: [16, 9],
@@ -166,7 +166,7 @@ export function PostPhotoSelector({ photos = [], onAdd, onRemove }) {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsMultipleSelection: false,
       quality: 0.6,
     });
