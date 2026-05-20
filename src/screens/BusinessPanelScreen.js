@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,17 +16,111 @@ import { useApp } from "../context/AppContext";
 import { usePermissions } from "../hooks/usePermissions";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
 import { PhotoManager } from "../components/ImageCarousel";
+import { RATING_MAP } from "../services/ratings/ratingDefinitions";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Constants
+// CrowdGauge — owner real-time crowd panel with historical comparison
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OPCOES_LOTACAO = [
-  { key: "tranquilo", icon: "🟢", label: "Tranquilo", cor: COLORS.success },
-  { key: "moderado",  icon: "🟡", label: "Moderado",  cor: COLORS.warning },
-  { key: "cheio",     icon: "🔥", label: "Cheio",     cor: COLORS.primary },
-  { key: "lotado",    icon: "🚨", label: "Lotado",    cor: COLORS.danger  },
-];
+function CrowdGauge({ eventoAtivo, meusEventos }) {
+  const level = eventoAtivo.crowdLevel ?? 0;
+  const count = eventoAtivo.checkedInCount ?? 0;
+  const cap   = eventoAtivo.maxCapacity;
+
+  const barColor =
+    level >= 85 ? COLORS.danger
+    : level >= 60 ? COLORS.warning
+    : level >= 30 ? COLORS.primary
+    : COLORS.success;
+
+  // Historical average across all non-active events that have crowd data
+  const pastEventsCrowd = meusEventos
+    .filter((e) => !e.isLive && (e.crowdLevel ?? 0) > 0);
+  const avgLevel = pastEventsCrowd.length > 0
+    ? Math.round(pastEventsCrowd.reduce((a, e) => a + (e.crowdLevel ?? 0), 0) / pastEventsCrowd.length)
+    : null;
+
+  const delta = avgLevel !== null ? level - avgLevel : null;
+  const deltaLabel = delta !== null
+    ? delta > 0
+      ? `▲ +${delta}% acima da média`
+      : delta < 0
+        ? `▼ ${Math.abs(delta)}% abaixo da média`
+        : '→ Na média histórica'
+    : null;
+  const deltaColor = delta !== null ? (delta >= 0 ? COLORS.success : COLORS.warning) : COLORS.textMuted;
+
+  return (
+    <View style={cg.root}>
+      <Text style={cg.sectionLabel}>LOTAÇÃO EM TEMPO REAL</Text>
+
+      {/* Big percentage + bar */}
+      <View style={cg.gaugeRow}>
+        <Text style={[cg.bigPct, { color: barColor }]}>{level}%</Text>
+        <View style={{ flex: 1, marginLeft: 16 }}>
+          <Text style={cg.crowdLabel}>{eventoAtivo.crowdLabel ?? 'Aguardando'}</Text>
+          <View style={cg.barBg}>
+            <View style={[cg.barFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor }]} />
+          </View>
+          <Text style={cg.countText}>
+            {cap ? `${count} / ${cap} pessoas` : `${count} ${count === 1 ? 'pessoa presente' : 'pessoas presentes'}`}
+          </Text>
+        </View>
+      </View>
+
+      {/* Historical comparison */}
+      {deltaLabel && (
+        <View style={cg.deltaRow}>
+          <View style={cg.deltaBar}>
+            {avgLevel !== null && (
+              <View style={[cg.deltaAvgMarker, { left: `${avgLevel}%` }]} />
+            )}
+            <View style={[cg.deltaFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor + '66' }]} />
+          </View>
+          <Text style={[cg.deltaLabel, { color: deltaColor }]}>
+            {deltaLabel}
+          </Text>
+          {avgLevel !== null && (
+            <Text style={cg.avgLabel}>Média dos seus eventos: {avgLevel}%</Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const cg = StyleSheet.create({
+  root: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: 16, padding: 14, marginBottom: 10,
+    borderWidth: 0.5, borderColor: COLORS.border,
+  },
+  sectionLabel: {
+    fontSize: 11, fontWeight: '700', color: COLORS.textMuted,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12,
+  },
+  gaugeRow: { flexDirection: 'row', alignItems: 'center' },
+  bigPct: { fontSize: 44, fontWeight: '900', lineHeight: 48, width: 88 },
+  crowdLabel: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
+  barBg: {
+    height: 14, backgroundColor: COLORS.bgOverlay,
+    borderRadius: 7, overflow: 'hidden', marginBottom: 6,
+  },
+  barFill: { height: '100%', borderRadius: 7 },
+  countText: { fontSize: 12, color: COLORS.textSub },
+  deltaRow: { marginTop: 14, paddingTop: 14, borderTopWidth: 0.5, borderTopColor: COLORS.border },
+  deltaBar: {
+    height: 8, backgroundColor: COLORS.bgOverlay,
+    borderRadius: 4, overflow: 'hidden', marginBottom: 8, position: 'relative',
+  },
+  deltaFill: { height: '100%', borderRadius: 4 },
+  deltaAvgMarker: {
+    position: 'absolute', top: 0, bottom: 0, width: 2,
+    backgroundColor: COLORS.textMuted,
+  },
+  deltaLabel: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
+  avgLabel: { fontSize: 11, color: COLORS.textMuted },
+});
 
 const ANUNCIOS = [
   { icon: "🎤", label: "Novo artista", msg: "Um novo artista vai subir ao palco em breve!" },
@@ -45,6 +139,79 @@ function formatDate(iso) {
     day: "2-digit", month: "short", year: "numeric",
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FeaturedRatingCard — shows the dominant public perception to the owner
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FeaturedRatingCard({ featured, totalVotes }) {
+  if (!featured) {
+    return (
+      <View style={fr.empty}>
+        <Text style={fr.emptyText}>
+          💬 Aguardando avaliações do público…
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[fr.card, { borderColor: featured.cor + '44' }]}>
+      {/* Top row: icon + name + pct */}
+      <View style={fr.topRow}>
+        <Text style={fr.bigIcon}>{featured.icon}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={fr.categoryLabel}>MAIS VOTADO</Text>
+          <Text style={[fr.categoryName, { color: featured.cor }]}>
+            {featured.label}
+          </Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={[fr.pct, { color: featured.cor }]}>{featured.pct}%</Text>
+          <Text style={fr.votesCount}>{featured.votes}/{totalVotes}</Text>
+        </View>
+      </View>
+
+      {/* Progress bar */}
+      <View style={fr.barBg}>
+        <View
+          style={[
+            fr.barFill,
+            { width: `${featured.pct}%`, backgroundColor: featured.cor },
+          ]}
+        />
+      </View>
+
+    </View>
+  );
+}
+
+const fr = StyleSheet.create({
+  card: {
+    backgroundColor: COLORS.bgCard, borderRadius: 16, padding: 14,
+    borderWidth: 1, marginBottom: 10,
+  },
+  empty: {
+    backgroundColor: COLORS.bgCard, borderRadius: 16, padding: 14,
+    borderWidth: 0.5, borderColor: COLORS.border, marginBottom: 10,
+    alignItems: 'center',
+  },
+  emptyText: { fontSize: 13, color: COLORS.textMuted },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  bigIcon: { fontSize: 34 },
+  categoryLabel: {
+    fontSize: 10, fontWeight: '700', color: COLORS.textMuted,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
+  },
+  categoryName: { fontSize: 18, fontWeight: '900' },
+  pct: { fontSize: 26, fontWeight: '900', lineHeight: 28 },
+  votesCount: { fontSize: 11, color: COLORS.textMuted },
+  barBg: {
+    height: 8, backgroundColor: COLORS.bgOverlay,
+    borderRadius: 4, overflow: 'hidden',
+  },
+  barFill: { height: '100%', borderRadius: 4 },
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared sub-components
@@ -288,13 +455,21 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
 // Owner has at least one live event: full operational dashboard.
 // ─────────────────────────────────────────────────────────────────────────────
 function ActivePanel({
-  currentUser, eventoAtivo, businessStats, cuponsDoAtivo,
+  currentUser, eventoAtivo, businessStats, cuponsDoAtivo, meusEventos,
   onLogout, onCreateEvent, navigation,
   addEventPhoto, removeEventPhoto, updateEventFields, closeEvent,
 }) {
   const perms = usePermissions();
-  const [statusLotacao, setStatusLotacao] = useState("moderado");
+  const { subscribeToEventRatings, getEventRatings } = useApp();
   const [secaoFotos, setSecaoFotos]       = useState(false);
+
+  // Subscribe to real-time ratings for the active event
+  useEffect(() => {
+    if (eventoAtivo?.id) subscribeToEventRatings(eventoAtivo.id);
+  }, [eventoAtivo?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const eventRating = getEventRatings(eventoAtivo?.id ?? '');
+  const totalVotes  = Object.values(eventRating.counts).reduce((a, b) => a + b, 0);
   const [novoArtista, setNovoArtista]     = useState("");
   const [novoHorarioFim, setNovoHorarioFim] = useState("");
   const [salvando, setSalvando]           = useState(false);
@@ -387,10 +562,21 @@ function ActivePanel({
 
         {/* Métricas em tempo real */}
         <View style={s.metricsGrid}>
-          <MetricCard icon="👥" label="Presentes"  valor={businessStats.checkedIn.toLocaleString()} sub={businessStats.checkedInChange} cor={COLORS.primaryLight} />
-          <MetricCard icon="⭐" label="Avaliação"  valor={businessStats.rating}  sub={`${businessStats.reviewsToday} avaliações`} cor={COLORS.gold} />
+          <MetricCard icon="👥" label="Presentes"  valor={eventoAtivo.checkedInCount?.toLocaleString() ?? '0'} sub={businessStats.checkedInChange} cor={COLORS.primaryLight} />
+          <MetricCard
+            icon="⭐" label="Avaliação"
+            valor={eventoAtivo.rating > 0 ? eventoAtivo.rating.toFixed(1) : '—'}
+            sub={`${eventoAtivo.reviewCount ?? 0} avaliações`}
+            cor={COLORS.gold}
+          />
           <MetricCard icon="🎟" label="Resgatados" valor={businessStats.couponsRedeemed} sub={`/ ${businessStats.couponsTotal}`} cor={COLORS.purpleLight} />
           <MetricCard icon="🔥" label="Nível"      valor={businessStats.heatLevel || "WARM"} cor={COLORS.primary} />
+        </View>
+
+        {/* Característica em destaque (percepção do público) */}
+        <View style={s.secao}>
+          <Text style={s.secaoTitulo}>Percepção do Público</Text>
+          <FeaturedRatingCard featured={eventRating.featured} totalVotes={totalVotes} />
         </View>
 
         {/* Gerenciar Evento */}
@@ -453,23 +639,9 @@ function ActivePanel({
           )}
         </View>
 
-        {/* Controle de lotação */}
+        {/* Lotação em tempo real */}
         <View style={s.secao}>
-          <Text style={s.secaoTitulo}>Status de Lotação</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            {OPCOES_LOTACAO.map((opt) => (
-              <TouchableOpacity
-                key={opt.key}
-                style={[s.lotacaoBtn, statusLotacao === opt.key && { borderColor: opt.cor, backgroundColor: opt.cor + "22" }]}
-                onPress={() => { setStatusLotacao(opt.key); Alert.alert("✅ Atualizado", `Lotação: ${opt.label}`); }}
-              >
-                <Text style={{ fontSize: 18, marginBottom: 2 }}>{opt.icon}</Text>
-                <Text style={[s.lotacaoLabel, statusLotacao === opt.key && { color: opt.cor, fontWeight: "700" }]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <CrowdGauge eventoAtivo={eventoAtivo} meusEventos={meusEventos} />
         </View>
 
         {/* Anunciar ao vivo */}
@@ -666,6 +838,7 @@ export default function BusinessPanelScreen({ navigation }) {
       eventoAtivo={eventoAtivo}
       businessStats={businessStats}
       cuponsDoAtivo={cuponsDoAtivo}
+      meusEventos={meusEventos}
       onLogout={handleLogout}
       onCreateEvent={onCreateEvent}
       navigation={navigation}
@@ -808,14 +981,6 @@ const s = StyleSheet.create({
     borderWidth: 0.5, borderColor: COLORS.success + "66",
   },
   iniciarBtnTexto: { fontSize: 11, color: COLORS.success, fontWeight: "700" },
-
-  // Crowd control
-  lotacaoBtn: {
-    flex: 1, alignItems: "center", paddingVertical: 10,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
-    borderWidth: 1.5, borderColor: COLORS.border,
-  },
-  lotacaoLabel: { fontSize: 10, color: COLORS.textMuted },
 
   // Announce
   anuncioCard: {

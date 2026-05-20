@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,12 +7,14 @@ import {
   StyleSheet,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
 import { PhotoCarousel } from "../components/ImageCarousel";
+import { RATING_OPTIONS, RATING_MAP } from "../services/ratings/ratingDefinitions";
 
 const { width } = Dimensions.get("window");
 const COR_HEAT = {
@@ -22,14 +24,402 @@ const COR_HEAT = {
   COOL: "#3B82F6",
 };
 
-const OPCOES_AVALIACAO = [
-  { key: "fogo", icon: "🔥", label: "Intenso", cor: COLORS.primary },
-  { key: "tranquilo", icon: "✨", label: "Tranquilo", cor: "#3B82F6" },
-  { key: "cheio", icon: "👥", label: "Lotado", cor: COLORS.warning },
-  { key: "acessivel", icon: "♿", label: "Acessível", cor: COLORS.success },
-  { key: "musica", icon: "🎵", label: "Boa música", cor: COLORS.purple },
-  { key: "ruim", icon: "👎", label: "Ruim", cor: COLORS.danger },
-];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RatingSection — real-time event characteristic monitoring
+// ─────────────────────────────────────────────────────────────────────────────
+
+function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
+  const [submitting, setSubmitting] = useState(null); // category key being submitted
+  const [feedback, setFeedback]     = useState(false); // success flash
+
+  const counts   = userRating?.counts   ?? {};
+  const userVote = userRating?.userVote ?? null;
+  const featured = userRating?.featured ?? null;
+  const total    = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  async function handleVote(category) {
+    if (!canVote || submitting) return;
+    if (category === userVote) return; // no-op: already voted for this
+    setSubmitting(category);
+    const result = await onVote(evento.id, category);
+    setSubmitting(null);
+    if (result?.error) {
+      Alert.alert('Avaliação', result.error);
+    } else {
+      setFeedback(true);
+      setTimeout(() => setFeedback(false), 2800);
+    }
+  }
+
+  return (
+    <View style={rs.wrap}>
+      {/* ── Featured banner (shown when there's a dominant characteristic) ── */}
+      {featured?.isClear && (
+        <View style={[rs.featBanner, { borderColor: featured.cor + '55' }]}>
+          <Text style={rs.featLabel}>⚡ CARACTERÍSTICA EM DESTAQUE</Text>
+          <View style={rs.featRow}>
+            <Text style={rs.featIcon}>{featured.icon}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[rs.featName, { color: featured.cor }]}>{featured.label}</Text>
+              <View style={rs.featBarBg}>
+                <View style={[rs.featBarFill, { width: `${featured.pct}%`, backgroundColor: featured.cor }]} />
+              </View>
+            </View>
+            <View style={rs.featStats}>
+              <Text style={[rs.featPct, { color: featured.cor }]}>{featured.pct}%</Text>
+              <Text style={rs.featCount}>{featured.votes} votos</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ── Section header ─────────────────────────────────────────────────── */}
+      <View style={rs.header}>
+        <Text style={rs.headerTitle}>
+          {isOwner ? '👁 PERCEPÇÃO DO PÚBLICO' : 'COMO ESTÁ O EVENTO?'}
+        </Text>
+        {total > 0 && (
+          <Text style={rs.headerCount}>{total} {total === 1 ? 'avaliação' : 'avaliações'}</Text>
+        )}
+      </View>
+
+      {/* ── Pills grid — 2 columns ──────────────────────────────────────────── */}
+      <View style={rs.grid}>
+        {RATING_OPTIONS.map((opt) => {
+          const count      = counts[opt.key] ?? 0;
+          const pct        = total > 0 ? Math.round((count / total) * 100) : 0;
+          const isVoted    = userVote === opt.key;
+          const isTop      = featured?.category === opt.key;
+          const isBusy     = submitting === opt.key;
+          const isDisabled = !canVote || !!submitting;
+
+          return (
+            <TouchableOpacity
+              key={opt.key}
+              style={[
+                rs.pill,
+                isVoted && { borderColor: opt.cor, backgroundColor: opt.cor + '28' },
+                isTop && !isVoted && { borderColor: opt.cor + '77' },
+              ]}
+              onPress={() => handleVote(opt.key)}
+              disabled={isDisabled}
+              activeOpacity={canVote ? 0.72 : 1}
+            >
+              {/* Background progress fill */}
+              {pct > 0 && !isVoted && (
+                <View
+                  style={[
+                    rs.pillProgress,
+                    { width: `${pct}%`, backgroundColor: opt.cor + '14' },
+                  ]}
+                />
+              )}
+
+              {/* Content */}
+              {isBusy
+                ? <ActivityIndicator size="small" color={opt.cor} style={rs.pillIconSlot} />
+                : <Text style={rs.pillIcon}>{opt.icon}</Text>
+              }
+              <View style={{ flex: 1 }}>
+                <Text style={[rs.pillLabel, isVoted && { color: opt.cor, fontWeight: '800' }]}>
+                  {opt.label}
+                </Text>
+                <Text style={[rs.pillVotes, isTop && { color: opt.cor, fontWeight: '600' }]}>
+                  {count > 0 ? `${count} votos` : '—'}
+                </Text>
+              </View>
+              {isVoted && (
+                <Ionicons name="star" size={13} color={opt.cor} />
+              )}
+              {isTop && !isVoted && count > 0 && (
+                <Text style={rs.trophyIcon}>🏆</Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* ── User status ────────────────────────────────────────────────────── */}
+      {feedback && (
+        <View style={rs.feedbackRow}>
+          <Ionicons name="checkmark-circle" size={15} color={COLORS.success} />
+          <Text style={rs.feedbackText}>Avaliação registrada!</Text>
+        </View>
+      )}
+      {!feedback && userVote && (
+        <View style={rs.votedRow}>
+          <Ionicons name="star" size={13} color={RATING_MAP[userVote]?.cor ?? COLORS.primary} />
+          <Text style={rs.votedText}>
+            Você votou: {RATING_MAP[userVote]?.icon} {RATING_MAP[userVote]?.label}
+            {canVote ? ' — toque em outra para mudar' : ''}
+          </Text>
+        </View>
+      )}
+      {isOwner && (
+        <Text style={rs.hintText}>👁 Donos de estabelecimento visualizam em modo leitura</Text>
+      )}
+      {!canVote && !isOwner && (
+        <Text style={rs.hintText}>📍 Vá ao local para avaliar</Text>
+      )}
+    </View>
+  );
+}
+
+const rs = StyleSheet.create({
+  wrap: { paddingHorizontal: 12, marginTop: 16 },
+
+  // Featured banner
+  featBanner: {
+    backgroundColor: COLORS.bgCard, borderRadius: 16, padding: 14,
+    borderWidth: 1, marginBottom: 16,
+  },
+  featLabel: {
+    fontSize: 11, fontWeight: '700', color: COLORS.textMuted,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
+  },
+  featRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  featIcon: { fontSize: 30 },
+  featName: { fontSize: 17, fontWeight: '900', marginBottom: 6 },
+  featBarBg: {
+    height: 6, backgroundColor: COLORS.bgOverlay,
+    borderRadius: 3, overflow: 'hidden',
+  },
+  featBarFill: { height: '100%', borderRadius: 3 },
+  featStats: { alignItems: 'flex-end', minWidth: 52 },
+  featPct: { fontSize: 24, fontWeight: '900', lineHeight: 26 },
+  featCount: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+
+  // Section header
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'baseline', marginBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 12, fontWeight: '800', color: COLORS.textMuted,
+    textTransform: 'uppercase', letterSpacing: 0.8,
+  },
+  headerCount: { fontSize: 11, color: COLORS.textMuted },
+
+  // Pills
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pill: {
+    flex: 1,
+    minWidth: '45%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.bgCard,
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 8,
+    overflow: 'hidden',   // clips the progress fill
+    position: 'relative',
+    minHeight: 58,
+  },
+  pillProgress: {
+    position: 'absolute',
+    top: 0, left: 0, bottom: 0,
+    borderRadius: 12,
+  },
+  pillIconSlot: { width: 22, alignItems: 'center' },
+  pillIcon: { fontSize: 20 },
+  pillLabel: { fontSize: 12, fontWeight: '600', color: COLORS.text },
+  pillVotes: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  trophyIcon: { fontSize: 13 },
+
+  // Status rows
+  votedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: COLORS.bgOverlay, borderRadius: 10,
+    padding: 10, marginTop: 10,
+  },
+  votedText: { fontSize: 12, color: COLORS.textSub, flex: 1 },
+  feedbackRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: COLORS.success + '22', borderRadius: 10,
+    padding: 10, marginTop: 10,
+    borderWidth: 0.5, borderColor: COLORS.success + '44',
+  },
+  feedbackText: { fontSize: 13, fontWeight: '700', color: COLORS.success },
+  hintText: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 10 },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CrowdPanel — real-time public crowd display for users
+// ─────────────────────────────────────────────────────────────────────────────
+
+function CrowdPanel({ evento, isProximo, onCheckIn, onCheckOut, isCheckedIn }) {
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState(null); // 'in' | 'out' | null
+
+  const level = evento.crowdLevel ?? 0;
+  const barColor =
+    level >= 85 ? COLORS.danger
+    : level >= 60 ? COLORS.warning
+    : level >= 30 ? COLORS.primary
+    : COLORS.success;
+
+  const capacityText = evento.maxCapacity
+    ? `${evento.checkedInCount} / ${evento.maxCapacity} pessoas`
+    : `${evento.checkedInCount} ${evento.checkedInCount === 1 ? 'pessoa' : 'pessoas'} aqui`;
+
+  async function handleCheckIn() {
+    setLoading(true);
+    const result = await onCheckIn(evento.id);
+    setLoading(false);
+    if (result?.error) {
+      Alert.alert('Check-in', result.error);
+    } else if (!result?.alreadyIn) {
+      setFeedback('in');
+      setTimeout(() => setFeedback(null), 3000);
+    }
+  }
+
+  async function handleCheckOut() {
+    setLoading(true);
+    await onCheckOut(evento.id);
+    setLoading(false);
+    setFeedback('out');
+    setTimeout(() => setFeedback(null), 2000);
+  }
+
+  return (
+    <View style={cs.panel}>
+      <Text style={cs.panelLabel}>👥 PÚBLICO AO VIVO</Text>
+
+      {/* Level bar */}
+      <View style={cs.barBg}>
+        <View style={[cs.barFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor }]} />
+      </View>
+
+      {/* Stats row */}
+      <View style={cs.statsRow}>
+        <View>
+          <Text style={[cs.levelPct, { color: barColor }]}>{level}%</Text>
+          <Text style={cs.levelLabel}>{evento.crowdLabel ?? 'Aguardando'}</Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={cs.capacityNum}>{capacityText}</Text>
+          {evento.maxCapacity && (
+            <Text style={cs.capacitySub}>capacidade total</Text>
+          )}
+        </View>
+      </View>
+
+      {/* Check-in / check-out button — only for live events when nearby */}
+      {evento.isLive && (
+        <View style={cs.checkInRow}>
+          {feedback === 'in' && (
+            <View style={cs.feedbackChip}>
+              <Text style={cs.feedbackText}>✓ Check-in feito! Aproveite 🎉</Text>
+            </View>
+          )}
+          {feedback === 'out' && (
+            <View style={[cs.feedbackChip, { backgroundColor: COLORS.bgOverlay }]}>
+              <Text style={[cs.feedbackText, { color: COLORS.textSub }]}>Saída registrada</Text>
+            </View>
+          )}
+          {!feedback && (
+            isCheckedIn ? (
+              <View style={cs.checkInActions}>
+                <View style={cs.presenteChip}>
+                  <View style={cs.presenteDot} />
+                  <Text style={cs.presenteText}>Você está aqui</Text>
+                </View>
+                <TouchableOpacity
+                  style={cs.sairBtn}
+                  onPress={handleCheckOut}
+                  disabled={loading}
+                >
+                  {loading
+                    ? <ActivityIndicator size="small" color={COLORS.textMuted} />
+                    : <Text style={cs.sairBtnText}>Sair →</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            ) : isProximo ? (
+              <TouchableOpacity
+                style={[cs.checkInBtn, { backgroundColor: barColor }]}
+                onPress={handleCheckIn}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <>
+                      <Text style={cs.checkInBtnIcon}>📍</Text>
+                      <Text style={cs.checkInBtnText}>Fazer check-in</Text>
+                    </>
+                }
+              </TouchableOpacity>
+            ) : (
+              <Text style={cs.nearbyHint}>📍 Chegue ao local para fazer check-in</Text>
+            )
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const cs = StyleSheet.create({
+  panel: {
+    backgroundColor: COLORS.bgCard,
+    marginHorizontal: 12,
+    marginTop: 10,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 0.5,
+    borderColor: COLORS.border,
+  },
+  panelLabel: {
+    fontSize: 11, fontWeight: '700', color: COLORS.textMuted,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
+  },
+  barBg: {
+    height: 12, backgroundColor: COLORS.bgOverlay,
+    borderRadius: 6, overflow: 'hidden', marginBottom: 10,
+  },
+  barFill: { height: '100%', borderRadius: 6 },
+  statsRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
+  },
+  levelPct: { fontSize: 28, fontWeight: '900', lineHeight: 32 },
+  levelLabel: { fontSize: 12, color: COLORS.textSub, marginTop: 2 },
+  capacityNum: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  capacitySub: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  checkInRow: { marginTop: 14 },
+  checkInBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, borderRadius: 12, paddingVertical: 12,
+  },
+  checkInBtnIcon: { fontSize: 16 },
+  checkInBtnText: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  nearbyHint: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center' },
+  checkInActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  presenteChip: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: COLORS.success + '22', borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderWidth: 0.5, borderColor: COLORS.success + '55',
+  },
+  presenteDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.success },
+  presenteText: { fontSize: 12, fontWeight: '700', color: COLORS.success },
+  sairBtn: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    backgroundColor: COLORS.bgOverlay,
+    borderWidth: 0.5, borderColor: COLORS.border,
+  },
+  sairBtnText: { fontSize: 12, fontWeight: '600', color: COLORS.textSub },
+  feedbackChip: {
+    backgroundColor: COLORS.success + '22', borderRadius: 12,
+    paddingVertical: 10, alignItems: 'center',
+    borderWidth: 0.5, borderColor: COLORS.success + '44',
+  },
+  feedbackText: { fontSize: 13, fontWeight: '700', color: COLORS.success },
+});
 
 function VibeMeter({ value }) {
   const cor =
@@ -71,9 +461,20 @@ export default function EventDetailScreen({ route, navigation }) {
     redeemCoupon,
     isCouponRedeemed,
     nearbyEventIds,
+    checkIn,
+    checkOut,
+    isCheckedIn,
+    currentUser,
+    subscribeToEventRatings,
+    getEventRatings,
+    submitRating,
+    canVoteOnEvent,
   } = useApp();
-  const [avaliacoesSelecionadas, setAvaliacoesSelecionadas] = useState([]);
-  const [avaliacaoEnviada, setAvaliacaoEnviada] = useState(false);
+
+  // Subscribe to real-time ratings for this event
+  useEffect(() => {
+    subscribeToEventRatings(eventId);
+  }, [eventId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const evento = events.find((e) => e.id === eventId);
   if (!evento) return null;
@@ -88,13 +489,6 @@ export default function EventDetailScreen({ route, navigation }) {
       : evento.crowdLevel >= 60
         ? COLORS.warning
         : COLORS.success;
-
-  function toggleAvaliacao(key) {
-    if (avaliacaoEnviada) return;
-    setAvaliacoesSelecionadas((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-  }
 
   function handleResgatar(cupom) {
     if (!isProximo) {
@@ -193,6 +587,17 @@ export default function EventDetailScreen({ route, navigation }) {
           <PhotoCarousel photos={evento.photos} height={240} />
         )}
 
+        {/* Painel de público em tempo real */}
+        {evento.isLive && (
+          <CrowdPanel
+            evento={evento}
+            isProximo={isProximo}
+            onCheckIn={checkIn}
+            onCheckOut={checkOut}
+            isCheckedIn={isCheckedIn(eventId)}
+          />
+        )}
+
         {/* Termômetro */}
         <View style={s.vibeSecao}>
           <Text style={s.vibeSecaoLabel}>TERMÔMETRO DO EVENTO</Text>
@@ -274,69 +679,14 @@ export default function EventDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Avaliação rápida */}
-        <View style={s.secao}>
-          <Text style={s.secaoTitulo}>AVALIAÇÃO RÁPIDA</Text>
-          <View style={s.avaliacaoGrid}>
-            {OPCOES_AVALIACAO.map((r) => (
-              <TouchableOpacity
-                key={r.key}
-                style={[
-                  s.avaliacaoPill,
-                  {
-                    backgroundColor: r.cor + "22",
-                    borderColor: avaliacoesSelecionadas.includes(r.key)
-                      ? r.cor
-                      : r.cor + "44",
-                  },
-                ]}
-                onPress={() => toggleAvaliacao(r.key)}
-              >
-                <Text style={s.avaliacaoIcon}>{r.icon}</Text>
-                <Text style={[s.avaliacaoLabel, { color: r.cor }]}>
-                  {r.label}
-                </Text>
-                {avaliacoesSelecionadas.includes(r.key) && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={12}
-                    color={r.cor}
-                    style={{ marginLeft: 3 }}
-                  />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-          {avaliacoesSelecionadas.length > 0 && !avaliacaoEnviada && (
-            <TouchableOpacity
-              style={s.enviarAvaliacaoBtn}
-              onPress={() => {
-                setAvaliacaoEnviada(true);
-                Alert.alert("Obrigado! 🙌", "Avaliação enviada com sucesso!");
-              }}
-            >
-              <Text style={s.enviarAvaliacaoTexto}>Enviar avaliação →</Text>
-            </TouchableOpacity>
-          )}
-          {avaliacaoEnviada && (
-            <View style={s.avaliacaoObrigado}>
-              <Ionicons
-                name="checkmark-circle"
-                size={16}
-                color={COLORS.success}
-              />
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: COLORS.success,
-                  fontWeight: "600",
-                }}
-              >
-                Avaliação enviada! Obrigado 🙌
-              </Text>
-            </View>
-          )}
-        </View>
+        {/* Avaliação em tempo real */}
+        <RatingSection
+          evento={evento}
+          userRating={getEventRatings(eventId)}
+          onVote={submitRating}
+          canVote={canVoteOnEvent(eventId)}
+          isOwner={currentUser?.role === 'business'}
+        />
 
         {/* Cupons */}
         {cupons.length > 0 && (
@@ -621,36 +971,6 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.8,
     marginBottom: 12,
-  },
-  avaliacaoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  avaliacaoPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: RADIUS.full,
-    borderWidth: 1.5,
-  },
-  avaliacaoIcon: { fontSize: 14, marginRight: 5 },
-  avaliacaoLabel: { fontSize: 12, fontWeight: "600" },
-  enviarAvaliacaoBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.full,
-    paddingVertical: 13,
-    alignItems: "center",
-    marginTop: 12,
-  },
-  enviarAvaliacaoTexto: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  avaliacaoObrigado: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: COLORS.success + "22",
-    padding: 10,
-    borderRadius: RADIUS.md,
-    marginTop: 10,
-    borderWidth: 0.5,
-    borderColor: COLORS.success + "44",
   },
   cupomContagemBadge: {
     backgroundColor: COLORS.primary + "22",
