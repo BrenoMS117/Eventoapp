@@ -76,6 +76,22 @@ export const feedService = {
     return { error };
   },
 
+  /**
+   * Expires all feed posts linked to an event by setting expires_at = NOW().
+   * Called when the event is closed so the posts stop appearing in all feeds.
+   *
+   * @param {string} eventId  UUID of the event being closed.
+   * @returns {Promise<{ error: any }>}
+   */
+  async closeByEvent(eventId) {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('feed_posts')
+      .update({ expires_at: now })
+      .eq('event_id', eventId);
+    return { error };
+  },
+
   subscribe(callback) {
     return supabase
       .channel('feed_posts')

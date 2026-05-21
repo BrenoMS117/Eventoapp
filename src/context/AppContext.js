@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { authService } from "../services/authService";
-import { eventsService, isEventExpired } from "../services/eventsService";
+import { eventsService } from "../services/eventsService";
 import { couponsService } from "../services/couponsService";
 import { feedService } from "../services/feedService";
 import { geoService } from "../services/geo/GeoService";
@@ -86,42 +86,92 @@ export function AppProvider({ children }) {
   // Keep eventsRef fresh so interval callbacks never see stale data
   useEffect(() => { eventsRef.current = events; }, [events]);
 
-  // ── Auto-start events at their scheduled time ─────────────────────────────
-  // Fires immediately on login and every 60 s after.
-  // Only triggers for business owners and only for events with a valid ISO
-  // startsAt datetime. Legacy events with time-only startsAt ("21:00") are
-  // skipped (isNaN check) — they remain inactive until the owner creates a new event.
+  // ── Auto-manage events: start at startsAt, close at endsAt ──────────────
+  // Runs immediately on login and every 60 s after.
+  //
+  // Two passes every tick:
+  //
+  //   Pass 1 — ALL users (client-side only, no DB calls):
+  //     Hide events from local state whose endsAt has passed. This covers the
+  //     gap between the business owner's auto-close writing to the DB and other
+  //     users' apps polling the update.
+  //
+  //   Pass 2 — Business owners only (writes to DB):
+  //     • Auto-start: events with startsAt <= now that aren't live yet.
+  //     • Auto-close: live events with endsAt <= now.
+  //       Closing cascades to coupons and feed posts (DB + local state).
+  //
+  // Only ISO datetimes trigger auto-start/close. Legacy time-only strings
+  // ("21:00") are skipped by the isNaN guard — those events need manual action.
   useEffect(() => {
-    if (currentUser?.role !== 'business' || !currentUser?.id) return;
+    if (!currentUser) return;
 
-    async function autoStartScheduledEvents() {
+    async function autoManageEvents() {
       const now = Date.now();
-      const toStart = eventsRef.current.filter((e) => {
-        if (e.ownerId !== currentUser.id) return false;
+
+      // ── Pass 1: client-side hide for all users ─────────────────────────
+      const toHide = eventsRef.current.filter((e) => {
+        if (e.endsAt) {
+          const t = new Date(e.endsAt).getTime();
+          if (!isNaN(t) && t <= now) return true;
+        }
+        return false;
+      });
+      if (toHide.length > 0) {
+        const hideIds = new Set(toHide.map((e) => e.id));
+        setEvents((prev) => prev.filter((e) => !hideIds.has(e.id)));
+        setCoupons((prev) => prev.filter((c) => !hideIds.has(c.eventId)));
+        setFeedPosts((prev) => prev.filter((p) => !hideIds.has(p.eventId)));
+      }
+
+      // ── Pass 2: DB writes — business owners only ───────────────────────
+      if (currentUser.role !== 'business' || !currentUser.id) return;
+
+      const ownerEvents = eventsRef.current.filter((e) => e.ownerId === currentUser.id);
+
+      // Auto-start
+      const toStart = ownerEvents.filter((e) => {
         if (e.isLive || e.closedAt) return false;
         if (!e.startsAt) return false;
         const t = new Date(e.startsAt).getTime();
         return !isNaN(t) && t <= now;
       });
-      if (toStart.length === 0) return;
-
-      for (const event of toStart) {
-        await eventsService.startEvent(event.id);
+      if (toStart.length > 0) {
+        for (const event of toStart) await eventsService.startEvent(event.id);
+        const startIds = new Set(toStart.map((e) => e.id));
+        setEvents((prev) =>
+          prev.map((e) => (startIds.has(e.id) ? { ...e, isLive: true } : e)),
+        );
       }
-      const ids = new Set(toStart.map((e) => e.id));
-      setEvents((prev) =>
-        prev.map((e) => (ids.has(e.id) ? { ...e, isLive: true } : e)),
-      );
+
+      // Auto-close at endsAt
+      const toClose = ownerEvents.filter((e) => {
+        if (!e.isLive || e.closedAt) return false;
+        if (!e.endsAt) return false;
+        const t = new Date(e.endsAt).getTime();
+        return !isNaN(t) && t <= now;
+      });
+      if (toClose.length > 0) {
+        for (const event of toClose) {
+          await eventsService.closeEvent(event.id);
+          await couponsService.closeByEvent(event.id);
+          await feedService.closeByEvent(event.id);
+        }
+        const closeIds = new Set(toClose.map((e) => e.id));
+        setEvents((prev) => prev.filter((e) => !closeIds.has(e.id)));
+        setCoupons((prev) => prev.filter((c) => !closeIds.has(c.eventId)));
+        setFeedPosts((prev) => prev.filter((p) => !closeIds.has(p.eventId)));
+      }
     }
 
-    autoStartScheduledEvents(); // immediate check on login / role change
-    const id = setInterval(autoStartScheduledEvents, 60_000);
+    autoManageEvents(); // immediate check on login
+    const id = setInterval(autoManageEvents, 60_000);
     return () => clearInterval(id);
   }, [currentUser?.id, currentUser?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── businessStats: keep activeEvent in sync with the live event ─────────
   // Fires whenever the events list changes:
-  //   • startup (loadData), startEvent, closeEvent, addEvent, expiry purge.
+  //   • startup (loadData), startEvent, closeEvent, addEvent, auto-close.
   // Priority: the live event for this owner; falls back to the most-recently-
   // created event so the panel still shows data even before going live.
   useEffect(() => {
@@ -135,49 +185,6 @@ export function AppProvider({ children }) {
       activeEventName: liveEvent?.name ?? null,
     }));
   }, [events, currentUser?.id, currentUser?.role]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Expired event cleanup — hard-delete from DB ──────────────────────────
-  // Runs immediately on login and every 5 minutes after.
-  //
-  // For each expired event (isEventExpired → true):
-  //   1. Hard-delete the event row from Supabase (storage + DB cascade).
-  //   2. Remove from local `events` state.
-  //   3. Remove orphaned coupons from local `coupons` state.
-  //
-  // Additionally calls deleteExpiredBatch() for a server-side sweep of
-  // closed_at-based expiry that other clients may have triggered.
-  useEffect(() => {
-    if (!currentUser) return;
-
-    async function purgeExpiredEvents() {
-      // Client-side detection: events loaded in this session that have now expired
-      const expired = eventsRef.current.filter((e) => isEventExpired(e));
-
-      if (expired.length > 0) {
-        const expiredIds = new Set(expired.map((e) => e.id));
-
-        // Hard-delete each expired event (storage + DB cascade)
-        await Promise.all(expired.map((e) => eventsService.deleteEvent(e.id)));
-
-        // Purge from local state
-        setEvents((prev) => prev.filter((e) => !expiredIds.has(e.id)));
-        setCoupons((prev) => prev.filter((c) => !expiredIds.has(c.eventId)));
-      }
-
-      // Server-side sweep: remove closed_at-expired events set by OTHER clients
-      // (e.g. business closed the event on another device)
-      const { deletedIds } = await eventsService.deleteExpiredBatch();
-      if (deletedIds.length > 0) {
-        const serverIds = new Set(deletedIds);
-        setEvents((prev) => prev.filter((e) => !serverIds.has(e.id)));
-        setCoupons((prev) => prev.filter((c) => !serverIds.has(c.eventId)));
-      }
-    }
-
-    purgeExpiredEvents(); // immediate pass on login
-    const id = setInterval(purgeExpiredEvents, 5 * 60 * 1000); // every 5 min
-    return () => clearInterval(id);
-  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     initSession();
@@ -380,12 +387,15 @@ export function AppProvider({ children }) {
     }
     const result = await eventsService.closeEvent(eventId);
     if (!result.error) {
-      const closedAt = new Date().toISOString();
-      setEvents((prev) =>
-        prev.map((e) => (e.id === eventId ? { ...e, isLive: false, closedAt } : e)),
-      );
-      // The cleanup interval will remove the event from state 1 h from now.
-      // No setTimeout needed — the 5-min interval picks it up automatically.
+      // Cascade: close coupons + feed posts in DB
+      await couponsService.closeByEvent(eventId);
+      await feedService.closeByEvent(eventId);
+
+      // Remove from local state immediately — event disappears from all views.
+      // The row is kept in the DB (closed_at set) for history queries.
+      setEvents((prev) => prev.filter((e) => e.id !== eventId));
+      setCoupons((prev) => prev.filter((c) => c.eventId !== eventId));
+      setFeedPosts((prev) => prev.filter((p) => p.eventId !== eventId));
     }
     return result;
   }
@@ -538,6 +548,14 @@ async function addEventPhoto(eventId, uri) {
     if (coupon.remainingQty <= 0) {
       return { success: false, error: 'Cupons esgotados.' };
     }
+
+    // ── Event live check ─────────────────────────────────────────────────────
+    // Mirror the same guard from canRedeemCoupon so the async path is also safe.
+    const eventForCoupon = events.find((e) => e.id === coupon.eventId);
+    if (!eventForCoupon?.isLive) {
+      return { success: false, error: 'O evento foi encerrado.' };
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     // ── Geo check using cached coords (zero latency) ─────────────────────────
     // Priority (mirrors canVoteOnEvent / submitRating):
@@ -704,6 +722,17 @@ async function addEventPhoto(eventId, uri) {
       return { canRedeem: false, message: 'Você já resgatou este cupom.' };
     if (coupon.remainingQty <= 0)
       return { canRedeem: false, message: 'Cupons esgotados.' };
+
+    // ── Event live check ────────────────────────────────────────────────────
+    // Coupons are only redeemable while the event is running.
+    // If the owner closed the event, block immediately (the coupon will also
+    // be removed from state, but this guard covers the brief window between
+    // closeEvent() finishing and the re-render propagating).
+    const eventForCoupon = events.find((e) => e.id === coupon.eventId);
+    if (!eventForCoupon?.isLive) {
+      return { canRedeem: false, message: 'O evento foi encerrado.' };
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     // Check-in proves the user is physically at the venue — bypass geofence entirely.
     // Same principle as canVoteOnEvent: check-in is the strongest proof of presence.

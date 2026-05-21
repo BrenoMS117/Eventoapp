@@ -2,9 +2,14 @@ import { supabase } from '../lib/supabase';
 
 export const couponsService = {
   async getAll() {
+    const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('coupons')
       .select('*')
+      // Exclude coupons whose expires_at is already in the past.
+      // This covers both naturally-timed coupons and coupons closed
+      // by closeByEvent() when the owner ends the event.
+      .or(`expires_at.is.null,expires_at.gt.${now}`)
       .order('created_at', { ascending: false });
     if (error) return { data: null, error };
     return { data: data.map(_mapCoupon), error: null };
@@ -80,6 +85,23 @@ export const couponsService = {
       .from('coupons')
       .update({ crowd_level: crowdLevel })
       .eq('id', couponId);
+    return { error };
+  },
+
+  /**
+   * Marks all coupons of an event as expired (sets expires_at = NOW()).
+   * Called automatically when the owner closes an event so no new
+   * redemptions are possible from that point on.
+   *
+   * @param {string} eventId  UUID of the event being closed.
+   * @returns {Promise<{ error: any }>}
+   */
+  async closeByEvent(eventId) {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('coupons')
+      .update({ expires_at: now })
+      .eq('event_id', eventId);
     return { error };
   },
 };
