@@ -140,6 +140,30 @@ function formatDate(iso) {
   });
 }
 
+/**
+ * Formats an event's startsAt for display in InactivePanel.
+ *
+ * • ISO datetime → "Hoje às 22:00" or "22 mai. às 22:00"
+ * • Legacy time-only string ("22:00") → displayed as-is with a ⚠️ hint
+ * • null / invalid → null
+ */
+function formatStartLabel(startsAt) {
+  if (!startsAt) return null;
+  const d = new Date(startsAt);
+  if (isNaN(d.getTime())) {
+    // Legacy time-only string
+    return { label: `Início: ${startsAt}`, legacy: true };
+  }
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const label = isToday
+    ? `Hoje às ${time}`
+    : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) + ` às ${time}`;
+  const isPast = d.getTime() <= now.getTime();
+  return { label: isPast ? `Iniciando às ${time}…` : label, legacy: false, isPast };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // FeaturedRatingCard — shows the dominant public perception to the owner
 // ─────────────────────────────────────────────────────────────────────────────
@@ -318,7 +342,7 @@ function EmptyState({ currentUser, onLogout, onCreateEvent }) {
 // STATE 2 — InactivePanel
 // Owner has past events but none is live right now.
 // ─────────────────────────────────────────────────────────────────────────────
-function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreateEvent, onStartEvent, navigation }) {
+function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreateEvent, navigation }) {
   const ultimoEvento = meusEventos[0];
 
   const totalCriadosGeral  = meusCupons.length;
@@ -404,22 +428,36 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
         {/* Lista de todos os eventos */}
         <View style={s.secao}>
           <Text style={s.secaoTitulo}>Meus eventos</Text>
-          {meusEventos.map((e) => (
-            <View key={e.id} style={s.eventoHistoricoRow}>
-              <View style={[s.eventoHistoricoDot, { backgroundColor: e.isLive ? COLORS.success : COLORS.bgOverlay }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.eventoHistoricoNome} numberOfLines={1}>{e.name}</Text>
-                <Text style={s.eventoHistoricoData}>{formatDate(e.startsAt)} · {e.venue}</Text>
+          {meusEventos.map((e) => {
+            const startInfo = formatStartLabel(e.startsAt);
+            return (
+              <View key={e.id} style={s.eventoHistoricoRow}>
+                <View style={[s.eventoHistoricoDot, { backgroundColor: COLORS.bgOverlay }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.eventoHistoricoNome} numberOfLines={1}>{e.name}</Text>
+                  <Text style={s.eventoHistoricoData}>{e.venue}</Text>
+                </View>
+                {startInfo ? (
+                  <View style={[
+                    s.inicioChip,
+                    startInfo.isPast && { backgroundColor: COLORS.success + '22', borderColor: COLORS.success + '55' },
+                  ]}>
+                    <Ionicons
+                      name={startInfo.isPast ? 'hourglass-outline' : 'time-outline'}
+                      size={11}
+                      color={startInfo.isPast ? COLORS.success : COLORS.primary}
+                    />
+                    <Text style={[
+                      s.inicioChipTexto,
+                      startInfo.isPast && { color: COLORS.success },
+                    ]}>
+                      {startInfo.label}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-              <TouchableOpacity
-                style={s.iniciarBtn}
-                onPress={() => onStartEvent(e.id, e.name)}
-              >
-                <Ionicons name="play-circle-outline" size={14} color={COLORS.success} />
-                <Text style={s.iniciarBtnTexto}>Iniciar</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* CTA: criar novo evento */}
@@ -727,7 +765,7 @@ function ActivePanel({
 export default function BusinessPanelScreen({ navigation }) {
   const {
     events, coupons, currentUser, businessStats, dataLoading,
-    logout, addEventPhoto, removeEventPhoto, updateEventFields, startEvent, closeEvent,
+    logout, addEventPhoto, removeEventPhoto, updateEventFields, closeEvent,
   } = useApp();
 
   // ── Ownership derivation ──────────────────────────────────────────────────
@@ -780,23 +818,6 @@ export default function BusinessPanelScreen({ navigation }) {
 
   const onCreateEvent = () => navigation.navigate("NewEvent");
 
-  function onStartEvent(eventId, eventName) {
-    Alert.alert(
-      "Iniciar Evento",
-      `Deseja colocar "${eventName}" ao vivo agora?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Iniciar",
-          onPress: async () => {
-            const result = await startEvent(eventId);
-            if (result.error) Alert.alert("Erro", "Não foi possível iniciar o evento.");
-          },
-        },
-      ],
-    );
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
   if (panelState === 'loading') {
     return (
@@ -825,7 +846,6 @@ export default function BusinessPanelScreen({ navigation }) {
         meusCupons={meusCupons}
         onLogout={handleLogout}
         onCreateEvent={onCreateEvent}
-        onStartEvent={onStartEvent}
         navigation={navigation}
       />
     );
@@ -974,13 +994,13 @@ const s = StyleSheet.create({
   eventoHistoricoDot: { width: 10, height: 10, borderRadius: 5 },
   eventoHistoricoNome: { fontSize: 13, fontWeight: "700", color: COLORS.text },
   eventoHistoricoData: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  iniciarBtn: {
+  inicioChip: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: COLORS.success + "22", paddingHorizontal: 10,
+    backgroundColor: COLORS.primary + "18", paddingHorizontal: 10,
     paddingVertical: 5, borderRadius: RADIUS.full,
-    borderWidth: 0.5, borderColor: COLORS.success + "66",
+    borderWidth: 0.5, borderColor: COLORS.primary + "44",
   },
-  iniciarBtnTexto: { fontSize: 11, color: COLORS.success, fontWeight: "700" },
+  inicioChipTexto: { fontSize: 11, color: COLORS.primary, fontWeight: "600" },
 
   // Announce
   anuncioCard: {

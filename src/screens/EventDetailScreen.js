@@ -469,6 +469,7 @@ export default function EventDetailScreen({ route, navigation }) {
     getEventRatings,
     submitRating,
     canVoteOnEvent,
+    canRedeemCoupon,
   } = useApp();
 
   // Subscribe to real-time ratings for this event
@@ -490,27 +491,28 @@ export default function EventDetailScreen({ route, navigation }) {
         ? COLORS.warning
         : COLORS.success;
 
-  function handleResgatar(cupom) {
-    if (!isProximo) {
-      Alert.alert("📍 Vá ao local", `Chegue até ${cupom.venue} para resgatar.`);
-      return;
-    }
+  async function handleResgatar(cupom) {
     if (isCouponRedeemed(cupom.id)) {
       Alert.alert("Já resgatado", "Você já usou este cupom.");
+      return;
+    }
+    // Use the same 150 m geofence + check-in bypass as CouponDetailScreen.
+    // Replaces the old isProximo (5 km discovery radius) — wrong criterion for redemption.
+    const { canRedeem, message: geoMsg } = canRedeemCoupon(cupom.id);
+    if (!canRedeem) {
+      Alert.alert("📍 Vá ao local", geoMsg);
       return;
     }
     Alert.alert(`Resgatar: ${cupom.title}`, cupom.description, [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Resgatar agora",
-        onPress: () => {
-          const r = redeemCoupon(cupom.id);
+        onPress: async () => {
+          const r = await redeemCoupon(cupom.id);
           if (r.success)
-            Alert.alert(
-              "✅ Resgatado!",
-              `Apresente ao atendente de ${cupom.venue}.`,
-            );
-          else Alert.alert("Erro", r.error);
+            Alert.alert("✅ Resgatado!", `Apresente ao atendente de ${cupom.venue}.`);
+          else
+            Alert.alert("Erro ao resgatar", r.error ?? "Tente novamente.");
         },
       },
     ]);

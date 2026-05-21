@@ -56,6 +56,22 @@ function maskTime(raw) {
   return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 
+/**
+ * Builds a full ISO 8601 datetime string from separate date and time fields.
+ *
+ * @param {string} dateStr  "DD/MM/AAAA"
+ * @param {string} timeStr  "HH:MM"
+ * @param {boolean} nextDay true for overnight events where the end is the next calendar day
+ * @returns {string|null}   ISO string, or null if either input is invalid
+ */
+function buildEventDateTime(dateStr, timeStr, nextDay = false) {
+  if (!dateStr || !timeStr) return null;
+  const [day, month, year] = dateStr.split('/').map(Number);
+  const [h, min] = timeStr.split(':').map(Number);
+  const dt = new Date(year, month - 1, day + (nextDay ? 1 : 0), h, min, 0, 0);
+  return isNaN(dt.getTime()) ? null : dt.toISOString();
+}
+
 function IndicadorEtapa({ atual }) {
   return (
     <View style={s.etapaRow}>
@@ -190,14 +206,21 @@ export default function NewEventScreen({ navigation }) {
     setPublicando(true);
     try {
       const catInfo = CATEGORIAS.find((c) => c.key === v.categoria);
+      // Build full ISO datetimes so the system can auto-start/expire by schedule.
+      // isOvernight handles events that end after midnight (end day = start day + 1).
+      const startsAtISO = buildEventDateTime(v.data, v.horarioInicio);
+      const endsAtISO   = v.horarioFim
+        ? buildEventDateTime(v.data, v.horarioFim, isOvernight(v.horarioInicio, v.horarioFim))
+        : null;
+
       const created = await addEvent({
         name: v.nome.trim(),
         venue: v.venue.trim() || currentUser?.venueName || "Meu estabelecimento",
         address: `${v.endereco.trim()}${v.bairro ? ` - ${v.bairro.trim()}` : ""}`,
         category: v.categoria,
         categoryLabel: catInfo?.label || v.categoria,
-        startsAt: v.horarioInicio,
-        endsAt: v.horarioFim || null,
+        startsAt: startsAtISO ?? v.horarioInicio, // ISO preferred; time-string fallback
+        endsAt: endsAtISO ?? v.horarioFim ?? null,
         price: v.entrada_gratis ? "Gratuito" : v.preco.trim(),
         accessible: v.acessivel,
         accessibilityNotes: v.acessivel ? v.notasAcessibilidade.trim() : null,

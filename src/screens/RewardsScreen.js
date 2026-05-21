@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -12,268 +12,308 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
-const BADGES = [
-  { id: "b1", icon: "🎵", label: "Frequentador", locked: false },
-  { id: "b2", icon: "🔥", label: "Agitador", locked: false },
-  { id: "b3", icon: "⭐", label: "Top Vibber", locked: true },
-  { id: "b4", icon: "🏆", label: "Lendário", locked: true },
-];
 
-const DEFAULT_PROFILE = {
-  username: "Vibber",
-  vibberStatus: "Bronze",
-  vibberXP: 0,
-  vibberNextLevel: 1000,
-};
-
-function BarraVibber({ xp, proximo }) {
-  const pct = Math.min(100, (xp / proximo) * 100);
+// ─────────────────────────────────────────────────────────────────────────────
+// QRCode — visual representation (same pattern as CouponDetailScreen)
+// ─────────────────────────────────────────────────────────────────────────────
+function QRCodeDisplay({ code, color }) {
   return (
-    <View style={s.barraWrap}>
-      <View style={s.barraBg}>
-        <View style={[s.barraFill, { width: `${pct}%` }]} />
+    <View style={[qr.wrap, { borderColor: color }]}>
+      <View style={qr.grid}>
+        {[0, 1, 2, 3, 4, 5, 6].map((row) => (
+          <View key={row} style={{ flexDirection: "row", gap: 2 }}>
+            {[0, 1, 2, 3, 4, 5, 6].map((col) => {
+              const isCorner =
+                (row < 2 && col < 2) ||
+                (row < 2 && col > 4) ||
+                (row > 4 && col < 2);
+              const filled = isCorner || Math.sin(row * col + 2.3) > 0.05;
+              return (
+                <View
+                  key={col}
+                  style={[
+                    qr.cell,
+                    { backgroundColor: filled ? color : "transparent" },
+                  ]}
+                />
+              );
+            })}
+          </View>
+        ))}
       </View>
-      <Text style={s.barraTexto}>
-        {xp.toLocaleString()} / {proximo.toLocaleString()} XP
-      </Text>
+      <Text style={[qr.code, { color }]}>{code}</Text>
     </View>
   );
 }
 
-function CardCupom({ cupom, resgatado, onPress }) {
-  const tempoTotal = cupom.timerSeconds;
-  const h = Math.floor(tempoTotal / 3600);
-  const m = Math.floor((tempoTotal % 3600) / 60);
-  const sec = tempoTotal % 60;
-  const esgotado = cupom.remainingQty === 0;
+const qr = StyleSheet.create({
+  wrap: {
+    borderWidth: 2, borderRadius: RADIUS.lg,
+    padding: 12, alignItems: "center",
+    backgroundColor: COLORS.bgCard,
+  },
+  grid: { gap: 2, marginBottom: 8 },
+  cell: { width: 9, height: 9, borderRadius: 1.5 },
+  code: { fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RedemptionCard — shows a single past redemption with its QR code
+// ─────────────────────────────────────────────────────────────────────────────
+function RedemptionCard({ coupon, qrCode, redeemedAt }) {
+  const [expanded, setExpanded] = useState(false);
+  const dateStr = redeemedAt
+    ? new Date(redeemedAt).toLocaleDateString("pt-BR", {
+        day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+      })
+    : "";
 
   return (
     <TouchableOpacity
-      style={[s.cupomCard, resgatado && { opacity: 0.6 }]}
-      onPress={onPress}
-      activeOpacity={0.88}
-      disabled={esgotado}
+      style={[rc.card, { borderColor: (coupon?.highlightColor ?? COLORS.primary) + "55" }]}
+      onPress={() => setExpanded((v) => !v)}
+      activeOpacity={0.85}
     >
-      <View style={[s.cupomBanda, { backgroundColor: cupom.gradient[0] }]}>
-        <Text style={s.cupomIcon}>{cupom.icon}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={s.cupomTipoLabel}>{cupom.typeLabel}</Text>
-          <Text style={s.cupomTitulo}>{cupom.title}</Text>
+      <View style={rc.header}>
+        <View style={[rc.iconWrap, { backgroundColor: (coupon?.highlightColor ?? COLORS.primary) + "33" }]}>
+          <Text style={{ fontSize: 20 }}>{coupon?.icon ?? "🎟"}</Text>
         </View>
-        <View style={s.cupomRasgado}>
-          <Text
-            style={{
-              fontSize: 8,
-              color: "rgba(255,255,255,0.5)",
-              transform: [{ rotate: "90deg" }],
-              letterSpacing: 2,
-            }}
-          >
-            CUPOM
+        <View style={{ flex: 1 }}>
+          <Text style={rc.title} numberOfLines={1}>
+            {coupon?.title ?? "Cupom"}
           </Text>
+          <Text style={rc.venue} numberOfLines={1}>
+            {coupon?.venue ?? ""}{dateStr ? ` · ${dateStr}` : ""}
+          </Text>
+        </View>
+        <View style={rc.statusBadge}>
+          <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
+          <Text style={rc.statusText}>Resgatado</Text>
         </View>
       </View>
 
-      {tempoTotal > 0 && !resgatado && (
-        <View style={s.timerRow}>
-          {[h, m, sec].map((v, i) => (
-            <React.Fragment key={i}>
-              <View style={s.timerBox}>
-                <Text style={s.timerNum}>{String(v).padStart(2, "0")}</Text>
-              </View>
-              {i < 2 && <Text style={s.timerSep}>:</Text>}
-            </React.Fragment>
-          ))}
+      {expanded && qrCode ? (
+        <View style={rc.qrSection}>
+          <QRCodeDisplay code={qrCode} color={coupon?.highlightColor ?? COLORS.primary} />
+          <Text style={rc.qrHint}>Apresente ao atendente</Text>
         </View>
+      ) : (
+        <Text style={rc.expandHint}>
+          {expanded ? "▲ Recolher" : "▼ Ver QR Code"}
+        </Text>
       )}
+    </TouchableOpacity>
+  );
+}
 
-      {resgatado && (
-        <View style={s.resgatadoBanner}>
-          <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
-          <Text style={s.resgatadoTexto}>Resgatado</Text>
+const rc = StyleSheet.create({
+  card: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,
+    marginBottom: 10, padding: 12,
+    borderWidth: 1.5, overflow: "hidden",
+  },
+  header: { flexDirection: "row", alignItems: "center", gap: 10 },
+  iconWrap: {
+    width: 44, height: 44, borderRadius: RADIUS.md,
+    justifyContent: "center", alignItems: "center",
+  },
+  title: { fontSize: 13, fontWeight: "700", color: COLORS.text },
+  venue: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  statusBadge: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    backgroundColor: COLORS.success + "22",
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: RADIUS.full,
+  },
+  statusText: { fontSize: 11, fontWeight: "700", color: COLORS.success },
+  qrSection: { alignItems: "center", marginTop: 12 },
+  qrHint: { fontSize: 11, color: COLORS.textSub, marginTop: 6 },
+  expandHint: {
+    fontSize: 11, color: COLORS.primary, textAlign: "center",
+    marginTop: 8, fontWeight: "600",
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CouponCard — horizontal card in the "Meus Cupons" carousel
+// ─────────────────────────────────────────────────────────────────────────────
+function CouponCard({ coupon, redeemed, onPress }) {
+  const esgotado = coupon.remainingQty === 0;
+  return (
+    <TouchableOpacity
+      style={[cc.card, redeemed && { opacity: 0.6 }]}
+      onPress={onPress}
+      activeOpacity={0.88}
+      disabled={esgotado && !redeemed}
+    >
+      <View style={[cc.band, { backgroundColor: coupon.gradient[0] }]}>
+        <Text style={cc.icon}>{coupon.icon}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={cc.typeLabel}>{coupon.typeLabel}</Text>
+          <Text style={cc.title}>{coupon.title}</Text>
+        </View>
+        <View style={cc.tear}>
+          <Text style={cc.tearText}>CUPOM</Text>
+        </View>
+      </View>
+      {redeemed ? (
+        <View style={cc.redeemedBanner}>
+          <Ionicons name="checkmark-circle" size={13} color={COLORS.success} />
+          <Text style={cc.redeemedText}>Resgatado</Text>
+        </View>
+      ) : esgotado ? (
+        <View style={cc.soldOutBanner}>
+          <Text style={cc.soldOutText}>Esgotado</Text>
+        </View>
+      ) : (
+        <View style={cc.stockRow}>
+          <Text style={cc.stockText}>
+            {coupon.remainingQty}/{coupon.totalQty} restantes
+          </Text>
         </View>
       )}
     </TouchableOpacity>
   );
 }
 
-export default function RewardsScreen() {
+const cc = StyleSheet.create({
+  card: {
+    width: 220, backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.xl, overflow: "hidden",
+    borderWidth: 0.5, borderColor: COLORS.border,
+  },
+  band: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, minHeight: 76 },
+  icon: { fontSize: 26 },
+  typeLabel: { fontSize: 9, color: "rgba(255,255,255,0.7)", fontWeight: "700", textTransform: "uppercase", marginBottom: 2 },
+  title: { fontSize: 14, fontWeight: "900", color: "#fff" },
+  tear: {
+    width: 20, alignItems: "center",
+    borderLeftWidth: 1.5, borderLeftColor: "rgba(255,255,255,0.25)",
+    borderStyle: "dashed", paddingLeft: 4, height: 50, justifyContent: "center",
+  },
+  tearText: { fontSize: 7, color: "rgba(255,255,255,0.5)", transform: [{ rotate: "90deg" }], letterSpacing: 2 },
+  redeemedBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 8 },
+  redeemedText: { fontSize: 12, color: COLORS.success, fontWeight: "600" },
+  soldOutBanner: { paddingVertical: 8, alignItems: "center" },
+  soldOutText: { fontSize: 12, color: COLORS.textMuted },
+  stockRow: { paddingHorizontal: 12, paddingVertical: 8 },
+  stockText: { fontSize: 11, color: COLORS.textMuted },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RewardsScreen
+// ─────────────────────────────────────────────────────────────────────────────
+export default function RewardsScreen({ navigation }) {
   const {
     coupons,
     isCouponRedeemed,
-    redeemCoupon,
-    nearbyEventIds,
+    redemptionMap,
     currentUser,
     logout,
   } = useApp();
-  const perfil = DEFAULT_PROFILE;
 
-  function handleResgatar(cupom) {
-    if (!nearbyEventIds.includes(cupom.eventId)) {
-      Alert.alert("📍 Vá ao local", `Chegue até ${cupom.venue} para resgatar.`);
-      return;
+  const redeemedList = Object.values(redemptionMap).sort(
+    (a, b) => new Date(b.redeemedAt) - new Date(a.redeemedAt),
+  );
+
+  function handleLogout() {
+    if (Platform.OS === "web") {
+      if (window.confirm("Deseja sair?")) logout();
+    } else {
+      Alert.alert("Sair", "Deseja sair?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sair", onPress: logout },
+      ]);
     }
-    if (isCouponRedeemed(cupom.id)) {
-      Alert.alert("Já resgatado", "Você já usou este cupom.");
-      return;
-    }
-    Alert.alert(`Resgatar: ${cupom.title}`, cupom.description, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Resgatar agora",
-        onPress: () => {
-          const r = redeemCoupon(cupom.id);
-          if (r.success)
-            Alert.alert(
-              "✅ Resgatado!",
-              `Apresente ao atendente de ${cupom.venue}.`,
-            );
-          else Alert.alert("Erro", r.error);
-        },
-      },
-    ]);
   }
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Cabeçalho */}
+      {/* Header */}
       <View style={s.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Ionicons name="pulse" size={18} color={COLORS.primary} />
           <Text style={s.logo}>LiveVibe</Text>
         </View>
-        <Text style={s.headerTitulo}>Recompensas e Cupons</Text>
-        <View style={{ flexDirection: "row", gap: 4 }}>
-          <TouchableOpacity style={s.iconBtn}>
-            <Ionicons
-              name="notifications-outline"
-              size={20}
-              color={COLORS.text}
-            />
-            <View style={s.notifDot} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.iconBtn}
-            onPress={() => {
-               if (Platform.OS === 'web') {
-                 if (window.confirm('Deseja sair?')) logout();
-                 } else {
-                  Alert.alert('Sair', 'Deseja sair?', [
-                  { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Sair', onPress: logout },
-                  ]);
-                }
-             }}
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={24}
-              color={COLORS.text}
-            />
-          </TouchableOpacity>
-        </View>
+        <Text style={s.headerTitle}>Cupons & Resgates</Text>
+        <TouchableOpacity style={s.iconBtn} onPress={handleLogout}>
+          <Ionicons name="person-circle-outline" size={24} color={COLORS.text} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Cartão de perfil */}
-        <View style={s.perfilCard}>
-          <View style={s.perfilTopo}>
-            <View style={s.perfilAvatar}>
-              <Text style={s.perfilAvatarTexto}>
-                {currentUser?.avatar || "U"}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.perfilNome}>
-                {currentUser?.name || perfil.username}
-              </Text>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-              >
-                <Ionicons
-                  name="location-outline"
-                  size={11}
-                  color={COLORS.textMuted}
-                />
-                <Text style={s.perfilSub}>Localização</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={s.menuDots}>
-              <Ionicons
-                name="ellipsis-vertical"
-                size={18}
-                color={COLORS.textMuted}
-              />
-            </TouchableOpacity>
+        {/* Profile card */}
+        <View style={s.profileCard}>
+          <View style={s.profileAvatar}>
+            <Text style={s.profileAvatarText}>{currentUser?.avatar || "U"}</Text>
           </View>
-
-          <View style={s.statusRow}>
-            <Text style={s.statusLabel}>Status Vibber: </Text>
-            <Text style={[s.statusValor, { color: COLORS.gold }]}>
-              {perfil.vibberStatus}
-            </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.profileName}>{currentUser?.name || "Usuário"}</Text>
+            <Text style={s.profileSub}>{currentUser?.email || ""}</Text>
           </View>
-          <BarraVibber xp={perfil.vibberXP} proximo={perfil.vibberNextLevel} />
-
-          {/* Geo Check-in */}
-          <TouchableOpacity style={s.geoBtn}>
-            <Text style={{ fontSize: 16 }}>🌐</Text>
-            <Text style={s.geoBtnTexto}>Fazer Check-in</Text>
-          </TouchableOpacity>
+          <View style={s.statsChip}>
+            <Text style={s.statsChipNum}>{redeemedList.length}</Text>
+            <Text style={s.statsChipLabel}>resgates</Text>
+          </View>
         </View>
 
-        {/* Meus Cupons */}
-        <View style={s.secao}>
-          <Text style={s.secaoTitulo}>Meus Cupons</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 12, paddingRight: 16 }}
-          >
-            {coupons.map((c) => (
-              <View key={c.id} style={{ width: 240 }}>
-                <CardCupom
-                  cupom={c}
-                  resgatado={isCouponRedeemed(c.id)}
-                  onPress={() => handleResgatar(c)}
+        {/* My Coupons — horizontal scroll */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Cupons Disponíveis</Text>
+          {coupons.length === 0 ? (
+            <View style={s.emptyState}>
+              <Text style={{ fontSize: 32, marginBottom: 8 }}>🎟</Text>
+              <Text style={s.emptyText}>Nenhum cupom disponível no momento</Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 12, paddingRight: 16 }}
+            >
+              {coupons.map((c) => (
+                <CouponCard
+                  key={c.id}
+                  coupon={c}
+                  redeemed={isCouponRedeemed(c.id)}
+                  onPress={() => navigation?.navigate?.("CouponDetail", { couponId: c.id })}
                 />
-              </View>
-            ))}
-          </ScrollView>
+              ))}
+            </ScrollView>
+          )}
         </View>
 
-        {/* Conquistas */}
-        <View style={s.secao}>
-          <Text style={s.secaoTitulo}>Conquistas Desbloqueáveis</Text>
-          <View style={s.conquistasGrid}>
-            {BADGES.map((b) => (
-              <View
-                key={b.id}
-                style={[s.conquistaBox, b.locked && s.conquistaBoxBloqueada]}
-              >
-                <Text style={[s.conquistaIcon, b.locked && { opacity: 0.4 }]}>
-                  {b.icon}
-                </Text>
-                <Text
-                  style={[
-                    s.conquistaLabel,
-                    b.locked && { color: COLORS.textMuted },
-                  ]}
-                >
-                  {b.label}
-                </Text>
-                {b.locked && (
-                  <View style={s.cadeado}>
-                    <Ionicons
-                      name="lock-closed"
-                      size={8}
-                      color={COLORS.textMuted}
-                    />
-                  </View>
-                )}
+        {/* Redemption history */}
+        <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <Text style={s.sectionTitle}>Histórico de Resgates</Text>
+            {redeemedList.length > 0 && (
+              <View style={s.countBadge}>
+                <Text style={s.countBadgeText}>{redeemedList.length}</Text>
               </View>
-            ))}
+            )}
           </View>
+          {redeemedList.length === 0 ? (
+            <View style={s.emptyState}>
+              <Text style={{ fontSize: 32, marginBottom: 8 }}>🎫</Text>
+              <Text style={s.emptyText}>Nenhum resgate ainda</Text>
+              <Text style={s.emptySubText}>
+                Vá a um evento e resgate cupons para vê-los aqui
+              </Text>
+            </View>
+          ) : (
+            redeemedList.map((r) => {
+              const coupon = coupons.find((c) => c.id === r.couponId);
+              return (
+                <RedemptionCard
+                  key={r.couponId}
+                  coupon={coupon}
+                  qrCode={r.qrCode}
+                  redeemedAt={r.redeemedAt}
+                />
+              );
+            })
+          )}
         </View>
 
         <View style={{ height: 32 }} />
@@ -285,196 +325,59 @@ export default function RewardsScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingVertical: 10, gap: 8,
   },
   logo: { fontSize: 16, fontWeight: "900", color: COLORS.text },
-  headerTitulo: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.text,
-    textAlign: "center",
+  headerTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: COLORS.text, textAlign: "center" },
+  iconBtn: { padding: 4 },
+
+  // Profile card
+  profileCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: COLORS.bgCard, marginHorizontal: 16, marginBottom: 6,
+    borderRadius: RADIUS.xl, padding: 16,
+    borderWidth: 0.5, borderColor: COLORS.border, ...SHADOW.sm,
   },
-  iconBtn: { padding: 4, position: "relative" },
-  notifDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: COLORS.primary,
-    position: "absolute",
-    top: 4,
-    right: 2,
-    borderWidth: 1,
-    borderColor: COLORS.bg,
-  },
-  perfilCard: {
-    backgroundColor: COLORS.bgCard,
-    marginHorizontal: 16,
-    marginBottom: 6,
-    borderRadius: RADIUS.xl,
-    padding: 16,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    ...SHADOW.sm,
-  },
-  perfilTopo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 14,
-  },
-  perfilAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  profileAvatar: {
+    width: 48, height: 48, borderRadius: 24,
     backgroundColor: COLORS.primary + "44",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: COLORS.primary,
+    justifyContent: "center", alignItems: "center",
+    borderWidth: 2, borderColor: COLORS.primary,
   },
-  perfilAvatarTexto: { fontSize: 20, fontWeight: "800", color: COLORS.primary },
-  perfilNome: { fontSize: 16, fontWeight: "700", color: COLORS.text },
-  perfilSub: { fontSize: 12, color: COLORS.textMuted },
-  menuDots: { padding: 4 },
-  statusRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  statusLabel: { fontSize: 13, color: COLORS.textSub },
-  statusValor: { fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
-  barraWrap: { marginBottom: 14 },
-  barraBg: {
-    height: 8,
-    backgroundColor: COLORS.bgOverlay,
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: 4,
-  },
-  barraFill: {
-    height: "100%",
-    borderRadius: 4,
-    backgroundColor: COLORS.primary,
-  },
-  barraTexto: { fontSize: 11, color: COLORS.textMuted, textAlign: "right" },
-  geoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+  profileAvatarText: { fontSize: 18, fontWeight: "800", color: COLORS.primary },
+  profileName: { fontSize: 15, fontWeight: "700", color: COLORS.text },
+  profileSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  statsChip: {
+    alignItems: "center", backgroundColor: COLORS.primary + "22",
+    paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: RADIUS.full,
-    paddingVertical: 14,
-    backgroundColor: COLORS.primary,
+    borderWidth: 0.5, borderColor: COLORS.primary + "55",
   },
-  geoBtnTexto: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: 0.5,
+  statsChipNum: { fontSize: 18, fontWeight: "900", color: COLORS.primary },
+  statsChipLabel: { fontSize: 10, color: COLORS.primary, fontWeight: "600" },
+
+  // Sections
+  section: { paddingLeft: 16, marginTop: 20, marginBottom: 4 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, paddingRight: 16 },
+  sectionTitle: {
+    fontSize: 12, fontWeight: "800", color: COLORS.textMuted,
+    textTransform: "uppercase", letterSpacing: 0.8,
   },
-  secao: { paddingLeft: 16, marginTop: 20, marginBottom: 4 },
-  secaoTitulo: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: COLORS.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 12,
+  countBadge: {
+    backgroundColor: COLORS.primary + "22",
+    paddingHorizontal: 8, paddingVertical: 2,
+    borderRadius: RADIUS.full, borderWidth: 0.5,
+    borderColor: COLORS.primary + "55",
   },
-  cupomCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.xl,
-    overflow: "hidden",
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
+  countBadgeText: { fontSize: 11, fontWeight: "700", color: COLORS.primary },
+
+  // Empty states
+  emptyState: {
+    alignItems: "center", paddingVertical: 24,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,
+    borderWidth: 0.5, borderColor: COLORS.border, marginRight: 16,
   },
-  cupomBanda: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 14,
-    minHeight: 80,
-  },
-  cupomIcon: { fontSize: 28 },
-  cupomTipoLabel: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.7)",
-    fontWeight: "600",
-    textTransform: "uppercase",
-    marginBottom: 2,
-  },
-  cupomTitulo: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#fff",
-    letterSpacing: 0.3,
-  },
-  cupomRasgado: {
-    width: 24,
-    alignItems: "center",
-    borderLeftWidth: 1.5,
-    borderLeftColor: "rgba(255,255,255,0.25)",
-    borderStyle: "dashed",
-    paddingLeft: 6,
-    height: 60,
-    justifyContent: "center",
-  },
-  timerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    gap: 4,
-  },
-  timerBox: {
-    backgroundColor: COLORS.bgOverlay,
-    width: 36,
-    height: 36,
-    borderRadius: RADIUS.sm,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  timerNum: { fontSize: 16, fontWeight: "800", color: COLORS.text },
-  timerSep: { fontSize: 18, fontWeight: "900", color: COLORS.textMuted },
-  resgatadoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
-  },
-  resgatadoTexto: { fontSize: 13, color: COLORS.success, fontWeight: "600" },
-  conquistasGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    paddingRight: 16,
-  },
-  conquistaBox: {
-    width: 80,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: 10,
-    alignItems: "center",
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    position: "relative",
-  },
-  conquistaBoxBloqueada: { borderStyle: "dashed" },
-  conquistaIcon: { fontSize: 28, marginBottom: 4 },
-  conquistaLabel: {
-    fontSize: 10,
-    color: COLORS.textSub,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  cadeado: {
-    position: "absolute",
-    bottom: 4,
-    right: 4,
-    backgroundColor: COLORS.bgOverlay,
-    borderRadius: 6,
-    padding: 2,
-  },
+  emptyText: { fontSize: 14, color: COLORS.textSub, fontWeight: "500" },
+  emptySubText: { fontSize: 12, color: COLORS.textMuted, marginTop: 4, textAlign: "center", paddingHorizontal: 20 },
 });

@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  Alert, ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// QRCode — visual grid representation
+// ─────────────────────────────────────────────────────────────────────────────
 function QRCode({ code, color }) {
   return (
     <View style={[s.qrWrap, { borderColor: color }]}>
@@ -24,29 +30,53 @@ function QRCode({ code, color }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CouponDetailScreen
+// ─────────────────────────────────────────────────────────────────────────────
 export default function CouponDetailScreen({ route, navigation }) {
   const { couponId } = route.params;
-  const { coupons, redeemCoupon, isCouponRedeemed, nearbyEventIds } = useApp();
-  const [showQR, setShowQR] = useState(false);
+  const {
+    coupons, redeemCoupon, isCouponRedeemed,
+    currentUser, getRedemptionDetails, canRedeemCoupon,
+  } = useApp();
 
-  const coupon = coupons.find(c => c.id === couponId);
+  const [redeeming, setRedeeming] = useState(false);
+
+  const coupon     = coupons.find(c => c.id === couponId);
   if (!coupon) return null;
 
   const isRedeemed = isCouponRedeemed(couponId);
-  const isNearby = nearbyEventIds.includes(coupon.eventId);
-  const isSoldOut = coupon.remainingQty === 0;
-  const pct = (coupon.remainingQty / coupon.totalQty) * 100;
-  const qrCode = `LV-${couponId.slice(0, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  const isSoldOut  = coupon.remainingQty === 0;
+  const pct        = coupon.totalQty > 0 ? (coupon.remainingQty / coupon.totalQty) * 100 : 0;
 
-  function handleRedeem() {
-    if (!isNearby) { Alert.alert('📍 Vá ao local', `Chegue até ${coupon.venue} para resgatar este cupom.`); return; }
-    Alert.alert('Resgatar agora?', `${coupon.title}\n\n${coupon.conditions}`, [
+  // Geo status: uses 150 m geofence (same criterion as redeemCoupon in AppContext).
+  // Replaces the old nearbyEventIds (5 km discovery radius) — correct gate for redemption.
+  const { canRedeem, message: geoMessage } = canRedeemCoupon(couponId);
+
+  // Use the QR code stored in the DB (set after successful redemption)
+  const redemptionDetails = getRedemptionDetails(couponId);
+  const qrCode = redemptionDetails?.qrCode ?? '';
+
+  async function handleRedeem() {
+    if (!canRedeem) {
+      // Show the precise geo message from checkGeofence (includes distance in metres)
+      Alert.alert('📍 Vá ao local', geoMessage);
+      return;
+    }
+    Alert.alert('Resgatar agora?', `${coupon.title}\n\n${coupon.conditions ?? ''}`, [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Confirmar', onPress: () => {
-        const r = redeemCoupon(couponId);
-        if (r.success) setShowQR(true);
-        else Alert.alert('Erro', r.error);
-      }},
+      {
+        text: 'Confirmar',
+        onPress: async () => {
+          setRedeeming(true);
+          const r = await redeemCoupon(couponId);
+          setRedeeming(false);
+          if (!r.success) {
+            Alert.alert('Erro ao resgatar', r.error ?? 'Tente novamente.');
+          }
+          // On success: isRedeemed becomes true + getRedemptionDetails returns QR — auto-updates
+        },
+      },
     ]);
   }
 
@@ -64,7 +94,7 @@ export default function CouponDetailScreen({ route, navigation }) {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={[s.hero, { backgroundColor: coupon.highlightColor }]}>
-          <View style={[s.heroGlow, { backgroundColor: coupon.gradient[1] || coupon.highlightColor, opacity: 0.4 }]} />
+          <View style={[s.heroGlow, { backgroundColor: (coupon.gradient?.[1] ?? coupon.highlightColor), opacity: 0.4 }]} />
           <Text style={s.heroIcon}>{coupon.icon}</Text>
           <View style={s.heroTypeBadge}>
             <Text style={[s.heroTypeText, { color: coupon.highlightColor }]}>{coupon.typeLabel.toUpperCase()}</Text>
@@ -75,7 +105,7 @@ export default function CouponDetailScreen({ route, navigation }) {
 
         <View style={s.body}>
           {/* Status banners */}
-          {isRedeemed || showQR ? (
+          {isRedeemed ? (
             <View style={s.successBanner}>
               <Ionicons name="checkmark-circle" size={22} color={COLORS.success} />
               <View>
@@ -91,10 +121,10 @@ export default function CouponDetailScreen({ route, navigation }) {
                 <Text style={s.soldOutSub}>Todos os cupons foram resgatados</Text>
               </View>
             </View>
-          ) : isNearby ? (
+          ) : canRedeem ? (
             <View style={[s.nearbyBanner, { borderColor: coupon.highlightColor + '55' }]}>
               <View style={[s.nearbyDot, { backgroundColor: coupon.highlightColor }]} />
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={[s.nearbyTitle, { color: coupon.highlightColor }]}>Você está no local!</Text>
                 <Text style={s.nearbySub}>Pode resgatar este cupom agora</Text>
               </View>
@@ -102,17 +132,22 @@ export default function CouponDetailScreen({ route, navigation }) {
           ) : (
             <View style={s.farBanner}>
               <Ionicons name="location-outline" size={18} color={COLORS.warning} />
-              <Text style={s.farText}>Chegue a {coupon.venue} para resgatar</Text>
+              <Text style={s.farText}>{geoMessage}</Text>
             </View>
           )}
 
-          {/* QR code after redemption */}
-          {(isRedeemed || showQR) && (
+          {/* QR code — shown after redemption, uses persisted code from DB */}
+          {isRedeemed && qrCode ? (
             <View style={s.qrSection}>
               <QRCode code={qrCode} color={coupon.highlightColor} />
               <Text style={s.qrInstructions}>Apresente ao atendente do estabelecimento</Text>
             </View>
-          )}
+          ) : isRedeemed && !qrCode ? (
+            <View style={s.qrSection}>
+              <ActivityIndicator color={coupon.highlightColor} />
+              <Text style={s.qrInstructions}>Carregando QR Code…</Text>
+            </View>
+          ) : null}
 
           {/* About */}
           <View style={s.infoCard}>
@@ -148,14 +183,26 @@ export default function CouponDetailScreen({ route, navigation }) {
           </View>
 
           {/* CTA */}
-          {!isRedeemed && !showQR && !isSoldOut && (
+          {!isRedeemed && !isSoldOut && (
             <TouchableOpacity
-              style={[s.redeemBtn, { backgroundColor: isNearby ? coupon.highlightColor : COLORS.bgOverlay, borderColor: isNearby ? coupon.highlightColor : COLORS.border }]}
-              onPress={handleRedeem}>
-              <Ionicons name="ticket" size={20} color={isNearby ? '#fff' : COLORS.textMuted} />
-              <Text style={[s.redeemBtnText, !isNearby && { color: COLORS.textMuted }]}>
-                {isNearby ? 'Resgatar cupom agora' : 'Vá ao local para resgatar'}
-              </Text>
+              style={[
+                s.redeemBtn,
+                { backgroundColor: canRedeem ? coupon.highlightColor : COLORS.bgOverlay,
+                  borderColor: canRedeem ? coupon.highlightColor : COLORS.border },
+                redeeming && { opacity: 0.7 },
+              ]}
+              onPress={handleRedeem}
+              disabled={redeeming}
+            >
+              {redeeming
+                ? <ActivityIndicator size="small" color={canRedeem ? '#fff' : COLORS.textMuted} />
+                : <>
+                    <Ionicons name="ticket" size={20} color={canRedeem ? '#fff' : COLORS.textMuted} />
+                    <Text style={[s.redeemBtnText, !canRedeem && { color: COLORS.textMuted }]}>
+                      {canRedeem ? 'Resgatar cupom agora' : 'Vá ao local para resgatar'}
+                    </Text>
+                  </>
+              }
             </TouchableOpacity>
           )}
 
@@ -195,7 +242,7 @@ const s = StyleSheet.create({
   qrWrap: { borderWidth: 3, borderRadius: RADIUS.xl, padding: 18, alignItems: 'center', backgroundColor: COLORS.bgCard },
   qrGrid: { gap: 3 },
   qrCell: { width: 12, height: 12, borderRadius: 2 },
-  qrCode: { fontSize: 13, fontWeight: '800', letterSpacing: 2, marginTop: 12, fontVariant: ['tabular-nums'] },
+  qrCode: { fontSize: 13, fontWeight: '800', letterSpacing: 2, marginTop: 12 },
   qrInstructions: { fontSize: 13, color: COLORS.textSub, marginTop: 10 },
   infoCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: COLORS.border },
   infoCardTitle: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -40,8 +41,9 @@ const RESTRICAO_USUARIO = [
 ];
 
 export default function AddCouponScreen({ navigation }) {
-  const { addCoupon, businessStats } = useApp();
+  const { addCoupon, businessStats, events, currentUser } = useApp();
   const [etapa, setEtapa] = useState(1);
+  const [publicando, setPublicando] = useState(false);
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -50,6 +52,25 @@ export default function AddCouponScreen({ navigation }) {
   const [validade, setValidade] = useState(null);
   const [maxPerUser, setMaxPerUser] = useState(1);
   const [userTypeRestriction, setUserTypeRestriction] = useState("all");
+
+  // Derive the live event directly from `events` state so this screen is
+  // always in sync — even if businessStats hasn't updated yet.
+  const eventoAtivo =
+    events.find((e) => e.ownerId === currentUser?.id && e.isLive) ??
+    (businessStats.activeEventId
+      ? events.find((e) => e.id === businessStats.activeEventId)
+      : null);
+
+  // Guard: must have a live event before creating coupons.
+  useEffect(() => {
+    if (!eventoAtivo) {
+      Alert.alert(
+        'Nenhum evento ao vivo',
+        'Inicie um evento antes de criar cupons. Os cupons são vinculados ao evento em andamento.',
+        [{ text: 'Entendi', onPress: () => navigation.goBack() }],
+      );
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function avancar() {
     if (etapa === 1 && !tipoSelecionado) {
@@ -73,13 +94,17 @@ export default function AddCouponScreen({ navigation }) {
     if (etapa < 3) setEtapa(etapa + 1);
   }
 
-  function publicar() {
+  async function publicar() {
+    if (!eventoAtivo) {
+      Alert.alert('Nenhum evento ao vivo', 'Inicie um evento antes de criar cupons.');
+      return;
+    }
     const tipoInfo = TIPOS_CUPOM.find((t) => t.key === tipoSelecionado);
     const dto = CouponSchema.toDTO(
       {
-        eventId: businessStats.activeEventId,
-        eventName: businessStats.activeEventName,
-        venue: businessStats.venueName,
+        eventId: eventoAtivo.id,
+        eventName: eventoAtivo.name,
+        venue: eventoAtivo.venue || businessStats.venueName,
         type: tipoSelecionado,
         title: titulo,
         description: descricao,
@@ -90,16 +115,35 @@ export default function AddCouponScreen({ navigation }) {
       },
       tipoInfo,
     );
-    addCoupon(dto);
-    if(Platform.OS === 'web'){
-    window.alert(`Cupom "${titulo}" publicado com sucesso!`);
-    navigation.goBack();
-    } else{
+
+    // Validate before hitting the DB
+    const { isValid, errors } = CouponSchema.validate(dto);
+    if (!isValid) {
+      Alert.alert('Dados inválidos', Object.values(errors)[0]);
+      return;
+    }
+
+    setPublicando(true);
+    const result = await addCoupon(dto);
+    setPublicando(false);
+
+    if (result.error) {
       Alert.alert(
-      "Cupom publicado!",
-      `"${titulo}" foi enviado para usuários próximos!`,
-      [{ text: "OK", onPress: () => navigation.goBack() }],
-    );
+        'Erro ao publicar',
+        result.error?.message ?? 'Não foi possível salvar o cupom. Tente novamente.',
+      );
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      window.alert(`Cupom "${titulo}" publicado com sucesso!`);
+      navigation.goBack();
+    } else {
+      Alert.alert(
+        'Cupom publicado!',
+        `"${titulo}" foi enviado para usuários próximos!`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }],
+      );
     }
   }
 
@@ -422,7 +466,7 @@ export default function AddCouponScreen({ navigation }) {
                     }}
                   >
                     <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
-                      📍 {businessStats.venueName}
+                      📍 {eventoAtivo?.venue || businessStats.venueName}
                     </Text>
                     {validade && (
                       <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
@@ -505,7 +549,15 @@ export default function AddCouponScreen({ navigation }) {
               <View style={s.resumoCard}>
                 <View style={s.resumoRow}>
                   <Text style={s.resumoLabel}>Evento</Text>
-                  <Text style={s.resumoVal} numberOfLines={1}>{businessStats.activeEventName}</Text>
+                  <Text style={s.resumoVal} numberOfLines={1}>
+                    {eventoAtivo?.name ?? '—'}
+                  </Text>
+                </View>
+                <View style={s.resumoRow}>
+                  <Text style={s.resumoLabel}>Status</Text>
+                  <Text style={[s.resumoVal, { color: eventoAtivo?.isLive ? '#4ade80' : COLORS.textMuted }]}>
+                    {eventoAtivo?.isLive ? '🟢 Ao vivo' : '⏸ Não iniciado'}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -521,9 +573,19 @@ export default function AddCouponScreen({ navigation }) {
               <Text style={s.proximoBtnTexto}>Continuar →</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={s.publicarBtn} onPress={publicar}>
-              <Ionicons name="send" size={18} color="#fff" />
-              <Text style={s.publicarBtnTexto}>Publicar cupom agora</Text>
+            <TouchableOpacity
+              style={[s.publicarBtn, publicando && { opacity: 0.7 }]}
+              onPress={publicar}
+              disabled={publicando}
+            >
+              {publicando ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="send" size={18} color="#fff" />
+                  <Text style={s.publicarBtnTexto}>Publicar cupom agora</Text>
+                </>
+              )}
             </TouchableOpacity>
           )}
         </View>

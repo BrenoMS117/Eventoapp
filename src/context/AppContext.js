@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { authService } from "../services/authService";
-import { eventsService } from "../services/eventsService";
+import { eventsService, isEventExpired } from "../services/eventsService";
 import { couponsService } from "../services/couponsService";
 import { feedService } from "../services/feedService";
 import { geoService } from "../services/geo/GeoService";
 import { createPermissionStrategy } from "../permissions/PermissionStrategy";
 import { crowdManagementService } from "../services/crowd/CrowdManagementService";
 import { ratingService } from "../services/ratings/RatingService";
+import { couponRedemptionService } from "../services/coupons/CouponRedemptionService";
 
 const AppContext = createContext(null);
 
@@ -43,12 +44,16 @@ export function AppProvider({ children }) {
   const [nearbyEventIds, setNearbyEventIds] = useState([]);
   const [geoError, setGeoError] = useState(false);
   const [redeemedCoupons, setRedeemedCoupons] = useState([]);
+  /** Record<couponId, { qrCode: string, redeemedAt: string }> */
+  const [redemptionMap, setRedemptionMap] = useState({});
   const [checkedInEventIds, setCheckedInEventIds] = useState([]);
   /** Record<eventId, { counts, userVote, featured }> — lazy-loaded per event */
   const [eventRatingMap, setEventRatingMap] = useState({});
   /** Prevents double-subscription across concurrent calls */
   const subscribedRatingsRef = useRef(new Set());
-  const geoWatchRef = useRef(null);
+  const geoWatchRef  = useRef(null);
+  /** Always holds the latest events array — avoids stale closure in intervals. */
+  const eventsRef    = useRef([]);
   const [selectedEventFilter, setSelectedEventFilter] = useState("Todos");
 
   // ── Crowd management bootstrap ────────────────────────────────────────────
@@ -77,6 +82,102 @@ export function AppProvider({ children }) {
     stale.forEach((id) => crowdManagementService.checkOut(id));
     setCheckedInEventIds((prev) => prev.filter((id) => !stale.includes(id)));
   }, [nearbyEventIds, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep eventsRef fresh so interval callbacks never see stale data
+  useEffect(() => { eventsRef.current = events; }, [events]);
+
+  // ── Auto-start events at their scheduled time ─────────────────────────────
+  // Fires immediately on login and every 60 s after.
+  // Only triggers for business owners and only for events with a valid ISO
+  // startsAt datetime. Legacy events with time-only startsAt ("21:00") are
+  // skipped (isNaN check) — they remain inactive until the owner creates a new event.
+  useEffect(() => {
+    if (currentUser?.role !== 'business' || !currentUser?.id) return;
+
+    async function autoStartScheduledEvents() {
+      const now = Date.now();
+      const toStart = eventsRef.current.filter((e) => {
+        if (e.ownerId !== currentUser.id) return false;
+        if (e.isLive || e.closedAt) return false;
+        if (!e.startsAt) return false;
+        const t = new Date(e.startsAt).getTime();
+        return !isNaN(t) && t <= now;
+      });
+      if (toStart.length === 0) return;
+
+      for (const event of toStart) {
+        await eventsService.startEvent(event.id);
+      }
+      const ids = new Set(toStart.map((e) => e.id));
+      setEvents((prev) =>
+        prev.map((e) => (ids.has(e.id) ? { ...e, isLive: true } : e)),
+      );
+    }
+
+    autoStartScheduledEvents(); // immediate check on login / role change
+    const id = setInterval(autoStartScheduledEvents, 60_000);
+    return () => clearInterval(id);
+  }, [currentUser?.id, currentUser?.role]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── businessStats: keep activeEvent in sync with the live event ─────────
+  // Fires whenever the events list changes:
+  //   • startup (loadData), startEvent, closeEvent, addEvent, expiry purge.
+  // Priority: the live event for this owner; falls back to the most-recently-
+  // created event so the panel still shows data even before going live.
+  useEffect(() => {
+    if (currentUser?.role !== 'business' || !currentUser?.id) return;
+    const liveEvent =
+      events.find((e) => e.ownerId === currentUser.id && e.isLive) ??
+      events.find((e) => e.ownerId === currentUser.id);
+    setBusinessStats((prev) => ({
+      ...prev,
+      activeEventId:   liveEvent?.id   ?? null,
+      activeEventName: liveEvent?.name ?? null,
+    }));
+  }, [events, currentUser?.id, currentUser?.role]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Expired event cleanup — hard-delete from DB ──────────────────────────
+  // Runs immediately on login and every 5 minutes after.
+  //
+  // For each expired event (isEventExpired → true):
+  //   1. Hard-delete the event row from Supabase (storage + DB cascade).
+  //   2. Remove from local `events` state.
+  //   3. Remove orphaned coupons from local `coupons` state.
+  //
+  // Additionally calls deleteExpiredBatch() for a server-side sweep of
+  // closed_at-based expiry that other clients may have triggered.
+  useEffect(() => {
+    if (!currentUser) return;
+
+    async function purgeExpiredEvents() {
+      // Client-side detection: events loaded in this session that have now expired
+      const expired = eventsRef.current.filter((e) => isEventExpired(e));
+
+      if (expired.length > 0) {
+        const expiredIds = new Set(expired.map((e) => e.id));
+
+        // Hard-delete each expired event (storage + DB cascade)
+        await Promise.all(expired.map((e) => eventsService.deleteEvent(e.id)));
+
+        // Purge from local state
+        setEvents((prev) => prev.filter((e) => !expiredIds.has(e.id)));
+        setCoupons((prev) => prev.filter((c) => !expiredIds.has(c.eventId)));
+      }
+
+      // Server-side sweep: remove closed_at-expired events set by OTHER clients
+      // (e.g. business closed the event on another device)
+      const { deletedIds } = await eventsService.deleteExpiredBatch();
+      if (deletedIds.length > 0) {
+        const serverIds = new Set(deletedIds);
+        setEvents((prev) => prev.filter((e) => !serverIds.has(e.id)));
+        setCoupons((prev) => prev.filter((c) => !serverIds.has(c.eventId)));
+      }
+    }
+
+    purgeExpiredEvents(); // immediate pass on login
+    const id = setInterval(purgeExpiredEvents, 5 * 60 * 1000); // every 5 min
+    return () => clearInterval(id);
+  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     initSession();
@@ -117,21 +218,22 @@ export function AppProvider({ children }) {
         });
       }
       if (user?.role === 'business') {
-        const myEvent = eventsRes.data?.find(e => e.ownerId === user.id);
-        if (myEvent) {
-          setBusinessStats(prev => ({
-            ...prev,
-            activeEventId: myEvent.id,
-            activeEventName: myEvent.name,
-            venueName: user.venueName || prev.venueName,
-          }));
-        }
+        // activeEventId / activeEventName are kept in sync by the dedicated
+        // useEffect that watches `events`. Only set venueName here (it comes
+        // from the profile, not from events).
+        setBusinessStats(prev => ({
+          ...prev,
+          venueName: user.venueName || prev.venueName,
+        }));
       }
       if (couponsRes.data) setCoupons(couponsRes.data);
       if (feedRes.data) setFeedPosts(feedRes.data);
       if (user) {
-        const redeemed = await couponsService.getUserRedemptions(user.id);
-        setRedeemedCoupons(redeemed);
+        const redemptions = await couponRedemptionService.getUserRedemptions(user.id);
+        setRedeemedCoupons(redemptions.map((r) => r.couponId));
+        setRedemptionMap(
+          Object.fromEntries(redemptions.map((r) => [r.couponId, r]))
+        );
       }
     } catch (e) {
       console.log("Load data error:", e);
@@ -236,6 +338,7 @@ export function AppProvider({ children }) {
     setCoupons([]);
     setFeedPosts([]);
     setRedeemedCoupons([]);
+    setRedemptionMap({});
     setCheckedInEventIds([]);
     setEventRatingMap({});
   }
@@ -277,9 +380,12 @@ export function AppProvider({ children }) {
     }
     const result = await eventsService.closeEvent(eventId);
     if (!result.error) {
+      const closedAt = new Date().toISOString();
       setEvents((prev) =>
-        prev.map((e) => (e.id === eventId ? { ...e, isLive: false } : e)),
+        prev.map((e) => (e.id === eventId ? { ...e, isLive: false, closedAt } : e)),
       );
+      // The cleanup interval will remove the event from state 1 h from now.
+      // No setTimeout needed — the 5-min interval picks it up automatically.
     }
     return result;
   }
@@ -423,40 +529,78 @@ async function addEventPhoto(eventId, uri) {
       return { success: false, error: 'Donos de estabelecimento não podem resgatar cupons.' };
     }
     const coupon = coupons.find((c) => c.id === couponId);
-    if (!coupon) return { success: false, error: "Cupom não encontrado." };
-    if (redeemedCoupons.includes(couponId))
-      return { success: false, error: "Cupom já resgatado." };
-    if (coupon.remainingQty <= 0)
-      return { success: false, error: "Cupons esgotados." };
+    if (!coupon) return { success: false, error: 'Cupom não encontrado.' };
 
-    // ── Geofence check (uses cached userCoords — no GPS round-trip) ────────
-    const event = events.find((e) => e.id === coupon.eventId);
-    if (event?.lat != null && event?.lng != null) {
-      if (!userCoords) {
-        return { success: false, error: "Ative o GPS e tente novamente." };
-      }
-      const fence = geoService.checkGeofence(
-        userCoords,
-        { lat: event.lat, lng: event.lng },
-        currentUser?.role ?? 'user',
-      );
-      if (!fence.isInside) {
-        return { success: false, error: fence.message };
-      }
-    } else if (!nearbyEventIds.includes(coupon.eventId)) {
-      return { success: false, error: `Chegue até ${coupon.venue} para resgatar este cupom.` };
+    // ── Fast local checks (no DB round-trip) ────────────────────────────────
+    if (redeemedCoupons.includes(couponId)) {
+      return { success: false, error: 'Você já resgatou este cupom.' };
     }
-    // ────────────────────────────────────────────────────────────────────
+    if (coupon.remainingQty <= 0) {
+      return { success: false, error: 'Cupons esgotados.' };
+    }
 
+    // ── Geo check using cached coords (zero latency) ─────────────────────────
+    // Priority (mirrors canVoteOnEvent / submitRating):
+    //   1. user is checked in at this event → presence proven, skip all geo checks
+    //   2. event has coords + GPS cached    → precise geofence (≤ 150 m)
+    //   3. event has coords + no GPS        → blocked (can't verify)
+    //   4. event has NO coords              → allow (can't geo-verify — test/legacy events)
+    // Dual-source check: React state (checkedInEventIds) + service Set.
+    // checkedInEventIds is updated synchronously with the geo-exit useEffect,
+    // so it stays in sync even if the service Set was already cleared by auto-checkout.
+    const alreadyCheckedIn = Boolean(coupon.eventId) && (
+      checkedInEventIds.includes(coupon.eventId) ||
+      crowdManagementService.isCheckedIn(coupon.eventId)
+    );
+    if (!alreadyCheckedIn) {
+      const event = events.find((e) => e.id === coupon.eventId);
+      if (event?.lat != null && event?.lng != null) {
+        if (!userCoords) {
+          return { success: false, error: 'Ative o GPS e tente novamente.' };
+        }
+        const fence = geoService.checkGeofence(
+          userCoords,
+          { lat: event.lat, lng: event.lng },
+          currentUser?.role ?? 'user',
+        );
+        if (!fence.isInside) {
+          return { success: false, error: fence.message };
+        }
+      }
+      // No coordinates on event → skip geo check (cannot verify).
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // ── DB-level validation (rate limit + stock double-check) ────────────────
     if (currentUser?.id) {
-      const result = await couponsService.redeem(couponId, currentUser.id);
-      if (!result.success) return result;
+      const validation = await couponRedemptionService.validate(couponId, currentUser.id);
+      if (!validation.allowed) {
+        return { success: false, error: validation.reason };
+      }
     }
-    setRedeemedCoupons((prev) => [...prev, couponId]);
+    // ────────────────────────────────────────────────────────────────────────
+
+    // ── Persist redemption (Observer triggers stock decrement) ───────────────
+    let qrCode = '';
+    if (currentUser?.id) {
+      const result = await couponRedemptionService.redeem(couponId, currentUser.id);
+      if (!result.success) return { success: false, error: result.error };
+      qrCode = result.qrCode;
+
+      // Update redemption state
+      setRedeemedCoupons((prev) => [...prev, couponId]);
+      setRedemptionMap((prev) => ({
+        ...prev,
+        [couponId]: { couponId, qrCode, redeemedAt: result.redeemedAt },
+      }));
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // ── Update local coupon stock ────────────────────────────────────────────
     setCoupons((prev) =>
       prev.map((c) =>
         c.id === couponId
-          ? { ...c, remainingQty: c.remainingQty - 1, isRedeemed: true }
+          ? { ...c, remainingQty: Math.max(0, c.remainingQty - 1), isRedeemed: true }
           : c,
       ),
     );
@@ -464,7 +608,8 @@ async function addEventPhoto(eventId, uri) {
       ...prev,
       couponsRedeemed: (prev.couponsRedeemed || 0) + 1,
     }));
-    // Auto check-in when redeeming a coupon at the event location
+
+    // ── Auto check-in via coupon redemption (same logic as before) ───────────
     if (coupon.eventId && !crowdManagementService.isCheckedIn(coupon.eventId)) {
       const ev = events.find((e) => e.id === coupon.eventId);
       if (ev?.isLive) {
@@ -476,21 +621,17 @@ async function addEventPhoto(eventId, uri) {
         });
       }
     }
-    return { success: true };
+
+    return { success: true, qrCode };
   }
 
   async function addCoupon(newCoupon) {
-    let coupon = {
-      ...newCoupon,
-      id: `c${Date.now()}`,
-      isRedeemed: false,
-      isNearby: true,
-      remainingQty: newCoupon.totalQty,
-    };
-    if (currentUser?.id) {
-      const result = await couponsService.create(newCoupon, currentUser.id);
-      if (result.data) coupon = { ...result.data, isRedeemed: false };
+    if (!currentUser?.id) return { coupon: null, error: 'Faça login para criar cupons.' };
+    const result = await couponsService.create(newCoupon, currentUser.id);
+    if (result.error || !result.data) {
+      return { coupon: null, error: result.error ?? new Error('Erro ao salvar cupom.') };
     }
+    const coupon = { ...result.data, isRedeemed: false };
     setCoupons((prev) => [coupon, ...prev]);
     setEvents((prev) =>
       prev.map((e) =>
@@ -501,9 +642,9 @@ async function addEventPhoto(eventId, uri) {
     );
     setBusinessStats((prev) => ({
       ...prev,
-      couponsTotal: (prev.couponsTotal || 0) + newCoupon.totalQty,
+      couponsTotal: (prev.couponsTotal || 0) + (newCoupon.totalQty ?? 0),
     }));
-    return coupon;
+    return { coupon, error: null };
   }
 
   // ── RATINGS ──────────────────────────────────────────────────────────────
@@ -541,6 +682,49 @@ async function addEventPhoto(eventId, uri) {
       }));
     });
     _loadEventRatings(eventId);
+  }
+
+  /**
+   * Returns whether the current user can redeem a specific coupon right now.
+   * Uses cached userCoords — no GPS call, instant result.
+   *
+   * Priority (mirrors checkIn / canVoteOnEvent):
+   *   1. Already redeemed or sold out → false
+   *   2. event has coords + GPS cached → precise geofence (≤ 150 m)
+   *   3. event has coords + no GPS    → false (can't verify proximity)
+   *   4. event has NO coords          → true  (can't geo-verify, allow)
+   *
+   * @param {string} couponId
+   * @returns {{ canRedeem: boolean, message: string }}
+   */
+  function canRedeemCoupon(couponId) {
+    const coupon = coupons.find((c) => c.id === couponId);
+    if (!coupon) return { canRedeem: false, message: 'Cupom não encontrado.' };
+    if (redeemedCoupons.includes(couponId))
+      return { canRedeem: false, message: 'Você já resgatou este cupom.' };
+    if (coupon.remainingQty <= 0)
+      return { canRedeem: false, message: 'Cupons esgotados.' };
+
+    // Check-in proves the user is physically at the venue — bypass geofence entirely.
+    // Same principle as canVoteOnEvent: check-in is the strongest proof of presence.
+    // Uses React state (checkedInEventIds) as primary source so the bypass survives
+    // across the render→interaction gap (avoids race with geo-exit auto-checkout).
+    if (coupon.eventId && (checkedInEventIds.includes(coupon.eventId) || crowdManagementService.isCheckedIn(coupon.eventId)))
+      return { canRedeem: true, message: 'Você está no local. Pode resgatar!' };
+
+    const event = events.find((e) => e.id === coupon.eventId);
+    if (event?.lat != null && event?.lng != null) {
+      if (!userCoords)
+        return { canRedeem: false, message: 'Ative o GPS para verificar sua proximidade.' };
+      const fence = geoService.checkGeofence(
+        userCoords,
+        { lat: event.lat, lng: event.lng },
+        'user',
+      );
+      return { canRedeem: fence.isInside, message: fence.message };
+    }
+    // No coordinates on event: cannot geo-verify → allow.
+    return { canRedeem: true, message: 'Você está no local. Pode resgatar!' };
   }
 
   /**
@@ -745,6 +929,9 @@ async function addEventPhoto(eventId, uri) {
     getNearbyCoupons: () =>
       coupons.filter((c) => nearbyEventIds.includes(c.eventId)),
     isCouponRedeemed: (couponId) => redeemedCoupons.includes(couponId),
+    canRedeemCoupon,
+    redemptionMap,
+    getRedemptionDetails: (couponId) => redemptionMap[couponId] ?? null,
     refreshData: () => currentUser && loadData(currentUser),
   };
 

@@ -36,7 +36,6 @@ export const couponsService = {
         expires_at: coupon.expiresAt,
         total_qty: coupon.totalQty,
         remaining_qty: coupon.totalQty,
-        is_nearby: true,
         gradient: coupon.gradient,
         highlight_color: coupon.highlightColor,
         redemption_rules: coupon.redemptionRules ?? null,
@@ -47,35 +46,41 @@ export const couponsService = {
     return { data: _mapCoupon(data), error: null };
   },
 
-  async redeem(couponId, userId) {
-    // Decrement remaining_qty
-    const { data: coupon } = await supabase
-      .from('coupons')
-      .select('remaining_qty')
-      .eq('id', couponId)
-      .single();
-
-    if (!coupon || coupon.remaining_qty <= 0) {
-      return { success: false, error: 'Cupons esgotados.' };
-    }
-
-    const qrCode = `EVT-${couponId.slice(0, 8).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-
-    const [{ error: redeemError }, { error: updateError }] = await Promise.all([
-      supabase.from('redemptions').insert({ coupon_id: couponId, user_id: userId, qr_code: qrCode }),
-      supabase.from('coupons').update({ remaining_qty: coupon.remaining_qty - 1 }).eq('id', couponId),
-    ]);
-
-    if (redeemError || updateError) return { success: false, error: 'Erro ao resgatar. Tente novamente.' };
-    return { success: true, qrCode };
+  async uploadPhoto(couponId, uri) {
+    const ext = uri.split('.').pop() ?? 'jpg';
+    const path = `${couponId}/${Date.now()}.${ext}`;
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const { error } = await supabase.storage.from('coupon-photos').upload(path, blob);
+    if (error) return { url: null, error };
+    const { data: urlData } = supabase.storage.from('coupon-photos').getPublicUrl(path);
+    return { url: urlData.publicUrl, error: null };
   },
 
-  async getUserRedemptions(userId) {
-    const { data } = await supabase
-      .from('redemptions')
-      .select('coupon_id')
-      .eq('user_id', userId);
-    return data?.map(r => r.coupon_id) ?? [];
+  async removePhoto(storagePath) {
+    await supabase.storage.from('coupon-photos').remove([storagePath]);
+  },
+
+  async savePhotoUrl(couponId, url) {
+    const { data: current } = await supabase
+      .from('coupons')
+      .select('photos')
+      .eq('id', couponId)
+      .single();
+    const photos = [...(current?.photos ?? []), url];
+    const { error } = await supabase
+      .from('coupons')
+      .update({ photos })
+      .eq('id', couponId);
+    return { error };
+  },
+
+  async updateCrowdLevel(couponId, crowdLevel) {
+    const { error } = await supabase
+      .from('coupons')
+      .update({ crowd_level: crowdLevel })
+      .eq('id', couponId);
+    return { error };
   },
 };
 
