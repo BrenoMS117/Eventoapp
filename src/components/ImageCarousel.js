@@ -33,11 +33,13 @@ export function PhotoCarousel({ photos, height = 260 }) {
         }}
       >
         {photos.map((uri, i) => (
-          <Image
-            key={i}
-            source={{ uri }}
-            style={{ width: SCREEN_W, height, resizeMode: "cover" }}
-          />
+          <View key={i} style={{ width: SCREEN_W, height, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+            <Image
+              source={{ uri }}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="contain"
+            />
+          </View>
         ))}
       </ScrollView>
 

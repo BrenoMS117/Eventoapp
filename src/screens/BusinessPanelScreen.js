@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Modal,
   KeyboardAvoidingView,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,117 +19,33 @@ import { useApp } from "../context/AppContext";
 import { usePermissions } from "../hooks/usePermissions";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
 import { PhotoManager } from "../components/ImageCarousel";
-import { RATING_MAP } from "../services/ratings/ratingDefinitions";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CrowdGauge — owner real-time crowd panel with historical comparison
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Design tokens — mapeados para o tema global do app ───────────────────────
+const D = {
+  bg:           COLORS.bg,
+  card:         COLORS.bgCard,
+  card2:        COLORS.bgElevated,
+  primary:      COLORS.primary,
+  primaryLight: COLORS.primaryLight,
+  text:         COLORS.text,
+  textSub:      COLORS.textSub,
+  border:       COLORS.border,
+  borderAccent: COLORS.primaryLight,
+};
 
-function CrowdGauge({ eventoAtivo, meusEventos }) {
-  const level = eventoAtivo.crowdLevel ?? 0;
-  const count = eventoAtivo.checkedInCount ?? 0;
-  const cap   = eventoAtivo.maxCapacity;
-
-  const barColor =
-    level >= 85 ? COLORS.danger
-    : level >= 60 ? COLORS.warning
-    : level >= 30 ? COLORS.primary
-    : COLORS.success;
-
-  // Historical average across all non-active events that have crowd data
-  const pastEventsCrowd = meusEventos
-    .filter((e) => !e.isLive && (e.crowdLevel ?? 0) > 0);
-  const avgLevel = pastEventsCrowd.length > 0
-    ? Math.round(pastEventsCrowd.reduce((a, e) => a + (e.crowdLevel ?? 0), 0) / pastEventsCrowd.length)
-    : null;
-
-  const delta = avgLevel !== null ? level - avgLevel : null;
-  const deltaLabel = delta !== null
-    ? delta > 0
-      ? `▲ +${delta}% acima da média`
-      : delta < 0
-        ? `▼ ${Math.abs(delta)}% abaixo da média`
-        : '→ Na média histórica'
-    : null;
-  const deltaColor = delta !== null ? (delta >= 0 ? COLORS.success : COLORS.warning) : COLORS.textMuted;
-
-  return (
-    <View style={cg.root}>
-      <Text style={cg.sectionLabel}>LOTAÇÃO EM TEMPO REAL</Text>
-
-      {/* Big percentage + bar */}
-      <View style={cg.gaugeRow}>
-        <Text style={[cg.bigPct, { color: barColor }]}>{level}%</Text>
-        <View style={{ flex: 1, marginLeft: 16 }}>
-          <Text style={cg.crowdLabel}>{eventoAtivo.crowdLabel ?? 'Aguardando'}</Text>
-          <View style={cg.barBg}>
-            <View style={[cg.barFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor }]} />
-          </View>
-          <Text style={cg.countText}>
-            {cap ? `${count} / ${cap} pessoas` : `${count} ${count === 1 ? 'pessoa presente' : 'pessoas presentes'}`}
-          </Text>
-        </View>
-      </View>
-
-      {/* Historical comparison */}
-      {deltaLabel && (
-        <View style={cg.deltaRow}>
-          <View style={cg.deltaBar}>
-            {avgLevel !== null && (
-              <View style={[cg.deltaAvgMarker, { left: `${avgLevel}%` }]} />
-            )}
-            <View style={[cg.deltaFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor + '66' }]} />
-          </View>
-          <Text style={[cg.deltaLabel, { color: deltaColor }]}>
-            {deltaLabel}
-          </Text>
-          {avgLevel !== null && (
-            <Text style={cg.avgLabel}>Média dos seus eventos: {avgLevel}%</Text>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
-const cg = StyleSheet.create({
-  root: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: 16, padding: 14, marginBottom: 10,
-    borderWidth: 0.5, borderColor: COLORS.border,
-  },
-  sectionLabel: {
-    fontSize: 11, fontWeight: '700', color: COLORS.textMuted,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12,
-  },
-  gaugeRow: { flexDirection: 'row', alignItems: 'center' },
-  bigPct: { fontSize: 44, fontWeight: '900', lineHeight: 48, width: 88 },
-  crowdLabel: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  barBg: {
-    height: 14, backgroundColor: COLORS.bgOverlay,
-    borderRadius: 7, overflow: 'hidden', marginBottom: 6,
-  },
-  barFill: { height: '100%', borderRadius: 7 },
-  countText: { fontSize: 12, color: COLORS.textSub },
-  deltaRow: { marginTop: 14, paddingTop: 14, borderTopWidth: 0.5, borderTopColor: COLORS.border },
-  deltaBar: {
-    height: 8, backgroundColor: COLORS.bgOverlay,
-    borderRadius: 4, overflow: 'hidden', marginBottom: 8, position: 'relative',
-  },
-  deltaFill: { height: '100%', borderRadius: 4 },
-  deltaAvgMarker: {
-    position: 'absolute', top: 0, bottom: 0, width: 2,
-    backgroundColor: COLORS.textMuted,
-  },
-  deltaLabel: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
-  avgLabel: { fontSize: 11, color: COLORS.textMuted },
-});
+// Status de lotação mapeados para labels + níveis percentuais
+const CROWD_STATUS = [
+  { key: 'tranquilo', label: 'Tranquilo', level: 15 },
+  { key: 'moderado',  label: 'Moderado',  level: 45 },
+  { key: 'cheio',     label: 'Cheio',     level: 75 },
+  { key: 'lotado',    label: 'Lotado',    level: 95 },
+];
 
 const ANUNCIOS = [
-  { icon: "🎤", label: "Novo artista", msg: "Um novo artista vai subir ao palco em breve!" },
-  { icon: "⬇️", label: "Fila diminuiu", msg: "A fila diminuiu! Ótima hora para vir 🎉" },
-  { icon: "🎁", label: "Promoção",      msg: "2 drinks pelo preço de 1 até meia-noite!" },
-  { icon: "⚠️", label: "Aviso",         msg: "Estamos quase lotados! Reserve seu lugar." },
+  { icon: "🎤", type: 'new_artist', label: "Novo artista",  title: "Novo artista a caminho!",   msg: "Um novo artista irá se apresentar em breve" },
+  { icon: "⬇️", type: 'queue_down', label: "Fila diminuiu", title: "A fila diminuiu! ⬇️",        msg: "A entrada está mais rápida neste momento" },
+  { icon: "🎁", type: 'promo',      label: "Promoção",      title: "Promoção especial! 🎁",      msg: "2 drinks pelo preço de 1 até meia-noite!" },
+  { icon: "⚠️", type: 'warning',    label: "Aviso",         title: "Aviso importante ⚠️",        msg: "Estamos quase lotados" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -142,20 +59,10 @@ function formatDate(iso) {
   });
 }
 
-/**
- * Formats an event's startsAt for display in InactivePanel.
- *
- * • ISO datetime → "Hoje às 22:00" or "22 mai. às 22:00"
- * • Legacy time-only string ("22:00") → displayed as-is with a ⚠️ hint
- * • null / invalid → null
- */
 function formatStartLabel(startsAt) {
   if (!startsAt) return null;
   const d = new Date(startsAt);
-  if (isNaN(d.getTime())) {
-    // Legacy time-only string
-    return { label: `Início: ${startsAt}`, legacy: true };
-  }
+  if (isNaN(d.getTime())) return { label: `Início: ${startsAt}`, legacy: true };
   const now = new Date();
   const isToday = d.toDateString() === now.toDateString();
   const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -167,85 +74,130 @@ function formatStartLabel(startsAt) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FeaturedRatingCard — shows the dominant public perception to the owner
+// CrowdGauge — painel de lotação com comparação histórica (lógica preservada)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function CrowdGauge({ eventoAtivo, meusEventos }) {
+  const level = eventoAtivo.crowdLevel ?? 0;
+  const count = eventoAtivo.checkedInCount ?? 0;
+  const cap   = eventoAtivo.maxCapacity;
+
+  const barColor =
+    level >= 85 ? COLORS.danger
+    : level >= 60 ? COLORS.warning
+    : level >= 30 ? COLORS.primary
+    : COLORS.success;
+
+  const pastEventsCrowd = meusEventos.filter((e) => !e.isLive && (e.crowdLevel ?? 0) > 0);
+  const avgLevel = pastEventsCrowd.length > 0
+    ? Math.round(pastEventsCrowd.reduce((a, e) => a + (e.crowdLevel ?? 0), 0) / pastEventsCrowd.length)
+    : null;
+  const delta = avgLevel !== null ? level - avgLevel : null;
+  const deltaLabel = delta !== null
+    ? delta > 0 ? `▲ +${delta}% acima da média`
+    : delta < 0 ? `▼ ${Math.abs(delta)}% abaixo da média`
+    : '→ Na média histórica'
+    : null;
+  const deltaColor = delta !== null ? (delta >= 0 ? COLORS.success : COLORS.warning) : COLORS.textMuted;
+
+  return (
+    <View style={cg.root}>
+      <View style={cg.gaugeRow}>
+        <Text style={[cg.bigPct, { color: barColor }]}>{level}%</Text>
+        <View style={{ flex: 1, marginLeft: 16 }}>
+          <Text style={cg.crowdLabel}>{eventoAtivo.crowdLabel ?? 'Aguardando'}</Text>
+          <View style={cg.barBg}>
+            <View style={[cg.barFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor }]} />
+          </View>
+          <Text style={cg.countText}>
+            {cap ? `${count} / ${cap} pessoas` : `${count} ${count === 1 ? 'pessoa presente' : 'pessoas presentes'}`}
+          </Text>
+        </View>
+      </View>
+      {deltaLabel && (
+        <View style={cg.deltaRow}>
+          <View style={cg.deltaBar}>
+            {avgLevel !== null && <View style={[cg.deltaAvgMarker, { left: `${avgLevel}%` }]} />}
+            <View style={[cg.deltaFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor + '66' }]} />
+          </View>
+          <Text style={[cg.deltaLabel, { color: deltaColor }]}>{deltaLabel}</Text>
+          {avgLevel !== null && (
+            <Text style={cg.avgLabel}>Média dos seus eventos: {avgLevel}%</Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const cg = StyleSheet.create({
+  root: { backgroundColor: D.card2, borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 0.5, borderColor: D.border },
+  gaugeRow: { flexDirection: 'row', alignItems: 'center' },
+  bigPct: { fontSize: 36, fontWeight: '900', lineHeight: 40, width: 76 },
+  crowdLabel: { fontSize: 13, fontWeight: '700', color: D.text, marginBottom: 8 },
+  barBg: { height: 10, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 5, overflow: 'hidden', marginBottom: 6 },
+  barFill: { height: '100%', borderRadius: 5 },
+  countText: { fontSize: 12, color: D.textSub },
+  deltaRow: { marginTop: 12, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: D.border },
+  deltaBar: { height: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden', marginBottom: 8, position: 'relative' },
+  deltaFill: { height: '100%', borderRadius: 3 },
+  deltaAvgMarker: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: 'rgba(255,255,255,0.3)' },
+  deltaLabel: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
+  avgLabel: { fontSize: 11, color: D.textSub },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FeaturedRatingCard — percepção do público (lógica preservada)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function FeaturedRatingCard({ featured, totalVotes }) {
   if (!featured) {
     return (
       <View style={fr.empty}>
-        <Text style={fr.emptyText}>
-          💬 Aguardando avaliações do público…
-        </Text>
+        <Text style={fr.emptyText}>💬 Aguardando avaliações do público…</Text>
       </View>
     );
   }
-
   return (
     <View style={[fr.card, { borderColor: featured.cor + '44' }]}>
-      {/* Top row: icon + name + pct */}
       <View style={fr.topRow}>
         <Text style={fr.bigIcon}>{featured.icon}</Text>
         <View style={{ flex: 1 }}>
           <Text style={fr.categoryLabel}>MAIS VOTADO</Text>
-          <Text style={[fr.categoryName, { color: featured.cor }]}>
-            {featured.label}
-          </Text>
+          <Text style={[fr.categoryName, { color: featured.cor }]}>{featured.label}</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={[fr.pct, { color: featured.cor }]}>{featured.pct}%</Text>
           <Text style={fr.votesCount}>{featured.votes}/{totalVotes}</Text>
         </View>
       </View>
-
-      {/* Progress bar */}
       <View style={fr.barBg}>
-        <View
-          style={[
-            fr.barFill,
-            { width: `${featured.pct}%`, backgroundColor: featured.cor },
-          ]}
-        />
+        <View style={[fr.barFill, { width: `${featured.pct}%`, backgroundColor: featured.cor }]} />
       </View>
-
     </View>
   );
 }
 
 const fr = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.bgCard, borderRadius: 16, padding: 14,
-    borderWidth: 1, marginBottom: 10,
-  },
-  empty: {
-    backgroundColor: COLORS.bgCard, borderRadius: 16, padding: 14,
-    borderWidth: 0.5, borderColor: COLORS.border, marginBottom: 10,
-    alignItems: 'center',
-  },
-  emptyText: { fontSize: 13, color: COLORS.textMuted },
+  card: { backgroundColor: D.card, borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 10 },
+  empty: { backgroundColor: D.card, borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: D.border, marginBottom: 10, alignItems: 'center' },
+  emptyText: { fontSize: 13, color: D.textSub },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   bigIcon: { fontSize: 34 },
-  categoryLabel: {
-    fontSize: 10, fontWeight: '700', color: COLORS.textMuted,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
-  },
+  categoryLabel: { fontSize: 10, fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   categoryName: { fontSize: 18, fontWeight: '900' },
   pct: { fontSize: 26, fontWeight: '900', lineHeight: 28 },
-  votesCount: { fontSize: 11, color: COLORS.textMuted },
-  barBg: {
-    height: 8, backgroundColor: COLORS.bgOverlay,
-    borderRadius: 4, overflow: 'hidden',
-  },
+  votesCount: { fontSize: 11, color: D.textSub },
+  barBg: { height: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared sub-components
+// OwnerCard — card de perfil com modal de edição (usado em Empty/Inactive)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function OwnerCard({ currentUser, onLogout }) {
   const { updateProfile, updatePassword } = useApp();
-
   const [modalVisible, setModalVisible]       = useState(false);
   const [editName, setEditName]               = useState("");
   const [editAvatar, setEditAvatar]           = useState("");
@@ -260,52 +212,27 @@ function OwnerCard({ currentUser, onLogout }) {
     setEditName(currentUser?.name || "");
     setEditAvatar(currentUser?.avatar || "");
     setEditVenueName(currentUser?.venueName || "");
-    setNewPassword("");
-    setConfirmPassword("");
-    setShowNewPwd(false);
-    setShowConfirmPwd(false);
+    setNewPassword(""); setConfirmPassword("");
+    setShowNewPwd(false); setShowConfirmPwd(false);
     setModalVisible(true);
   }
 
   async function handleSave() {
     const trimmedName  = editName.trim();
     const trimmedVenue = editVenueName.trim();
-    if (!trimmedName) {
-      Alert.alert("Atenção", "O nome não pode ficar vazio.");
-      return;
-    }
-    if (!trimmedVenue) {
-      Alert.alert("Atenção", "O nome do estabelecimento não pode ficar vazio.");
-      return;
-    }
+    if (!trimmedName)  { Alert.alert("Atenção", "O nome não pode ficar vazio."); return; }
+    if (!trimmedVenue) { Alert.alert("Atenção", "O nome do estabelecimento não pode ficar vazio."); return; }
     if (newPassword) {
-      if (newPassword.length < 6) {
-        Alert.alert("Atenção", "A nova senha deve ter pelo menos 6 caracteres.");
-        return;
-      }
-      if (newPassword !== confirmPassword) {
-        Alert.alert("Atenção", "As senhas não coincidem.");
-        return;
-      }
+      if (newPassword.length < 6) { Alert.alert("Atenção", "A nova senha deve ter pelo menos 6 caracteres."); return; }
+      if (newPassword !== confirmPassword) { Alert.alert("Atenção", "As senhas não coincidem."); return; }
     }
-
     setSaving(true);
-    const profileResult = await updateProfile({
-      name:      trimmedName,
-      avatar:    editAvatar.trim() || trimmedName.slice(0, 2).toUpperCase(),
-      venueName: trimmedVenue,
-    });
-    const passwordResult = newPassword
-      ? await updatePassword(newPassword)
-      : { error: null };
+    const profileResult = await updateProfile({ name: trimmedName, avatar: editAvatar.trim() || trimmedName.slice(0, 2).toUpperCase(), venueName: trimmedVenue });
+    const passwordResult = newPassword ? await updatePassword(newPassword) : { error: null };
     setSaving(false);
-
     const error = profileResult.error || passwordResult.error;
-    if (error) {
-      Alert.alert("Erro", error);
-    } else {
-      setModalVisible(false);
-    }
+    if (error) Alert.alert("Erro", error);
+    else setModalVisible(false);
   }
 
   return (
@@ -316,9 +243,7 @@ function OwnerCard({ currentUser, onLogout }) {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.usuarioNome}>{currentUser?.name || "Estabelecimento"}</Text>
-          <Text style={s.usuarioEmail}>
-            {currentUser?.venueName ? `🏠 ${currentUser.venueName}` : currentUser?.email || ""}
-          </Text>
+          <Text style={s.usuarioEmail}>{currentUser?.venueName ? `🏠 ${currentUser.venueName}` : currentUser?.email || ""}</Text>
         </View>
         <TouchableOpacity style={s.editProfileBtn} onPress={openModal}>
           <Ionicons name="person-circle-outline" size={22} color={COLORS.primary} />
@@ -328,131 +253,168 @@ function OwnerCard({ currentUser, onLogout }) {
           <Text style={s.sairTexto}>Sair</Text>
         </TouchableOpacity>
       </View>
-
-      {/* ── Modal de edição de perfil ─────────────────────────────── */}
-      <Modal
+      <EditProfileModal
         visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <TouchableOpacity
-            style={bp.overlay}
-            activeOpacity={1}
-            onPress={() => setModalVisible(false)}
-          >
-            <TouchableOpacity activeOpacity={1} style={bp.sheet}>
-              {/* Cabeçalho */}
-              <View style={bp.sheetHeader}>
-                <Text style={bp.sheetTitle}>Editar Perfil</Text>
-                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                  <Ionicons name="close" size={22} color={COLORS.textMuted} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Preview avatar */}
-              <View style={bp.avatarPreview}>
-                <Text style={bp.avatarPreviewText}>
-                  {editAvatar || editName.slice(0, 2).toUpperCase() || "B"}
-                </Text>
-              </View>
-
-              {/* Nome */}
-              <Text style={bp.label}>Nome</Text>
-              <TextInput
-                style={bp.input}
-                value={editName}
-                onChangeText={setEditName}
-                placeholder="Seu nome"
-                placeholderTextColor={COLORS.textMuted}
-                autoCorrect={false}
-              />
-
-              {/* Iniciais */}
-              <Text style={bp.label}>Iniciais (até 2 letras)</Text>
-              <TextInput
-                style={bp.input}
-                value={editAvatar}
-                onChangeText={(v) => setEditAvatar(v.slice(0, 2).toUpperCase())}
-                placeholder="Ex: AB"
-                placeholderTextColor={COLORS.textMuted}
-                maxLength={2}
-                autoCapitalize="characters"
-              />
-
-              {/* Nome do estabelecimento */}
-              <Text style={bp.label}>Nome do Estabelecimento</Text>
-              <TextInput
-                style={bp.input}
-                value={editVenueName}
-                onChangeText={setEditVenueName}
-                placeholder="Ex: Bar do João"
-                placeholderTextColor={COLORS.textMuted}
-                autoCorrect={false}
-              />
-
-              {/* Divisor senha */}
-              <View style={bp.divider} />
-              <Text style={bp.sectionLabel}>Alterar Senha</Text>
-              <Text style={bp.sectionHint}>Deixe em branco para não alterar</Text>
-
-              {/* Nova senha */}
-              <Text style={bp.label}>Nova Senha</Text>
-              <View style={bp.inputRow}>
-                <TextInput
-                  style={[bp.input, { flex: 1, marginBottom: 0, borderWidth: 0, borderRadius: 0 }]}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  placeholder="Mínimo 6 caracteres"
-                  placeholderTextColor={COLORS.textMuted}
-                  secureTextEntry={!showNewPwd}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity style={bp.eyeBtn} onPress={() => setShowNewPwd(v => !v)}>
-                  <Ionicons name={showNewPwd ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textMuted} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Confirmar senha */}
-              <Text style={[bp.label, { marginTop: 12 }]}>Confirmar Nova Senha</Text>
-              <View style={bp.inputRow}>
-                <TextInput
-                  style={[bp.input, { flex: 1, marginBottom: 0, borderWidth: 0, borderRadius: 0 }]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Repita a nova senha"
-                  placeholderTextColor={COLORS.textMuted}
-                  secureTextEntry={!showConfirmPwd}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity style={bp.eyeBtn} onPress={() => setShowConfirmPwd(v => !v)}>
-                  <Ionicons name={showConfirmPwd ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textMuted} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Salvar */}
-              <TouchableOpacity
-                style={[bp.saveBtn, saving && { opacity: 0.7 }]}
-                onPress={handleSave}
-                disabled={saving}
-              >
-                {saving
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={bp.saveBtnText}>Salvar</Text>}
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
+        onClose={() => setModalVisible(false)}
+        editName={editName} setEditName={setEditName}
+        editAvatar={editAvatar} setEditAvatar={setEditAvatar}
+        editVenueName={editVenueName} setEditVenueName={setEditVenueName}
+        newPassword={newPassword} setNewPassword={setNewPassword}
+        confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword}
+        showNewPwd={showNewPwd} setShowNewPwd={setShowNewPwd}
+        showConfirmPwd={showConfirmPwd} setShowConfirmPwd={setShowConfirmPwd}
+        saving={saving} onSave={handleSave}
+      />
     </>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ProfileHeader — header de perfil estilo Figma (usado no ActivePanel)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ProfileHeader({ currentUser, onLogout }) {
+  const { updateProfile, updatePassword } = useApp();
+  const [modalVisible, setModalVisible]       = useState(false);
+  const [editName, setEditName]               = useState("");
+  const [editAvatar, setEditAvatar]           = useState("");
+  const [editVenueName, setEditVenueName]     = useState("");
+  const [newPassword, setNewPassword]         = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPwd, setShowNewPwd]           = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd]   = useState(false);
+  const [saving, setSaving]                   = useState(false);
+
+  function openModal() {
+    setEditName(currentUser?.name || "");
+    setEditAvatar(currentUser?.avatar || "");
+    setEditVenueName(currentUser?.venueName || "");
+    setNewPassword(""); setConfirmPassword("");
+    setShowNewPwd(false); setShowConfirmPwd(false);
+    setModalVisible(true);
+  }
+
+  async function handleSave() {
+    const trimmedName  = editName.trim();
+    const trimmedVenue = editVenueName.trim();
+    if (!trimmedName)  { Alert.alert("Atenção", "O nome não pode ficar vazio."); return; }
+    if (!trimmedVenue) { Alert.alert("Atenção", "O nome do estabelecimento não pode ficar vazio."); return; }
+    if (newPassword) {
+      if (newPassword.length < 6) { Alert.alert("Atenção", "A nova senha deve ter pelo menos 6 caracteres."); return; }
+      if (newPassword !== confirmPassword) { Alert.alert("Atenção", "As senhas não coincidem."); return; }
+    }
+    setSaving(true);
+    const profileResult = await updateProfile({ name: trimmedName, avatar: editAvatar.trim() || trimmedName.slice(0, 2).toUpperCase(), venueName: trimmedVenue });
+    const passwordResult = newPassword ? await updatePassword(newPassword) : { error: null };
+    setSaving(false);
+    const error = profileResult.error || passwordResult.error;
+    if (error) Alert.alert("Erro", error);
+    else setModalVisible(false);
+  }
+
+  // Gera handle a partir do nome: "Ricardo Almeida" → "@ricardo_almeida"
+  const handle = currentUser?.name
+    ? '@' + currentUser.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+    : '@usuario';
+
+  return (
+    <>
+      <View style={nd.profileSection}>
+        {/* Avatar com borda */}
+        <TouchableOpacity style={nd.avatarBorder} onPress={openModal} activeOpacity={0.8}>
+          <View style={nd.avatarInner}>
+            <Text style={nd.avatarText}>{currentUser?.avatar || "B"}</Text>
+          </View>
+        </TouchableOpacity>
+        {/* Nome + handle */}
+        <View style={{ flex: 1 }}>
+          <Text style={nd.profileName}>{currentUser?.name || "Estabelecimento"}</Text>
+          <Text style={nd.profileHandle}>{handle}</Text>
+        </View>
+        {/* Botão sair */}
+        <TouchableOpacity style={nd.sairBtnNew} onPress={onLogout}>
+          <Ionicons name="log-out-outline" size={14} color={D.primary} />
+          <Text style={nd.sairTextNew}>Sair</Text>
+        </TouchableOpacity>
+      </View>
+      <EditProfileModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        editName={editName} setEditName={setEditName}
+        editAvatar={editAvatar} setEditAvatar={setEditAvatar}
+        editVenueName={editVenueName} setEditVenueName={setEditVenueName}
+        newPassword={newPassword} setNewPassword={setNewPassword}
+        confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword}
+        showNewPwd={showNewPwd} setShowNewPwd={setShowNewPwd}
+        showConfirmPwd={showConfirmPwd} setShowConfirmPwd={setShowConfirmPwd}
+        saving={saving} onSave={handleSave}
+      />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EditProfileModal — modal de edição extraído para reuso
+// ─────────────────────────────────────────────────────────────────────────────
+
+function EditProfileModal({
+  visible, onClose,
+  editName, setEditName, editAvatar, setEditAvatar,
+  editVenueName, setEditVenueName,
+  newPassword, setNewPassword, confirmPassword, setConfirmPassword,
+  showNewPwd, setShowNewPwd, showConfirmPwd, setShowConfirmPwd,
+  saving, onSave,
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <TouchableOpacity style={bp.overlay} activeOpacity={1} onPress={onClose}>
+          <TouchableOpacity activeOpacity={1} style={bp.sheet}>
+            <View style={bp.sheetHeader}>
+              <Text style={bp.sheetTitle}>Editar Perfil</Text>
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close" size={22} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <View style={bp.avatarPreview}>
+              <Text style={bp.avatarPreviewText}>{editAvatar || editName.slice(0, 2).toUpperCase() || "B"}</Text>
+            </View>
+            <Text style={bp.label}>Nome</Text>
+            <TextInput style={bp.input} value={editName} onChangeText={setEditName} placeholder="Seu nome" placeholderTextColor={COLORS.textMuted} autoCorrect={false} />
+            <Text style={bp.label}>Iniciais (até 2 letras)</Text>
+            <TextInput style={bp.input} value={editAvatar} onChangeText={(v) => setEditAvatar(v.slice(0, 2).toUpperCase())} placeholder="Ex: AB" placeholderTextColor={COLORS.textMuted} maxLength={2} autoCapitalize="characters" />
+            <Text style={bp.label}>Nome do Estabelecimento</Text>
+            <TextInput style={bp.input} value={editVenueName} onChangeText={setEditVenueName} placeholder="Ex: Bar do João" placeholderTextColor={COLORS.textMuted} autoCorrect={false} />
+            <View style={bp.divider} />
+            <Text style={bp.sectionLabel}>Alterar Senha</Text>
+            <Text style={bp.sectionHint}>Deixe em branco para não alterar</Text>
+            <Text style={bp.label}>Nova Senha</Text>
+            <View style={bp.inputRow}>
+              <TextInput style={[bp.input, { flex: 1, marginBottom: 0, borderWidth: 0, borderRadius: 0 }]} value={newPassword} onChangeText={setNewPassword} placeholder="Mínimo 6 caracteres" placeholderTextColor={COLORS.textMuted} secureTextEntry={!showNewPwd} autoCorrect={false} autoCapitalize="none" />
+              <TouchableOpacity style={bp.eyeBtn} onPress={() => setShowNewPwd(v => !v)}>
+                <Ionicons name={showNewPwd ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[bp.label, { marginTop: 12 }]}>Confirmar Nova Senha</Text>
+            <View style={bp.inputRow}>
+              <TextInput style={[bp.input, { flex: 1, marginBottom: 0, borderWidth: 0, borderRadius: 0 }]} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Repita a nova senha" placeholderTextColor={COLORS.textMuted} secureTextEntry={!showConfirmPwd} autoCorrect={false} autoCapitalize="none" />
+              <TouchableOpacity style={bp.eyeBtn} onPress={() => setShowConfirmPwd(v => !v)}>
+                <Ionicons name={showConfirmPwd ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={[bp.saveBtn, saving && { opacity: 0.7 }]} onPress={onSave} disabled={saving}>
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={bp.saveBtnText}>Salvar</Text>}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MetricCard — usado no InactivePanel (preservado)
+// ─────────────────────────────────────────────────────────────────────────────
 
 function MetricCard({ icon, label, valor, sub, cor }) {
   return (
@@ -465,40 +427,46 @@ function MetricCard({ icon, label, valor, sub, cor }) {
   );
 }
 
-function CouponRow({ c }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// InfoCard — card estilo Figma para as 3 métricas no ActivePanel
+// ─────────────────────────────────────────────────────────────────────────────
+
+function InfoCard({ iconName, value, label, accentBorder }) {
   return (
-    <View style={s.cupomRow}>
-      <View style={[s.cupomDot, { backgroundColor: c.highlightColor }]}>
-        <Text style={{ fontSize: 18 }}>{c.icon}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Text style={s.cupomTitulo} numberOfLines={1}>{c.title}</Text>
-          <View style={[s.cupomTipoBadge, { backgroundColor: c.highlightColor + "33" }]}>
-            <Text style={[s.cupomTipoTexto, { color: c.highlightColor }]}>{c.typeLabel}</Text>
-          </View>
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
-          <Text style={s.cupomQtd}>{c.remainingQty}/{c.totalQty} restantes</Text>
-          <Text style={{ fontSize: 11, color: COLORS.success }}>
-            {c.totalQty - c.remainingQty} resgatados
-          </Text>
-        </View>
-        <View style={s.progressBg}>
-          <View style={[s.progressFill, {
-            width: `${(c.remainingQty / c.totalQty) * 100}%`,
-            backgroundColor: c.highlightColor,
-          }]} />
-        </View>
-      </View>
+    <View style={[nd.infoCard, accentBorder && { borderColor: D.borderAccent }]}>
+      <Ionicons name={iconName} size={20} color={D.primary} />
+      <Text style={nd.infoCardValue}>{value}</Text>
+      <Text style={nd.infoCardLabel}>{label}</Text>
     </View>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STATE 1 — EmptyState
-// Owner exists but never created any event.
+// CouponRow — linha de cupom (preservada, novo estilo Figma)
 // ─────────────────────────────────────────────────────────────────────────────
+
+function CouponRow({ c, onPress }) {
+  return (
+    <TouchableOpacity style={nd.couponRow} onPress={onPress} activeOpacity={0.8}>
+      <View style={nd.couponIconWrap}>
+        <Ionicons name="ticket-outline" size={18} color={D.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={nd.couponTitle} numberOfLines={1}>{c.title}</Text>
+        <Text style={nd.couponQty}>{c.remainingQty}/{c.totalQty} restantes · {c.totalQty - c.remainingQty} resgatados</Text>
+        <View style={nd.couponBar}>
+          <View style={[nd.couponBarFill, { width: `${(c.remainingQty / c.totalQty) * 100}%` }]} />
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={D.primary} />
+    </TouchableOpacity>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE 1 — EmptyState
+// ─────────────────────────────────────────────────────────────────────────────
+
 function EmptyState({ currentUser, onLogout, onCreateEvent }) {
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -508,23 +476,19 @@ function EmptyState({ currentUser, onLogout, onCreateEvent }) {
           <Text style={s.logo}>LiveVibe</Text>
         </View>
       </View>
-
       <OwnerCard currentUser={currentUser} onLogout={onLogout} />
-
       <View style={s.emptyRoot}>
         <View style={s.emptyIconWrap}>
           <Text style={{ fontSize: 56 }}>🎪</Text>
         </View>
         <Text style={s.emptyTitulo}>Nenhum evento ainda</Text>
         <Text style={s.emptySub}>
-          Crie seu primeiro evento para começar a gerenciar ingressos,
-          cupons e a experiência dos seus clientes.
+          Crie seu primeiro evento para começar a gerenciar ingressos, cupons e a experiência dos seus clientes.
         </Text>
         <TouchableOpacity style={s.emptyBtn} onPress={onCreateEvent}>
           <Ionicons name="add-circle-outline" size={20} color="#fff" />
           <Text style={s.emptyBtnTexto}>Criar Primeiro Evento</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={s.emptyBtnSecundario} onPress={onLogout}>
           <Text style={s.emptyBtnSecTexto}>Sair da conta</Text>
         </TouchableOpacity>
@@ -535,24 +499,21 @@ function EmptyState({ currentUser, onLogout, onCreateEvent }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATE 2 — InactivePanel
-// Owner has past events but none is live right now.
 // ─────────────────────────────────────────────────────────────────────────────
+
 function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreateEvent, navigation }) {
   const ultimoEvento = meusEventos[0];
-
   const totalCriadosGeral  = meusCupons.length;
   const totalResgatados    = meusCupons.reduce((acc, c) => acc + (c.totalQty - c.remainingQty), 0);
   const totalParticipantes = meusEventos.reduce((acc, e) => acc + (e.checkedInCount ?? 0), 0);
-  const mediaAvaliacao     = (() => {
+  const mediaAvaliacao = (() => {
     const comRating = meusEventos.filter(e => e.rating > 0);
     if (!comRating.length) return "—";
-    const avg = comRating.reduce((a, e) => a + e.rating, 0) / comRating.length;
-    return avg.toFixed(1);
+    return (comRating.reduce((a, e) => a + e.rating, 0) / comRating.length).toFixed(1);
   })();
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Header */}
       <View style={s.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Ionicons name="pulse" size={18} color={COLORS.primary} />
@@ -565,17 +526,12 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
           </TouchableOpacity>
         </View>
       </View>
-
       <ScrollView showsVerticalScrollIndicator={false}>
         <OwnerCard currentUser={currentUser} onLogout={onLogout} />
-
-        {/* Sem evento ativo banner */}
         <View style={s.inativoBanner}>
           <Ionicons name="moon-outline" size={16} color={COLORS.textMuted} />
           <Text style={s.inativoBannerTexto}>Nenhum evento ativo no momento</Text>
         </View>
-
-        {/* Resumo do histórico */}
         <View style={s.secao}>
           <Text style={s.secaoTitulo}>Histórico geral</Text>
           <View style={s.metricsGrid}>
@@ -585,8 +541,6 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
             <MetricCard icon="⭐" label="Avaliação média" valor={mediaAvaliacao} cor={COLORS.gold} />
           </View>
         </View>
-
-        {/* Último evento */}
         {ultimoEvento && (
           <View style={s.secao}>
             <Text style={s.secaoTitulo}>Último evento</Text>
@@ -600,15 +554,12 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
               <Text style={s.ultimoEventoVenue} numberOfLines={1}>
                 <Ionicons name="location-outline" size={12} /> {ultimoEvento.venue}
               </Text>
-              {ultimoEvento.startsAt && (
-                <Text style={s.ultimoEventoData}>{formatDate(ultimoEvento.startsAt)}</Text>
-              )}
-
+              {ultimoEvento.startsAt && <Text style={s.ultimoEventoData}>{formatDate(ultimoEvento.startsAt)}</Text>}
               <View style={{ flexDirection: "row", gap: 16, marginTop: 14 }}>
                 {[
-                  { label: "Cupons criados",   valor: meusCupons.filter(c => c.eventId === ultimoEvento.id).length },
-                  { label: "Resgatados",        valor: meusCupons.filter(c => c.eventId === ultimoEvento.id).reduce((a, c) => a + (c.totalQty - c.remainingQty), 0) },
-                  { label: "Participantes",     valor: ultimoEvento.checkedInCount ?? 0 },
+                  { label: "Cupons criados", valor: meusCupons.filter(c => c.eventId === ultimoEvento.id).length },
+                  { label: "Resgatados",     valor: meusCupons.filter(c => c.eventId === ultimoEvento.id).reduce((a, c) => a + (c.totalQty - c.remainingQty), 0) },
+                  { label: "Participantes",  valor: ultimoEvento.checkedInCount ?? 0 },
                 ].map((stat) => (
                   <View key={stat.label} style={{ alignItems: "center" }}>
                     <Text style={{ fontSize: 18, fontWeight: "800", color: COLORS.text }}>{stat.valor}</Text>
@@ -619,8 +570,6 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
             </View>
           </View>
         )}
-
-        {/* Lista de todos os eventos */}
         <View style={s.secao}>
           <Text style={s.secaoTitulo}>Meus eventos</Text>
           {meusEventos.map((e) => {
@@ -632,51 +581,29 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
                   <Text style={s.eventoHistoricoNome} numberOfLines={1}>{e.name}</Text>
                   <Text style={s.eventoHistoricoData}>{e.venue}</Text>
                 </View>
-                {startInfo ? (
-                  <View style={[
-                    s.inicioChip,
-                    startInfo.isPast && { backgroundColor: COLORS.success + '22', borderColor: COLORS.success + '55' },
-                  ]}>
-                    <Ionicons
-                      name={startInfo.isPast ? 'hourglass-outline' : 'time-outline'}
-                      size={11}
-                      color={startInfo.isPast ? COLORS.success : COLORS.primary}
-                    />
-                    <Text style={[
-                      s.inicioChipTexto,
-                      startInfo.isPast && { color: COLORS.success },
-                    ]}>
-                      {startInfo.label}
-                    </Text>
+                {startInfo && (
+                  <View style={[s.inicioChip, startInfo.isPast && { backgroundColor: COLORS.success + '22', borderColor: COLORS.success + '55' }]}>
+                    <Ionicons name={startInfo.isPast ? 'hourglass-outline' : 'time-outline'} size={11} color={startInfo.isPast ? COLORS.success : COLORS.primary} />
+                    <Text style={[s.inicioChipTexto, startInfo.isPast && { color: COLORS.success }]}>{startInfo.label}</Text>
                   </View>
-                ) : null}
+                )}
               </View>
             );
           })}
         </View>
-
-        {/* CTA: criar novo evento */}
         <View style={{ paddingHorizontal: 12, marginTop: 24 }}>
           <TouchableOpacity style={s.emptyBtn} onPress={onCreateEvent}>
             <Ionicons name="add-circle-outline" size={20} color="#fff" />
             <Text style={s.emptyBtnTexto}>Criar Novo Evento</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Impulsionar */}
         <View style={s.impulsionarCard}>
           <Text style={s.impulsionarTitulo}>⚡ Impulsionar Visibilidade</Text>
-          <Text style={s.impulsionarSub}>
-            Destaque seu evento no topo do feed para +2.300 usuários próximos
-          </Text>
-          <TouchableOpacity
-            style={s.impulsionarBtn}
-            onPress={() => Alert.alert("Em breve", "Planos em desenvolvimento!")}
-          >
+          <Text style={s.impulsionarSub}>Destaque seu evento no topo do feed para +2.300 usuários próximos</Text>
+          <TouchableOpacity style={s.impulsionarBtn} onPress={() => Alert.alert("Em breve", "Planos em desenvolvimento!")}>
             <Text style={s.impulsionarBtnTexto}>Ver planos →</Text>
           </TouchableOpacity>
         </View>
-
         <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
@@ -684,28 +611,31 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STATE 3 — ActivePanel
-// Owner has at least one live event: full operational dashboard.
+// STATE 3 — ActivePanel — design Figma aplicado
 // ─────────────────────────────────────────────────────────────────────────────
+
 function ActivePanel({
   currentUser, eventoAtivo, businessStats, cuponsDoAtivo, meusEventos,
   onLogout, onCreateEvent, navigation,
   addEventPhoto, removeEventPhoto, updateEventFields, closeEvent,
 }) {
   const perms = usePermissions();
-  const { subscribeToEventRatings, getEventRatings } = useApp();
+  const { subscribeToEventRatings, getEventRatings, sendAnnouncement } = useApp();
   const [secaoFotos, setSecaoFotos]       = useState(false);
 
-  // Subscribe to real-time ratings for the active event
   useEffect(() => {
     if (eventoAtivo?.id) subscribeToEventRatings(eventoAtivo.id);
   }, [eventoAtivo?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const eventRating = getEventRatings(eventoAtivo?.id ?? '');
   const totalVotes  = Object.values(eventRating.counts).reduce((a, b) => a + b, 0);
-  const [novoArtista, setNovoArtista]     = useState("");
+
+  const [novoArtista, setNovoArtista]       = useState("");
   const [novoHorarioFim, setNovoHorarioFim] = useState("");
-  const [salvando, setSalvando]           = useState(false);
+  const [salvando, setSalvando]             = useState(false);
+  const [settingCrowd, setSettingCrowd]     = useState(false);
+  /** type do anúncio sendo enviado, ou null se nenhum envio em curso */
+  const [sendingAnuncio, setSendingAnuncio] = useState(null);
 
   async function handleSalvarCampos() {
     const fields = {};
@@ -717,13 +647,15 @@ function ActivePanel({
     setSalvando(true);
     const result = await updateEventFields(eventoAtivo.id, fields);
     setSalvando(false);
-    if (result.error) {
-      Alert.alert("Erro", "Não foi possível salvar. Tente novamente.");
-    } else {
-      setNovoArtista("");
-      setNovoHorarioFim("");
-      Alert.alert("✅ Salvo", "Informações do evento atualizadas.");
-    }
+    if (result.error) Alert.alert("Erro", "Não foi possível salvar. Tente novamente.");
+    else { setNovoArtista(""); setNovoHorarioFim(""); Alert.alert("✅ Salvo", "Informações do evento atualizadas."); }
+  }
+
+  async function handleCrowdStatus(status) {
+    if (settingCrowd) return;
+    setSettingCrowd(true);
+    await updateEventFields(eventoAtivo.id, { crowdLabel: status.label, crowdLevel: status.level });
+    setSettingCrowd(false);
   }
 
   function handleEncerrarEvento() {
@@ -732,58 +664,94 @@ function ActivePanel({
       `Deseja encerrar "${eventoAtivo.name}"? Esta ação não pode ser desfeita.`,
       [
         { text: "Cancelar", style: "cancel" },
-        {
-          text: "Encerrar", style: "destructive",
-          onPress: async () => {
-            const result = await closeEvent(eventoAtivo.id);
-            if (result.error) Alert.alert("Erro", "Não foi possível encerrar o evento.");
-            else Alert.alert("Evento encerrado", `"${eventoAtivo.name}" foi encerrado.`);
-          },
-        },
+        { text: "Encerrar", style: "destructive", onPress: async () => {
+          const result = await closeEvent(eventoAtivo.id);
+          if (result.error) Alert.alert("Erro", "Não foi possível encerrar o evento.");
+          else Alert.alert("Evento encerrado", `"${eventoAtivo.name}" foi encerrado.`);
+        }},
       ],
     );
   }
 
+  async function handleAnuncio(a) {
+    if (sendingAnuncio) return; // evita envios duplos
+    setSendingAnuncio(a.type);
+    const { error } = await sendAnnouncement(eventoAtivo.id, {
+      type:  a.type,
+      title: a.title,
+      // Inclui o nome do evento no corpo para que o usuário saiba de qual evento vem
+      body:  `${eventoAtivo.name}: ${a.msg}`,
+      icon:  a.icon,
+    });
+    setSendingAnuncio(null);
+    if (error) {
+      Alert.alert("Erro", "Não foi possível enviar o aviso. Tente novamente.");
+    } else {
+      Alert.alert("📢 Enviado!", `"${a.msg}" foi notificado para usuários próximos.`);
+    }
+  }
+
+  // Detecta qual botão de status está ativo comparando o label atual
+  const currentCrowdKey = CROWD_STATUS.find(
+    cs => cs.label.toLowerCase() === (eventoAtivo.crowdLabel ?? '').toLowerCase()
+  )?.key ?? null;
+
+  const coverPhoto = eventoAtivo.photos?.[0] ?? null;
+
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Header */}
-      <View style={s.header}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Ionicons name="pulse" size={18} color={COLORS.primary} />
-          <Text style={s.logo}>LiveVibe</Text>
+    <SafeAreaView style={nd.safe} edges={["top"]}>
+
+      {/* ── TopAppBar ─────────────────────────────────────────────────── */}
+      <View style={nd.topBar}>
+        <View style={nd.logoRow}>
+          <Ionicons name="pulse" size={18} color={D.primary} />
+          <Text style={nd.logoText}>LiveVibe</Text>
         </View>
-        <View style={{ flex: 1, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-          <TouchableOpacity style={s.novoEventoBtn} onPress={onCreateEvent}>
+        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+          <TouchableOpacity style={nd.novoEventoBtn} onPress={onCreateEvent}>
             <Ionicons name="add" size={16} color="#fff" />
-            <Text style={s.novoEventoTexto}>Novo Evento</Text>
           </TouchableOpacity>
-          <View style={s.liveChip}>
-            <View style={[s.liveDot, { backgroundColor: "#4ade80" }]} />
-            <Text style={s.liveChipTexto}>Ao vivo</Text>
+          <View style={nd.liveChip}>
+            <View style={nd.liveDot} />
+            <Text style={nd.liveChipText}>Ao vivo</Text>
           </View>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <OwnerCard currentUser={currentUser} onLogout={onLogout} />
+      <ScrollView showsVerticalScrollIndicator={false} style={{ backgroundColor: D.bg }}>
 
-        {/* Evento ativo banner */}
-        <View style={s.eventoAtivoBanner}>
-          <View style={[s.ativoDot, { backgroundColor: COLORS.success }]} />
-          <Text style={s.eventoAtivoTexto}>{eventoAtivo.name}</Text>
-          <TouchableOpacity onPress={() => setSecaoFotos((v) => !v)}>
-            <View style={s.fotosBtnSmall}>
-              <Ionicons name="images-outline" size={14} color={COLORS.primary} />
-              <Text style={s.fotosBtnSmallTexto}>Fotos</Text>
+        {/* ── Perfil ────────────────────────────────────────────────────── */}
+        <ProfileHeader currentUser={currentUser} onLogout={onLogout} />
+
+        {/* ── Venue Area ────────────────────────────────────────────────── */}
+        <View style={nd.venueCard}>
+          {/* Foto de capa como background */}
+          {coverPhoto ? (
+            <Image source={{ uri: coverPhoto }} style={nd.venueBgImage} resizeMode="cover" />
+          ) : null}
+          {/* Overlay escuro degradê */}
+          <View style={nd.venueOverlay} />
+          {/* Conteúdo */}
+          <View style={nd.venueContent}>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={nd.venueName} numberOfLines={2}>{eventoAtivo.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="location" size={12} color={D.primary} />
+                <Text style={nd.venueLocation} numberOfLines={1}>{eventoAtivo.venue}</Text>
+              </View>
             </View>
-          </TouchableOpacity>
+            <TouchableOpacity style={nd.addPhotosBtn} onPress={() => setSecaoFotos(v => !v)} activeOpacity={0.8}>
+              <Ionicons name="images-outline" size={14} color="#fff" />
+              <Text style={nd.addPhotosBtnText}>{"Adicionar\nfotos"}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Fotos do evento */}
+        {/* ── Fotos (colapsível) ────────────────────────────────────────── */}
         {secaoFotos && (
-          <View style={s.fotosSecao}>
-            <Text style={s.secaoTitulo}>Fotos do Evento</Text>
-            <Text style={s.fotosSubtitulo}>A primeira foto será usada como capa nos cards</Text>
+          <View style={nd.fotosSection}>
+            <Text style={nd.fotosTitle}>Fotos do Evento</Text>
+            <Text style={nd.fotosSub}>A primeira foto será usada como capa nos cards</Text>
             <PhotoManager
               photos={eventoAtivo.photos || []}
               onAdd={(uri) => addEventPhoto(eventoAtivo.id, uri)}
@@ -793,213 +761,235 @@ function ActivePanel({
           </View>
         )}
 
-        {/* Métricas em tempo real */}
-        <View style={s.metricsGrid}>
-          <MetricCard icon="👥" label="Presentes"  valor={eventoAtivo.checkedInCount?.toLocaleString() ?? '0'} sub={businessStats.checkedInChange} cor={COLORS.primaryLight} />
-          <MetricCard
-            icon="⭐" label="Avaliação"
-            valor={eventoAtivo.rating > 0 ? eventoAtivo.rating.toFixed(1) : '—'}
-            sub={`${eventoAtivo.reviewCount ?? 0} avaliações`}
-            cor={COLORS.gold}
+        {/* ── Info Cards (3 métricas) ───────────────────────────────────── */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={nd.infoCardsScroll} contentContainerStyle={nd.infoCardsContent}>
+          <InfoCard
+            iconName="people"
+            value={eventoAtivo.checkedInCount?.toLocaleString() ?? '0'}
+            label="pessoas presentes"
           />
-          <MetricCard icon="🎟" label="Resgatados" valor={businessStats.couponsRedeemed} sub={`/ ${businessStats.couponsTotal}`} cor={COLORS.purpleLight} />
-          <MetricCard icon="🔥" label="Nível"      valor={businessStats.heatLevel || "WARM"} cor={COLORS.primary} />
+          <InfoCard
+            iconName="star"
+            value={eventoAtivo.rating > 0 ? eventoAtivo.rating.toFixed(1) : '—'}
+            label={`Avaliações (${eventoAtivo.reviewCount ?? 0})`}
+            accentBorder
+          />
+          <InfoCard
+            iconName="ticket-outline"
+            value={cuponsDoAtivo.length}
+            label="Cupons ativos"
+          />
+        </ScrollView>
+
+        {/* ── Status de Lotação ─────────────────────────────────────────── */}
+        <View style={nd.section}>
+          <Text style={nd.sectionTitle}>Status de Lotação</Text>
+
+          {/* Gauge histórico */}
+          <CrowdGauge eventoAtivo={eventoAtivo} meusEventos={meusEventos} />
+
+          {/* Botões de status manual (Figma) */}
+          <View style={nd.crowdGrid}>
+            {CROWD_STATUS.map((cs) => {
+              const isActive = cs.key === currentCrowdKey;
+              return (
+                <TouchableOpacity
+                  key={cs.key}
+                  style={[nd.crowdBtn, isActive && nd.crowdBtnActive]}
+                  onPress={() => handleCrowdStatus(cs)}
+                  disabled={settingCrowd}
+                  activeOpacity={0.8}
+                >
+                  {settingCrowd && isActive
+                    ? <ActivityIndicator size="small" color={D.primary} />
+                    : <Text style={[nd.crowdBtnText, isActive && nd.crowdBtnTextActive]}>{cs.label}</Text>
+                  }
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
-        {/* Característica em destaque (percepção do público) */}
-        <View style={s.secao}>
-          <Text style={s.secaoTitulo}>Percepção do Público</Text>
+        {/* ── Percepção do Público ─────────────────────────────────────── */}
+        <View style={nd.section}>
+          <Text style={nd.sectionTitle}>Percepção do Público</Text>
           <FeaturedRatingCard featured={eventRating.featured} totalVotes={totalVotes} />
         </View>
 
-        {/* Gerenciar Evento */}
-        <View style={s.secao}>
-          <Text style={s.secaoTitulo}>Gerenciar Evento</Text>
+        {/* ── Gerenciar Evento ─────────────────────────────────────────── */}
+        {(perms.canEditEventField("nextAct") || perms.canEditEventField("endsAt") || perms.canEditEventField("closeEvent")) && (
+          <View style={nd.section}>
+            <Text style={nd.sectionTitle}>Gerenciar Evento</Text>
 
-          {perms.canEditEventField("nextAct") && (
-            <View style={s.editCampo}>
-              <Text style={s.editLabel}>Próximo Artista</Text>
-              <Text style={s.editAtual}>Atual: {eventoAtivo.nextAct || "—"}</Text>
-              <TextInput
-                style={s.editInput}
-                placeholder="Nome do artista ou atração"
-                placeholderTextColor={COLORS.textMuted}
-                value={novoArtista}
-                onChangeText={setNovoArtista}
-                maxLength={80}
-              />
-            </View>
-          )}
-
-          {perms.canEditEventField("endsAt") && (
-            <View style={s.editCampo}>
-              <Text style={s.editLabel}>Horário de Término</Text>
-              <Text style={s.editAtual}>Atual: {eventoAtivo.endsAt || "—"}</Text>
-              <TextInput
-                style={s.editInput}
-                placeholder="Ex: 02:00"
-                placeholderTextColor={COLORS.textMuted}
-                value={novoHorarioFim}
-                onChangeText={setNovoHorarioFim}
-                maxLength={5}
-                keyboardType="numbers-and-punctuation"
-              />
-            </View>
-          )}
-
-          {(perms.canEditEventField("nextAct") || perms.canEditEventField("endsAt")) && (
-            <TouchableOpacity
-              style={[s.salvarBtn, salvando && { opacity: 0.6 }]}
-              onPress={handleSalvarCampos}
-              disabled={salvando}
-            >
-              <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
-              <Text style={s.salvarBtnTexto}>{salvando ? "Salvando..." : "Salvar alterações"}</Text>
-            </TouchableOpacity>
-          )}
-
-          {perms.canEditEventField("closeEvent") && (
-            <TouchableOpacity
-              style={[s.encerrarBtn, !eventoAtivo.isLive && { opacity: 0.5 }]}
-              onPress={handleEncerrarEvento}
-              disabled={!eventoAtivo.isLive}
-            >
-              <Ionicons name="stop-circle-outline" size={16} color={COLORS.danger} />
-              <Text style={s.encerrarBtnTexto}>
-                {eventoAtivo.isLive ? "Encerrar Evento" : "Evento já encerrado"}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Lotação em tempo real */}
-        <View style={s.secao}>
-          <CrowdGauge eventoAtivo={eventoAtivo} meusEventos={meusEventos} />
-        </View>
-
-        {/* Anunciar ao vivo */}
-        <View style={s.secao}>
-          <Text style={s.secaoTitulo}>Anunciar ao Vivo</Text>
-          {ANUNCIOS.map((a, i) => (
-            <TouchableOpacity key={i} style={s.anuncioCard} onPress={() => Alert.alert("📢 Enviado!", `"${a.msg}"`)}>
-              <Text style={s.anuncioIcon}>{a.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={s.anuncioLabel}>{a.label}</Text>
-                <Text style={s.anuncioMsg} numberOfLines={1}>{a.msg}</Text>
+            {perms.canEditEventField("nextAct") && (
+              <View style={nd.editCampo}>
+                <Text style={nd.editLabel}>Próximo Artista</Text>
+                <Text style={nd.editAtual}>Atual: {eventoAtivo.nextAct || "—"}</Text>
+                <TextInput
+                  style={nd.editInput}
+                  placeholder="Nome do artista ou atração"
+                  placeholderTextColor={D.textSub}
+                  value={novoArtista}
+                  onChangeText={setNovoArtista}
+                  maxLength={80}
+                />
               </View>
-              <Ionicons name="send-outline" size={16} color={COLORS.primary} />
-            </TouchableOpacity>
-          ))}
+            )}
+
+            {perms.canEditEventField("endsAt") && (
+              <View style={nd.editCampo}>
+                <Text style={nd.editLabel}>Horário de Término</Text>
+                <Text style={nd.editAtual}>Atual: {eventoAtivo.endsAt || "—"}</Text>
+                <TextInput
+                  style={nd.editInput}
+                  placeholder="Ex: 02:00"
+                  placeholderTextColor={D.textSub}
+                  value={novoHorarioFim}
+                  onChangeText={setNovoHorarioFim}
+                  maxLength={5}
+                  keyboardType="numbers-and-punctuation"
+                />
+              </View>
+            )}
+
+            {(perms.canEditEventField("nextAct") || perms.canEditEventField("endsAt")) && (
+              <TouchableOpacity style={[nd.salvarBtn, salvando && { opacity: 0.6 }]} onPress={handleSalvarCampos} disabled={salvando}>
+                <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+                <Text style={nd.salvarBtnText}>{salvando ? "Salvando..." : "Salvar alterações"}</Text>
+              </TouchableOpacity>
+            )}
+
+            {perms.canEditEventField("closeEvent") && (
+              <TouchableOpacity
+                style={[nd.encerrarBtn, !eventoAtivo.isLive && { opacity: 0.5 }]}
+                onPress={handleEncerrarEvento}
+                disabled={!eventoAtivo.isLive}
+              >
+                <Ionicons name="stop-circle-outline" size={16} color={D.primary} />
+                <Text style={nd.encerrarBtnText}>{eventoAtivo.isLive ? "Encerrar Evento" : "Evento já encerrado"}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* ── Notificações Rápidas ──────────────────────────────────────── */}
+        <View style={nd.section}>
+          <Text style={nd.sectionTitle}>Notificações Rápidas</Text>
+          <Text style={nd.sectionSub}>Avisos enviados para usuários próximos ao seu evento</Text>
+          {ANUNCIOS.map((a, i) => {
+            const isSending = sendingAnuncio === a.type;
+            const isDisabled = !!sendingAnuncio;
+            return (
+              <TouchableOpacity
+                key={i}
+                style={[
+                  nd.notifCard,
+                  i === ANUNCIOS.length - 1 && { borderColor: D.primary },
+                  isDisabled && { opacity: 0.6 },
+                ]}
+                onPress={() => handleAnuncio(a)}
+                disabled={isDisabled}
+                activeOpacity={0.8}
+              >
+                <View style={nd.notifIconBg}>
+                  <Text style={{ fontSize: 16 }}>{a.icon}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={nd.notifTitle}>{a.label}</Text>
+                  <Text style={nd.notifMsg} numberOfLines={2}>{a.msg}</Text>
+                </View>
+                {isSending
+                  ? <ActivityIndicator size="small" color={D.primary} />
+                  : <Ionicons name="send-outline" size={16} color={D.primary} />
+                }
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {/* Cupons do evento ativo */}
-        <View style={s.secao}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <Text style={s.secaoTitulo}>Meus Cupons</Text>
-            <TouchableOpacity style={s.addBtn} onPress={() => navigation.navigate("AddCoupon")}>
-              <Ionicons name="add" size={14} color="#fff" />
-              <Text style={s.addBtnTexto}>Novo</Text>
+        {/* ── Meus Cupons ──────────────────────────────────────────────── */}
+        <View style={nd.section}>
+          <View style={nd.sectionHeader}>
+            <Text style={nd.sectionTitle}>Meus Cupons</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("AddCoupon")}>
+              <Text style={nd.linkBtn}>Novo</Text>
             </TouchableOpacity>
           </View>
           {cuponsDoAtivo.length === 0 ? (
-            <TouchableOpacity style={s.vazioCard} onPress={() => navigation.navigate("AddCoupon")}>
-              <Text style={{ fontSize: 36, marginBottom: 8 }}>🎟</Text>
-              <Text style={s.vazioTitulo}>Criar primeiro cupom</Text>
-              <Text style={s.vazioSub}>Atraia mais clientes com cupons exclusivos</Text>
+            <TouchableOpacity style={nd.vazioCard} onPress={() => navigation.navigate("AddCoupon")}>
+              <Text style={{ fontSize: 32, marginBottom: 8 }}>🎟</Text>
+              <Text style={nd.vazioTitle}>Criar primeiro cupom</Text>
+              <Text style={nd.vazioSub}>Atraia mais clientes com cupons exclusivos</Text>
             </TouchableOpacity>
           ) : (
-            cuponsDoAtivo.map((c) => <CouponRow key={c.id} c={c} />)
+            cuponsDoAtivo.map((c) => (
+              <CouponRow key={c.id} c={c} onPress={() => {}} />
+            ))
           )}
         </View>
 
-        {/* Avaliações recentes */}
-        <View style={s.secao}>
-          <Text style={s.secaoTitulo}>Avaliações Recentes</Text>
-          {businessStats.recentReviews.map((r, i) => (
-            <View key={i} style={s.avaliacaoCard}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <Text style={s.avaliacaoUsuario}>{r.user}</Text>
-                <Text style={{ fontSize: 12 }}>{"⭐".repeat(r.stars)}</Text>
-                <Text style={s.avaliacaoTempo}>{r.time}</Text>
+        {/* ── Avaliações Recentes ──────────────────────────────────────── */}
+        {businessStats.recentReviews?.length > 0 && (
+          <View style={nd.section}>
+            <Text style={nd.sectionTitle}>Avaliações Recentes</Text>
+            {businessStats.recentReviews.map((r, i) => (
+              <View key={i} style={nd.reviewCard}>
+                <View style={nd.reviewHeader}>
+                  <Text style={nd.reviewUser}>{r.user}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="star" size={13} color={D.primary} />
+                    <Text style={nd.reviewRating}>{r.stars?.toFixed ? r.stars.toFixed(1) : r.stars}</Text>
+                  </View>
+                </View>
+                <Text style={nd.reviewText} numberOfLines={3}>{r.text}</Text>
               </View>
-              <Text style={s.avaliacaoTexto}>{r.text}</Text>
-            </View>
-          ))}
+            ))}
+          </View>
+        )}
+
+        {/* ── Promo Card (Figma: "Alcance mais pessoas") ───────────────── */}
+        <View style={nd.promoCard}>
+          {/* Simulação do gradiente com dois layers */}
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#1a0a10', borderRadius: 16 }]} />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: D.primary, opacity: 0.18, borderRadius: 16 }]} />
+          <View style={nd.promoContent}>
+            <Text style={nd.promoTitle}>{"Alcance mais\npessoas"}</Text>
+            <Text style={nd.promoSub}>Aumente a visibilidade do seu local em 50% com nossos planos</Text>
+            <TouchableOpacity style={nd.promoBtn} onPress={() => Alert.alert("Em breve", "Planos em desenvolvimento!")}>
+              <Text style={nd.promoBtnText}>Ver planos</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Impulsionar */}
-        <View style={s.impulsionarCard}>
-          <Text style={s.impulsionarTitulo}>⚡ Impulsionar Visibilidade</Text>
-          <Text style={s.impulsionarSub}>
-            Destaque seu evento no topo do feed para +2.300 usuários próximos
-          </Text>
-          <TouchableOpacity
-            style={s.impulsionarBtn}
-            onPress={() => Alert.alert("Em breve", "Planos em desenvolvimento!")}
-          >
-            <Text style={s.impulsionarBtnTexto}>Ver planos →</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ height: 32 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BusinessPanelScreen — State Machine Coordinator
-//
-// Derives panel state from ownership data and delegates rendering to one of
-// three sub-components. Adding a new state requires only a new branch here
-// and a new component — no conditional logic spreads across the render tree.
-//
-// Ownership binding: meusEventos filters by ownerId === currentUser.id,
-// which mirrors the value stored in events.owner_id on every eventsService.create().
+// BusinessPanelScreen — State Machine Coordinator (lógica preservada)
 // ─────────────────────────────────────────────────────────────────────────────
+
 export default function BusinessPanelScreen({ navigation }) {
   const {
     events, coupons, currentUser, businessStats, dataLoading,
     logout, addEventPhoto, removeEventPhoto, updateEventFields, closeEvent,
   } = useApp();
 
-  // ── Ownership derivation ──────────────────────────────────────────────────
   const meusEventos = useMemo(
-    () => events
-      .filter((e) => e.ownerId === currentUser?.id)
-      .sort((a, b) => new Date(b.startsAt ?? 0) - new Date(a.startsAt ?? 0)),
+    () => events.filter((e) => e.ownerId === currentUser?.id).sort((a, b) => new Date(b.startsAt ?? 0) - new Date(a.startsAt ?? 0)),
     [events, currentUser?.id],
   );
+  const eventoAtivo  = useMemo(() => meusEventos.find((e) => e.isLive) ?? null, [meusEventos]);
+  const meusCupons   = useMemo(() => coupons.filter((c) => meusEventos.some((e) => e.id === c.eventId)), [coupons, meusEventos]);
+  const cuponsDoAtivo = useMemo(() => eventoAtivo ? coupons.filter((c) => c.eventId === eventoAtivo.id) : [], [coupons, eventoAtivo]);
 
-  const eventoAtivo = useMemo(
-    () => meusEventos.find((e) => e.isLive) ?? null,
-    [meusEventos],
-  );
-
-  const meusCupons = useMemo(
-    () => coupons.filter((c) => meusEventos.some((e) => e.id === c.eventId)),
-    [coupons, meusEventos],
-  );
-
-  const cuponsDoAtivo = useMemo(
-    () => eventoAtivo ? coupons.filter((c) => c.eventId === eventoAtivo.id) : [],
-    [coupons, eventoAtivo],
-  );
-
-  // ── State machine ─────────────────────────────────────────────────────────
-  // 'loading'  → first data fetch, avoids flashing EmptyState
-  // 'empty'    → owner has no events at all
-  // 'inactive' → owner has events, none are live right now
-  // 'active'   → owner has at least one live event
-  const panelState = (dataLoading && meusEventos.length === 0)
-    ? 'loading'
-    : meusEventos.length === 0
-    ? 'empty'
-    : eventoAtivo
-    ? 'active'
+  const panelState = (dataLoading && meusEventos.length === 0) ? 'loading'
+    : meusEventos.length === 0 ? 'empty'
+    : eventoAtivo ? 'active'
     : 'inactive';
 
-  // ── Common callbacks ──────────────────────────────────────────────────────
   function handleLogout() {
     if (Platform.OS === "web") {
       if (window.confirm("Deseja sair?")) logout();
@@ -1013,7 +1003,6 @@ export default function BusinessPanelScreen({ navigation }) {
 
   const onCreateEvent = () => navigation.navigate("NewEvent");
 
-  // ── Render ────────────────────────────────────────────────────────────────
   if (panelState === 'loading') {
     return (
       <SafeAreaView style={[s.safe, { justifyContent: "center", alignItems: "center" }]} edges={["top"]}>
@@ -1022,366 +1011,196 @@ export default function BusinessPanelScreen({ navigation }) {
       </SafeAreaView>
     );
   }
-
   if (panelState === 'empty') {
-    return (
-      <EmptyState
-        currentUser={currentUser}
-        onLogout={handleLogout}
-        onCreateEvent={onCreateEvent}
-      />
-    );
+    return <EmptyState currentUser={currentUser} onLogout={handleLogout} onCreateEvent={onCreateEvent} />;
   }
-
   if (panelState === 'inactive') {
-    return (
-      <InactivePanel
-        currentUser={currentUser}
-        meusEventos={meusEventos}
-        meusCupons={meusCupons}
-        onLogout={handleLogout}
-        onCreateEvent={onCreateEvent}
-        navigation={navigation}
-      />
-    );
+    return <InactivePanel currentUser={currentUser} meusEventos={meusEventos} meusCupons={meusCupons} onLogout={handleLogout} onCreateEvent={onCreateEvent} navigation={navigation} />;
   }
-
-  // panelState === 'active'
   return (
     <ActivePanel
-      currentUser={currentUser}
-      eventoAtivo={eventoAtivo}
-      businessStats={businessStats}
-      cuponsDoAtivo={cuponsDoAtivo}
-      meusEventos={meusEventos}
-      onLogout={handleLogout}
-      onCreateEvent={onCreateEvent}
-      navigation={navigation}
-      addEventPhoto={addEventPhoto}
-      removeEventPhoto={removeEventPhoto}
-      updateEventFields={updateEventFields}
-      closeEvent={closeEvent}
+      currentUser={currentUser} eventoAtivo={eventoAtivo} businessStats={businessStats}
+      cuponsDoAtivo={cuponsDoAtivo} meusEventos={meusEventos}
+      onLogout={handleLogout} onCreateEvent={onCreateEvent} navigation={navigation}
+      addEventPhoto={addEventPhoto} removeEventPhoto={removeEventPhoto}
+      updateEventFields={updateEventFields} closeEvent={closeEvent}
     />
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Styles
+// Styles — compartilhados (EmptyState / InactivePanel)
 // ─────────────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
-
-  header: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, paddingVertical: 10, gap: 8,
-  },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   logo: { fontSize: 16, fontWeight: "900", color: COLORS.text },
-
-  novoEventoBtn: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: COLORS.primary, paddingHorizontal: 12,
-    paddingVertical: 7, borderRadius: RADIUS.full,
-  },
+  novoEventoBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.full },
   novoEventoTexto: { color: "#fff", fontSize: 12, fontWeight: "700" },
-
-  liveChip: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: COLORS.bgCard, paddingHorizontal: 10,
-    paddingVertical: 5, borderRadius: RADIUS.full,
-    borderWidth: 0.5, borderColor: COLORS.border,
-  },
-  liveDot: { width: 7, height: 7, borderRadius: 4 },
-  liveChipTexto: { fontSize: 12, color: COLORS.text, fontWeight: "600" },
-
-  // OwnerCard
-  usuarioCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: COLORS.bgCard, paddingHorizontal: 16,
-    paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: COLORS.border,
-  },
-  usuarioAvatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: COLORS.primary + "33",
-    justifyContent: "center", alignItems: "center",
-    borderWidth: 2, borderColor: COLORS.primary + "66",
-  },
+  usuarioCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: COLORS.bgCard, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
+  usuarioAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary + "33", justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: COLORS.primary + "66" },
   usuarioAvatarTexto: { fontSize: 15, fontWeight: "800", color: COLORS.primary },
   usuarioNome: { fontSize: 14, fontWeight: "700", color: COLORS.text },
   usuarioEmail: { fontSize: 12, color: COLORS.textMuted },
-  sairBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: COLORS.danger + "22", paddingHorizontal: 12,
-    paddingVertical: 7, borderRadius: RADIUS.full,
-    borderWidth: 0.5, borderColor: COLORS.danger + "44",
-  },
+  sairBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: COLORS.danger + "22", paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: COLORS.danger + "44" },
   sairTexto: { fontSize: 13, color: COLORS.danger, fontWeight: "700" },
-
-  // Active event banner
-  eventoAtivoBanner: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: COLORS.primary + "18",
-    paddingHorizontal: 16, paddingVertical: 10,
-  },
-  ativoDot: { width: 8, height: 8, borderRadius: 4 },
-  eventoAtivoTexto: { flex: 1, fontSize: 13, fontWeight: "600", color: COLORS.text },
-  fotosBtnSmall: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: COLORS.primary + "22", paddingHorizontal: 10,
-    paddingVertical: 5, borderRadius: RADIUS.full,
-  },
-  fotosBtnSmallTexto: { fontSize: 12, color: COLORS.primary, fontWeight: "600" },
-  fotosSecao: {
-    backgroundColor: COLORS.bgCard, padding: 16,
-    borderBottomWidth: 0.5, borderBottomColor: COLORS.border,
-  },
-  fotosSubtitulo: { fontSize: 12, color: COLORS.textMuted, marginBottom: 12 },
-
-  // Inactive banner
-  inativoBanner: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: COLORS.bgOverlay, paddingHorizontal: 16, paddingVertical: 10,
-  },
+  editProfileBtn: { padding: 4, marginRight: 4 },
+  inativoBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: COLORS.bgOverlay, paddingHorizontal: 16, paddingVertical: 10 },
   inativoBannerTexto: { fontSize: 13, color: COLORS.textMuted },
-
-  // Metrics
-  metricsGrid: {
-    flexDirection: "row", flexWrap: "wrap",
-    paddingHorizontal: 12, paddingTop: 12, gap: 8,
-  },
-  metricCard: {
-    flex: 1, minWidth: "45%",
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    padding: 14, borderWidth: 0.5, borderColor: COLORS.border,
-  },
+  metricsGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, paddingTop: 12, gap: 8 },
+  metricCard: { flex: 1, minWidth: "45%", backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 14, borderWidth: 0.5, borderColor: COLORS.border },
   metricIcon: { fontSize: 18, marginBottom: 6 },
   metricValor: { fontSize: 22, fontWeight: "800" },
   metricLabel: { fontSize: 12, color: COLORS.textSub, marginTop: 2 },
   metricSub: { fontSize: 11, color: COLORS.success, fontWeight: "500", marginTop: 2 },
-
-  // Section
   secao: { paddingHorizontal: 12, marginTop: 20 },
-  secaoTitulo: {
-    fontSize: 12, fontWeight: "800", color: COLORS.textMuted,
-    textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10,
-  },
-
-  // Último evento (inactive)
-  ultimoEventoCard: {
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,
-    padding: 16, borderWidth: 0.5, borderColor: COLORS.border,
-  },
+  secaoTitulo: { fontSize: 12, fontWeight: "800", color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 },
+  ultimoEventoCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, padding: 16, borderWidth: 0.5, borderColor: COLORS.border },
   ultimoEventoNome: { fontSize: 15, fontWeight: "800", color: COLORS.text, flex: 1 },
   ultimoEventoVenue: { fontSize: 12, color: COLORS.textSub },
   ultimoEventoData: { fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
-
-  statusBadge: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full,
-  },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
   statusBadgeTexto: { fontSize: 10, fontWeight: "700", color: COLORS.textMuted },
-
-  // Event history list (inactive)
-  eventoHistoricoRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    padding: 12, marginBottom: 8,
-    borderWidth: 0.5, borderColor: COLORS.border,
-  },
+  eventoHistoricoRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: COLORS.border },
   eventoHistoricoDot: { width: 10, height: 10, borderRadius: 5 },
   eventoHistoricoNome: { fontSize: 13, fontWeight: "700", color: COLORS.text },
   eventoHistoricoData: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  inicioChip: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: COLORS.primary + "18", paddingHorizontal: 10,
-    paddingVertical: 5, borderRadius: RADIUS.full,
-    borderWidth: 0.5, borderColor: COLORS.primary + "44",
-  },
+  inicioChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: COLORS.primary + "18", paddingHorizontal: 10, paddingVertical: 5, borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: COLORS.primary + "44" },
   inicioChipTexto: { fontSize: 11, color: COLORS.primary, fontWeight: "600" },
-
-  // Announce
-  anuncioCard: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    padding: 12, marginBottom: 8,
-    borderWidth: 0.5, borderColor: COLORS.border,
-  },
-  anuncioIcon: { fontSize: 22 },
-  anuncioLabel: { fontSize: 13, fontWeight: "700", color: COLORS.text },
-  anuncioMsg: { fontSize: 12, color: COLORS.textSub },
-
-  // Coupons
-  addBtn: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: COLORS.primary, paddingHorizontal: 12,
-    paddingVertical: 6, borderRadius: RADIUS.full,
-  },
-  addBtnTexto: { fontSize: 12, color: "#fff", fontWeight: "700" },
-  vazioCard: {
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,
-    padding: 24, alignItems: "center",
-    borderWidth: 1.5, borderColor: COLORS.border, borderStyle: "dashed",
-  },
-  vazioTitulo: { fontSize: 15, fontWeight: "700", color: COLORS.text, marginBottom: 4 },
-  vazioSub: { fontSize: 13, color: COLORS.textSub, textAlign: "center" },
-  cupomRow: {
-    flexDirection: "row", gap: 10,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    marginBottom: 8, padding: 12,
-    borderWidth: 0.5, borderColor: COLORS.border, alignItems: "center",
-  },
-  cupomDot: { width: 44, height: 44, borderRadius: RADIUS.md, justifyContent: "center", alignItems: "center" },
-  cupomTitulo: { fontSize: 13, fontWeight: "700", color: COLORS.text, flex: 1 },
-  cupomTipoBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: RADIUS.full },
-  cupomTipoTexto: { fontSize: 9, fontWeight: "700" },
-  cupomQtd: { fontSize: 11, color: COLORS.textMuted },
-  progressBg: { height: 4, backgroundColor: COLORS.bgOverlay, borderRadius: 2, overflow: "hidden", marginTop: 6 },
-  progressFill: { height: "100%", borderRadius: 2 },
-
-  // Reviews
-  avaliacaoCard: {
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    padding: 12, marginBottom: 8,
-    borderWidth: 0.5, borderColor: COLORS.border,
-  },
-  avaliacaoUsuario: { fontSize: 13, fontWeight: "700", color: COLORS.text },
-  avaliacaoTempo: { fontSize: 11, color: COLORS.textMuted, marginLeft: "auto" },
-  avaliacaoTexto: { fontSize: 13, color: COLORS.textSub },
-
-  // Boost
-  impulsionarCard: {
-    backgroundColor: COLORS.primary + "18",
-    borderRadius: RADIUS.xl, margin: 12, padding: 18,
-    borderWidth: 1, borderColor: COLORS.primary + "55",
-  },
+  emptyRoot: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  emptyIconWrap: { width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.primary + "18", justifyContent: "center", alignItems: "center", marginBottom: 20, borderWidth: 1, borderColor: COLORS.primary + "44" },
+  emptyTitulo: { fontSize: 20, fontWeight: "800", color: COLORS.text, marginBottom: 10 },
+  emptySub: { fontSize: 14, color: COLORS.textSub, textAlign: "center", lineHeight: 21, marginBottom: 28 },
+  emptyBtn: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: 14, paddingHorizontal: 28, marginBottom: 12, width: "100%", justifyContent: "center", ...SHADOW.glow },
+  emptyBtnTexto: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  emptyBtnSecundario: { paddingVertical: 10, paddingHorizontal: 20 },
+  emptyBtnSecTexto: { fontSize: 13, color: COLORS.textMuted },
+  impulsionarCard: { backgroundColor: COLORS.primary + "18", borderRadius: RADIUS.xl, margin: 12, padding: 18, borderWidth: 1, borderColor: COLORS.primary + "55" },
   impulsionarTitulo: { fontSize: 15, fontWeight: "800", color: COLORS.primaryLight, marginBottom: 6 },
   impulsionarSub: { fontSize: 13, color: COLORS.textSub, lineHeight: 19, marginBottom: 14 },
-  impulsionarBtn: {
-    backgroundColor: COLORS.primary, alignSelf: "flex-start",
-    paddingHorizontal: 18, paddingVertical: 9, borderRadius: RADIUS.full,
-  },
+  impulsionarBtn: { backgroundColor: COLORS.primary, alignSelf: "flex-start", paddingHorizontal: 18, paddingVertical: 9, borderRadius: RADIUS.full },
   impulsionarBtnTexto: { color: "#fff", fontWeight: "800", fontSize: 13 },
-
-  // Manage event fields
-  editCampo: {
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    padding: 12, marginBottom: 10,
-    borderWidth: 0.5, borderColor: COLORS.border,
-  },
-  editLabel: {
-    fontSize: 11, fontWeight: "700", color: COLORS.textMuted,
-    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2,
-  },
-  editAtual: { fontSize: 12, color: COLORS.textSub, marginBottom: 8 },
-  editInput: {
-    backgroundColor: COLORS.bgOverlay, borderRadius: RADIUS.md,
-    paddingHorizontal: 12, paddingVertical: 8,
-    fontSize: 14, color: COLORS.text,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  salvarBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, backgroundColor: COLORS.primary, borderRadius: RADIUS.md,
-    paddingVertical: 11, marginBottom: 10,
-  },
-  salvarBtnTexto: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  encerrarBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, backgroundColor: COLORS.danger + "18",
-    borderRadius: RADIUS.md, paddingVertical: 11,
-    borderWidth: 1, borderColor: COLORS.danger + "44",
-  },
-  encerrarBtnTexto: { color: COLORS.danger, fontWeight: "700", fontSize: 14 },
-
-  // EmptyState
-  emptyRoot: {
-    flex: 1, alignItems: "center", justifyContent: "center", padding: 32,
-  },
-  emptyIconWrap: {
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: COLORS.primary + "18",
-    justifyContent: "center", alignItems: "center",
-    marginBottom: 20,
-    borderWidth: 1, borderColor: COLORS.primary + "44",
-  },
-  emptyTitulo: { fontSize: 20, fontWeight: "800", color: COLORS.text, marginBottom: 10 },
-  emptySub: {
-    fontSize: 14, color: COLORS.textSub, textAlign: "center",
-    lineHeight: 21, marginBottom: 28,
-  },
-  emptyBtn: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: COLORS.primary, borderRadius: RADIUS.lg,
-    paddingVertical: 14, paddingHorizontal: 28, marginBottom: 12,
-    width: "100%", justifyContent: "center",
-    ...SHADOW.glow,
-  },
-  emptyBtnTexto: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  emptyBtnSecundario: {
-    paddingVertical: 10, paddingHorizontal: 20,
-  },
-  emptyBtnSecTexto: { fontSize: 13, color: COLORS.textMuted },
-
-  editProfileBtn: { padding: 4, marginRight: 4 },
 });
 
-// ─── Estilos do modal de perfil (business) ────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// nd — New Design styles (ActivePanel / Figma)
+// ─────────────────────────────────────────────────────────────────────────────
+const nd = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: D.bg },
+
+  // TopAppBar
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: D.bg, borderBottomWidth: 0.5, borderBottomColor: D.border },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  logoText: { fontSize: 22, fontWeight: '800', color: D.primary },
+  novoEventoBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: D.primary, justifyContent: 'center', alignItems: 'center' },
+  liveChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: D.card, paddingHorizontal: 10, paddingVertical: 5, borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: D.border },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ade80' },
+  liveChipText: { fontSize: 12, color: D.text, fontWeight: '600' },
+
+  // Profile Section
+  profileSection: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 20 },
+  avatarBorder: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: D.primary + '88', padding: 2, justifyContent: 'center', alignItems: 'center' },
+  avatarInner: { width: 48, height: 48, borderRadius: 24, backgroundColor: D.card, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { fontSize: 18, fontWeight: '800', color: D.primary },
+  profileName: { fontSize: 18, fontWeight: '700', color: D.text, marginBottom: 2 },
+  profileHandle: { fontSize: 12, fontWeight: '500', color: D.primary },
+  sairBtnNew: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: D.primary + '55' },
+  sairTextNew: { fontSize: 13, fontWeight: '600', color: D.primary },
+
+  // Venue Card
+  venueCard: { marginHorizontal: 16, marginBottom: 16, borderRadius: 12, overflow: 'hidden', backgroundColor: D.card, borderWidth: 0.5, borderColor: D.border, minHeight: 140 },
+  venueBgImage: { ...StyleSheet.absoluteFillObject },
+  venueOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(13,10,20,0.72)' },
+  venueContent: { flexDirection: 'row', alignItems: 'flex-end', padding: 20, minHeight: 140 },
+  venueName: { fontSize: 28, fontWeight: '700', color: '#fff', lineHeight: 34, marginBottom: 6 },
+  venueLocation: { fontSize: 12, fontWeight: '500', color: D.primary, flex: 1 },
+  addPhotosBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 10, gap: 4, alignItems: 'center', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.3)', marginLeft: 12 },
+  addPhotosBtnText: { fontSize: 10, color: '#fff', fontWeight: '600', textAlign: 'center', lineHeight: 14 },
+
+  // Fotos
+  fotosSection: { backgroundColor: D.card, marginHorizontal: 16, marginBottom: 16, borderRadius: 12, padding: 16, borderWidth: 0.5, borderColor: D.border },
+  fotosTitle: { fontSize: 14, fontWeight: '700', color: D.text, marginBottom: 4 },
+  fotosSub: { fontSize: 12, color: D.textSub, marginBottom: 12 },
+
+  // Info Cards
+  infoCardsScroll: { marginBottom: 4 },
+  infoCardsContent: { paddingHorizontal: 16, gap: 12 },
+  infoCard: { width: 160, backgroundColor: D.card, borderRadius: 12, padding: 20, borderWidth: 0.5, borderColor: D.border, gap: 10 },
+  infoCardValue: { fontSize: 24, fontWeight: '700', color: D.text },
+  infoCardLabel: { fontSize: 12, fontWeight: '500', color: D.primary, lineHeight: 16 },
+
+  // Section
+  section: { paddingHorizontal: 16, marginBottom: 24 },
+  sectionTitle: { fontSize: 22, fontWeight: '600', color: D.text, marginBottom: 4 },
+  sectionSub:   { fontSize: 12, color: D.textSub, marginBottom: 14 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  linkBtn: { fontSize: 14, fontWeight: '700', color: D.primary },
+
+  // Crowd status grid
+  crowdGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
+  crowdBtn: { flex: 1, minWidth: '44%', backgroundColor: D.bg, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center', borderWidth: 0.5, borderColor: D.border },
+  crowdBtnActive: { backgroundColor: D.card2, borderColor: D.borderAccent },
+  crowdBtnText: { fontSize: 14, fontWeight: '600', color: D.textSub },
+  crowdBtnTextActive: { fontWeight: '700', color: D.primary },
+
+  // Edit campos
+  editCampo: { backgroundColor: D.card2, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: D.border },
+  editLabel: { fontSize: 11, fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  editAtual: { fontSize: 12, color: D.textSub, marginBottom: 10 },
+  editInput: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: D.text, borderWidth: 1, borderColor: D.border },
+  salvarBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: D.primary, borderRadius: 12, paddingVertical: 12, marginBottom: 10 },
+  salvarBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  encerrarBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: D.primary + '18', borderRadius: 12, paddingVertical: 12, borderWidth: 1, borderColor: D.primary + '55' },
+  encerrarBtnText: { color: D.primary, fontWeight: '700', fontSize: 14 },
+
+  // Notificações
+  notifCard: { flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: D.card, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: D.border },
+  notifIconBg: { width: 36, height: 36, borderRadius: 8, backgroundColor: D.primaryLight + '33', justifyContent: 'center', alignItems: 'center' },
+  notifTitle: { fontSize: 15, fontWeight: '700', color: D.text, marginBottom: 2 },
+  notifMsg: { fontSize: 12, color: D.textSub, lineHeight: 17 },
+
+  // Cupons
+  couponRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: D.card2, borderRadius: 12, padding: 16, marginBottom: 10, borderWidth: 0.5, borderColor: D.border },
+  couponIconWrap: { width: 36, height: 36, borderRadius: 8, backgroundColor: D.primary + '22', justifyContent: 'center', alignItems: 'center' },
+  couponTitle: { fontSize: 14, fontWeight: '700', color: D.text, marginBottom: 4 },
+  couponQty: { fontSize: 11, color: D.textSub, marginBottom: 6 },
+  couponBar: { height: 4, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' },
+  couponBarFill: { height: '100%', backgroundColor: D.primary, borderRadius: 2 },
+  vazioCard: { backgroundColor: D.card2, borderRadius: 12, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: D.border, borderStyle: 'dashed' },
+  vazioTitle: { fontSize: 15, fontWeight: '700', color: D.text, marginBottom: 4 },
+  vazioSub: { fontSize: 13, color: D.textSub, textAlign: 'center' },
+
+  // Reviews
+  reviewCard: { backgroundColor: D.card, borderRadius: 12, padding: 16, marginBottom: 10, borderWidth: 0.5, borderColor: D.border, gap: 10 },
+  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  reviewUser: { fontSize: 15, fontWeight: '700', color: D.text },
+  reviewRating: { fontSize: 14, fontWeight: '600', color: D.primary },
+  reviewText: { fontSize: 14, color: D.textSub, lineHeight: 20, fontStyle: 'italic' },
+
+  // Promo card
+  promoCard: { marginHorizontal: 16, marginBottom: 8, borderRadius: 16, overflow: 'hidden', minHeight: 180, borderWidth: 0.5, borderColor: D.primary + '44' },
+  promoContent: { padding: 28, gap: 12 },
+  promoTitle: { fontSize: 28, fontWeight: '700', color: '#fff', lineHeight: 34 },
+  promoSub: { fontSize: 15, color: 'rgba(255,255,255,0.75)', lineHeight: 22 },
+  promoBtn: { backgroundColor: '#fff', alignSelf: 'flex-start', paddingHorizontal: 28, paddingVertical: 12, borderRadius: RADIUS.full, marginTop: 6 },
+  promoBtnText: { fontSize: 14, fontWeight: '700', color: D.primary },
+});
+
+// ─── Estilos do modal de perfil ───────────────────────────────────────────────
 const bp = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: COLORS.bgCard,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 36,
-    ...SHADOW.md,
-  },
-  sheetHeader: {
-    flexDirection: "row", alignItems: "center",
-    justifyContent: "space-between", marginBottom: 20,
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: COLORS.bgCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36, ...SHADOW.md },
+  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
   sheetTitle: { fontSize: 17, fontWeight: "800", color: COLORS.text },
-
-  avatarPreview: {
-    alignSelf: "center",
-    width: 72, height: 72, borderRadius: 36,
-    backgroundColor: COLORS.primary + "33",
-    borderWidth: 2, borderColor: COLORS.primary,
-    justifyContent: "center", alignItems: "center",
-    marginBottom: 24,
-  },
+  avatarPreview: { alignSelf: "center", width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.primary + "33", borderWidth: 2, borderColor: COLORS.primary, justifyContent: "center", alignItems: "center", marginBottom: 24 },
   avatarPreviewText: { fontSize: 26, fontWeight: "900", color: COLORS.primary },
-
-  label: {
-    fontSize: 12, fontWeight: "700", color: COLORS.textMuted,
-    textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 6,
-  },
-  input: {
-    backgroundColor: COLORS.bg,
-    borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: RADIUS.lg,
-    paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 15, color: COLORS.text,
-    marginBottom: 16,
-  },
-
+  label: { fontSize: 12, fontWeight: "700", color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 6 },
+  input: { backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text, marginBottom: 16 },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 20 },
   sectionLabel: { fontSize: 14, fontWeight: "800", color: COLORS.text, marginBottom: 2 },
-  sectionHint:  { fontSize: 12, color: COLORS.textMuted, marginBottom: 14 },
-
-  inputRow: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: COLORS.bg,
-    borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: RADIUS.lg, marginBottom: 0, overflow: "hidden",
-  },
+  sectionHint: { fontSize: 12, color: COLORS.textMuted, marginBottom: 14 },
+  inputRow: { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.lg, marginBottom: 0, overflow: "hidden" },
   eyeBtn: { paddingHorizontal: 12, paddingVertical: 12 },
-
-  saveBtn: {
-    backgroundColor: COLORS.primary, borderRadius: RADIUS.lg,
-    paddingVertical: 14, alignItems: "center", marginTop: 20,
-  },
+  saveBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: 14, alignItems: "center", marginTop: 20 },
   saveBtnText: { fontSize: 15, fontWeight: "800", color: "#fff" },
 });

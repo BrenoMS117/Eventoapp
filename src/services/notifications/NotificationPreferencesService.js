@@ -5,10 +5,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ─────────────────────────────────────────────────────────────────────────────
 export const PREFS_META = {
   user: [
-    { key: 'proximity', label: 'Eventos próximos',       icon: 'location-outline',     color: '#E83B5C' },
-    { key: 'ending',    label: 'Avisos de encerramento', icon: 'time-outline',          color: '#F59E0B' },
-    { key: 'social',    label: 'Likes e dislikes',       icon: 'heart-outline',         color: '#E83B5C' },
-    { key: 'coupon',    label: 'Cupons disponíveis',     icon: 'pricetag-outline',      color: '#10B981' },
+    { key: 'proximity',    label: 'Eventos próximos',           icon: 'location-outline',  color: '#E83B5C' },
+    { key: 'ending',       label: 'Avisos de encerramento',     icon: 'time-outline',      color: '#F59E0B' },
+    { key: 'social',       label: 'Likes e dislikes',           icon: 'heart-outline',     color: '#E83B5C' },
+    { key: 'coupon',       label: 'Cupons disponíveis',         icon: 'pricetag-outline',  color: '#10B981' },
+    { key: 'announcement', label: 'Avisos do estabelecimento',  icon: 'megaphone-outline', color: '#F59E0B' },
   ],
   business: [
     { key: 'stock',   label: 'Estoque de cupons',    icon: 'warning-outline',       color: '#F59E0B' },
@@ -19,7 +20,7 @@ export const PREFS_META = {
 };
 
 export const DEFAULT_PREFS = {
-  user:     { proximity: true, ending: true, social: true, coupon: true },
+  user:     { proximity: true, ending: true, social: true, coupon: true, announcement: true },
   business: { stock: true, crowd: true, surge: true, premium: true },
 };
 

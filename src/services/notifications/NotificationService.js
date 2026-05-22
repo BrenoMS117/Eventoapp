@@ -66,6 +66,16 @@ class NotificationService {
     }
   }
 
+  /**
+   * Injeta uma notificação diretamente na fila, sem passar pelas estratégias.
+   * Usado por eventos Realtime (ex: anúncios de donos de evento) que chegam
+   * por fora do ciclo evaluate() e precisam ser exibidos imediatamente.
+   * @param {import('./INotificationStrategy').NotificationPayload} notification
+   */
+  push(notification) {
+    this._enqueue(notification);
+  }
+
   // ── Queue management ──────────────────────────────────────────────────
 
   _enqueue(notification) {

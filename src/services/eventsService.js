@@ -81,7 +81,7 @@ export const eventsService = {
    * @param {{ nextAct?: string, endsAt?: string }} fields
    */
   async updateFields(id, fields) {
-    const columnMap = { nextAct: 'next_act', endsAt: 'ends_at' };
+    const columnMap = { nextAct: 'next_act', endsAt: 'ends_at', crowdLabel: 'crowd_label', crowdLevel: 'crowd_level' };
     const patch = {};
     for (const [key, col] of Object.entries(columnMap)) {
       if (fields[key] !== undefined) patch[col] = fields[key];

@@ -79,7 +79,7 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
               <Image
                 source={{ uri: post.photos[0] }}
                 style={s.modalImagem}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             )}
 
@@ -580,8 +580,8 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,
     overflow: "hidden", borderWidth: 0.5, borderColor: COLORS.border, ...SHADOW.sm,
   },
-  postImagem: { height: 140, width: "100%" },
-  postAreaVazia: { height: 140, justifyContent: "center", alignItems: "center" },
+  postImagem: { width: "100%", aspectRatio: 16 / 9 },
+  postAreaVazia: { aspectRatio: 16 / 9, justifyContent: "center", alignItems: "center" },
   postRodape: { padding: 10 },
   postUsuario: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
   avatar: { width: 28, height: 28, borderRadius: 14, justifyContent: "center", alignItems: "center" },
@@ -630,7 +630,7 @@ const s = StyleSheet.create({
   modalNome: { fontSize: 15, fontWeight: "700", color: COLORS.text },
   modalEvento: { fontSize: 12, color: COLORS.textMuted },
   modalCloseBtn: { padding: 6 },
-  modalImagem: { width: "100%", height: 220 },
+  modalImagem: { width: "100%", aspectRatio: 4 / 3, backgroundColor: '#000' },
   modalCorpo: { padding: 16 },
   modalTagChip: {
     alignSelf: "flex-start", backgroundColor: COLORS.primary + "22",

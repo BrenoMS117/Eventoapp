@@ -10,6 +10,8 @@ import { ratingService } from "../services/ratings/RatingService";
 import { couponRedemptionService } from "../services/coupons/CouponRedemptionService";
 import { notificationService } from "../services/notifications/NotificationService";
 import { notificationPreferencesService } from "../services/notifications/NotificationPreferencesService";
+import { announcementService } from "../services/announcements/AnnouncementService";
+import { makeNotif } from "../services/notifications/notifUtils";
 
 const AppContext = createContext(null);
 
@@ -68,6 +70,33 @@ export function AppProvider({ children }) {
     });
     return () => crowdManagementService.reset();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Owner announcements: Realtime subscription para usuários comuns ──────────
+  // Abre o canal UMA vez quando o usuário comum faz login.
+  // Não reabre no unmount/remount — o canal persiste durante toda a sessão.
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'user') return;
+    announcementService.startRealtimeSubscription((row) => {
+      notificationService.push(makeNotif({
+        dedupeKey:  `announcement:${row.id}`,
+        type:       'announcement',
+        title:      row.title,
+        body:       row.body,
+        icon:       'megaphone',
+        color:      '#F59E0B',
+        priority:   'high',
+        payload:    { eventId: row.event_id },
+        now:        new Date(),
+      }));
+    });
+  }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mantém o filtro de proximidade do AnnouncementService atualizado.
+  // Anúncios de eventos fora do raio são descartados client-side.
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'user') return;
+    announcementService.setNearbyIds(nearbyEventIds);
+  }, [nearbyEventIds, currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto check-out: geo exit (5 km discovery radius acts as exit threshold) ─
   useEffect(() => {
@@ -372,6 +401,8 @@ export function AppProvider({ children }) {
     // Limpa cache de preferências de notificação para evitar que as prefs
     // do usuário anterior fiquem visíveis até o próximo load().
     notificationPreferencesService.clear();
+    // Para a subscrição Realtime de anúncios de donos.
+    announcementService.reset();
     subscribedRatingsRef.current.clear();
     await authService.signOut();
     stopGeoWatch();
@@ -404,6 +435,17 @@ export function AppProvider({ children }) {
       );
     }
     return result;
+  }
+
+  /**
+   * Envia um anúncio rápido para usuários comuns próximos ao evento.
+   * Apenas donos de evento (role === 'business') devem chamar esta função.
+   * @param {string} eventId
+   * @param {{ type: string, title: string, body: string, icon: string }} anuncio
+   */
+  async function sendAnnouncement(eventId, anuncio) {
+    if (!currentUser?.id) return { error: 'Não autenticado.' };
+    return announcementService.send(eventId, currentUser.id, anuncio);
   }
 
   async function startEvent(eventId) {
@@ -966,6 +1008,7 @@ async function addEventPhoto(eventId, uri) {
     addCoupon,
     addEvent,
     updateEventFields,
+    sendAnnouncement,
     startEvent,
     closeEvent,
     checkIn,

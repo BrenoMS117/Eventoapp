@@ -38,7 +38,7 @@ export const PERMISSION_RULES = {
     events: {
       canCreate: true,
       canViewStatus: true,
-      editableFields: ['nextAct', 'endsAt', 'closeEvent'], // campos liberados
+      editableFields: ['nextAct', 'endsAt', 'closeEvent', 'crowdLabel', 'crowdLevel'], // campos liberados
     },
     coupons: {
       canRedeem: false,       // donos não resgatam cupons

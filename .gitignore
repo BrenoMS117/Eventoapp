@@ -46,3 +46,6 @@ database/migrations.sql
 
 # claude
 .claude/
+
+# mcp credentials
+.mcp.json
