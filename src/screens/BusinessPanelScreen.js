@@ -858,7 +858,7 @@ function ActivePanel({
             </TouchableOpacity>
           )}
 
-          {perms.canEditEventField("status") && (
+          {perms.canEditEventField("closeEvent") && (
             <TouchableOpacity
               style={[s.encerrarBtn, !eventoAtivo.isLive && { opacity: 0.5 }]}
               onPress={handleEncerrarEvento}

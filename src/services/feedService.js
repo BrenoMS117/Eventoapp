@@ -9,9 +9,31 @@ export const feedService = {
       // Posts with no expires_at are treated as permanent.
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(30); // Carrega os 30 mais recentes; use getPaged() para paginação
     if (error) return { data: null, error };
     return { data: data.map(_mapPost), error: null };
+  },
+
+  /**
+   * Paginação por cursor — use no lugar de getAll() para feeds longos.
+   * Retorna `nextCursor` (created_at do último item) para buscar a próxima página.
+   *
+   * @param {string|null} cursor  created_at do último post da página anterior
+   * @param {number}      limit   posts por página (padrão 20)
+   * @returns {{ data, error, nextCursor: string|null }}
+   */
+  async getPaged(cursor = null, limit = 20) {
+    let q = supabase
+      .from('feed_posts')
+      .select('*')
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (cursor) q = q.lt('created_at', cursor);
+    const { data, error } = await q;
+    if (error) return { data: null, error, nextCursor: null };
+    const nextCursor = data.length === limit ? data[data.length - 1].created_at : null;
+    return { data: data.map(_mapPost), error: null, nextCursor };
   },
 
   async getByEvent(eventId) {
@@ -20,7 +42,8 @@ export const feedService = {
       .select('*')
       .eq('event_id', eventId)
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
     if (error) return { data: null, error };
     return { data: data.map(_mapPost), error: null };
   },
@@ -32,10 +55,11 @@ export const feedService = {
         event_id: post.eventId,
         event_name: post.eventName,
         user_id: user.id,
-        user_name: user.name.split(' ')[0],
+        user_name: (user.name ?? 'U').split(' ')[0] || 'U',
         user_initials: user.avatar,
         user_color: '#9FE1CB',
         text: post.text,
+        photos: Array.isArray(post.photos) ? post.photos : [],
         tag: post.tag,
         type: post.type,
         verified: post.verified ?? false,
@@ -49,30 +73,26 @@ export const feedService = {
   },
 
   async like(postId) {
-    const { data: post } = await supabase
-      .from('feed_posts')
-      .select('likes')
-      .eq('id', postId)
-      .single();
+    // Caminho atômico — sem race condition
+    const { error: rpcErr } = await supabase.rpc('increment_post_likes', { p_post_id: postId });
+    if (!rpcErr) return { error: null };
+    // Fallback read-then-write (caso a RPC não exista no ambiente)
+    console.warn('[feedService.like] RPC falhou, usando fallback:', rpcErr.message);
+    const { data: post } = await supabase.from('feed_posts').select('likes').eq('id', postId).single();
     if (!post) return { error: 'Post não encontrado.' };
-    const { error } = await supabase
-      .from('feed_posts')
-      .update({ likes: post.likes + 1 })
-      .eq('id', postId);
+    const { error } = await supabase.from('feed_posts').update({ likes: (post.likes ?? 0) + 1 }).eq('id', postId);
     return { error };
   },
 
   async dislike(postId) {
-    const { data: post } = await supabase
-      .from('feed_posts')
-      .select('dislikes')
-      .eq('id', postId)
-      .single();
+    // Caminho atômico — sem race condition
+    const { error: rpcErr } = await supabase.rpc('increment_post_dislikes', { p_post_id: postId });
+    if (!rpcErr) return { error: null };
+    // Fallback read-then-write (caso a RPC não exista no ambiente)
+    console.warn('[feedService.dislike] RPC falhou, usando fallback:', rpcErr.message);
+    const { data: post } = await supabase.from('feed_posts').select('dislikes').eq('id', postId).single();
     if (!post) return { error: 'Post não encontrado.' };
-    const { error } = await supabase
-      .from('feed_posts')
-      .update({ dislikes: (post.dislikes ?? 0) + 1 })
-      .eq('id', postId);
+    const { error } = await supabase.from('feed_posts').update({ dislikes: (post.dislikes ?? 0) + 1 }).eq('id', postId);
     return { error };
   },
 
@@ -89,6 +109,21 @@ export const feedService = {
       .from('feed_posts')
       .update({ expires_at: now })
       .eq('event_id', eventId);
+    return { error };
+  },
+
+  /**
+   * Expira posts de múltiplos eventos em uma única query (batch).
+   * Substitui N chamadas sequenciais — elimina N+1 no autoManageEvents.
+   * @param {string[]} eventIds
+   */
+  async closeByEventsBatch(eventIds) {
+    if (!eventIds?.length) return { error: null };
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('feed_posts')
+      .update({ expires_at: now })
+      .in('event_id', eventIds);
     return { error };
   },
 
@@ -126,5 +161,7 @@ function _mapPost(d) {
     time: timeAgo === 0 ? 'agora mesmo' : `há ${timeAgo} min`,
     timeAgo,
     expiresAt,
+    createdAt: d.created_at ?? null, // cursor de paginação
+    photos: d.photos ?? [],
   };
 }

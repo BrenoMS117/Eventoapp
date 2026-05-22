@@ -105,6 +105,17 @@ class NotificationService {
     this._emit();
   }
 
+  /**
+   * Full reset — call on logout.
+   * Clears queue, deduplication map, and emits to subscribers.
+   * Listeners are preserved so UI components can react to the empty state.
+   */
+  reset() {
+    this._queue = [];
+    this._fired.clear();
+    this._emit();
+  }
+
   get unreadCount() {
     return this._queue.filter(n => !n.read).length;
   }

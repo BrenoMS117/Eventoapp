@@ -42,7 +42,7 @@ class PermissionStrategy {
 
   /**
    * O campo informado pode ser editado por este papel?
-   * @param {'nextAct'|'endsAt'|'status'} field
+   * @param {'nextAct'|'endsAt'|'closeEvent'} field
    */
   canEditEventField(field) {
     return this._rules.events.editableFields.includes(field);

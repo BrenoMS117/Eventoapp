@@ -104,6 +104,21 @@ export const couponsService = {
       .eq('event_id', eventId);
     return { error };
   },
+
+  /**
+   * Expira cupons de múltiplos eventos em uma única query (batch).
+   * Substitui N chamadas sequenciais — elimina N+1 no autoManageEvents.
+   * @param {string[]} eventIds
+   */
+  async closeByEventsBatch(eventIds) {
+    if (!eventIds?.length) return { error: null };
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('coupons')
+      .update({ expires_at: now })
+      .in('event_id', eventIds);
+    return { error };
+  },
 };
 
 function _mapCoupon(d) {

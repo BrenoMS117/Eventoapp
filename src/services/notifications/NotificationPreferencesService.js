@@ -84,4 +84,14 @@ export const notificationPreferencesService = {
   isEnabled(type) {
     return _cache[type] !== false;
   },
+
+  /**
+   * Limpa o cache de preferências e notifica os assinantes.
+   * Chamar no logout para evitar que as prefs do usuário anterior
+   * fiquem ativas até o próximo load().
+   */
+  clear() {
+    _cache = {};
+    _emit();
+  },
 };

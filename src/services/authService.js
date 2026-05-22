@@ -16,7 +16,8 @@ export const authService = {
     if (error) return { user: null, error: _translateError(error.message) };
 
     // Cria perfil na tabela profiles
-    const avatar = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    const safeName = (name ?? '').trim() || 'U';
+    const avatar = safeName.split(/\s+/).filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       name,

@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
+  FlatList,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -10,7 +11,7 @@ import {
   Alert,
   Image,
   Modal,
-  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -226,7 +227,7 @@ function AtEventBanner({ event }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function FeedScreen() {
   const { events, nearbyEventIds, logout } = useApp();
-  const { posts, currentEvent, contextLabel, canPost, submitPost, likePost, dislikePost, getTimeLeft } = useFeed();
+  const { posts, currentEvent, contextLabel, canPost, submitPost, likePost, dislikePost, getTimeLeft, loadMore, hasMore, loadingMore } = useFeed();
 
   const [compondo, setCompondo]             = useState(false);
   const [novoTexto, setNovoTexto]           = useState("");
@@ -408,15 +409,26 @@ export default function FeedScreen() {
         </View>
       )}
 
-      {/* Feed */}
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Label de contexto geográfico */}
-        <View style={s.contextBar}>
-          <Ionicons name="navigate-circle-outline" size={14} color={COLORS.primary} />
-          <Text style={s.contextLabel}>{contextLabel}</Text>
-        </View>
-
-        {posts.length === 0 ? (
+      {/* Feed — FlatList com infinite scroll */}
+      <FlatList
+        data={posts}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        showsVerticalScrollIndicator={false}
+        columnWrapperStyle={s.postsRow}
+        ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
+        contentContainerStyle={s.postsContent}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.4}
+        // Label de contexto geográfico como cabeçalho da lista
+        ListHeaderComponent={
+          <View style={s.contextBar}>
+            <Ionicons name="navigate-circle-outline" size={14} color={COLORS.primary} />
+            <Text style={s.contextLabel}>{contextLabel}</Text>
+          </View>
+        }
+        // Estado vazio
+        ListEmptyComponent={
           <View style={s.vazioCard}>
             <Text style={{ fontSize: 40, marginBottom: 10 }}>📍</Text>
             <Text style={s.vazioTitulo}>Nenhum post por aqui</Text>
@@ -426,23 +438,26 @@ export default function FeedScreen() {
                 : "Não há posts dos seus eventos no momento."}
             </Text>
           </View>
-        ) : (
-          <View style={s.postsGrid}>
-            {posts.map((post) => (
-              <View key={post.id} style={s.postWrapper}>
-                <PostCard
-                  post={post}
-                  onPress={() => setSelectedPost(post)}
-                  onLike={likePost}
-                  onDislike={dislikePost}
-                />
-              </View>
-            ))}
+        }
+        // Rodapé: spinner de carregamento ou marcador de fim do feed
+        ListFooterComponent={
+          loadingMore
+            ? <ActivityIndicator size="small" color={COLORS.primary} style={s.loadingMore} />
+            : posts.length > 0 && !hasMore
+              ? <Text style={s.fimFeed}>Você chegou ao fim do feed 🎉</Text>
+              : <View style={{ height: 32 }} />
+        }
+        renderItem={({ item }) => (
+          <View style={s.postWrapper}>
+            <PostCard
+              post={item}
+              onPress={() => setSelectedPost(item)}
+              onLike={likePost}
+              onDislike={dislikePost}
+            />
           </View>
         )}
-
-        <View style={{ height: 32 }} />
-      </ScrollView>
+      />
 
       {/* Modal de detalhes */}
       <PostDetailModal
@@ -548,9 +563,17 @@ const s = StyleSheet.create({
     paddingVertical: 9, borderRadius: RADIUS.md,
   },
 
-  // Grid
-  postsGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 14 },
-  postWrapper: { width: CARD_W },
+  // Grid (FlatList numColumns={2})
+  postsContent: { paddingBottom: 32 },
+  postsRow: { paddingHorizontal: 16, gap: 14 },   // columnWrapperStyle: espaço entre colunas
+  postWrapper: { flex: 1 },                         // ocupa metade da largura disponível
+
+  // Infinite scroll
+  loadingMore: { marginVertical: 20 },
+  fimFeed: {
+    textAlign: 'center', fontSize: 12, color: COLORS.textMuted,
+    marginVertical: 20, paddingHorizontal: 16,
+  },
 
   // PostCard
   postCard: {

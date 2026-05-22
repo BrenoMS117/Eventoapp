@@ -31,6 +31,11 @@ import { RATING_MAP, computeWeightedRating } from './ratingDefinitions';
 //     ON event_ratings FOR ALL USING (auth.uid() = user_id);
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Limite de canais Realtime abertos simultaneamente.
+// Map mantém ordem de inserção (JS garantido), então o primeiro item é o mais antigo.
+// Evita acúmulo ilimitado de WebSockets em sessões longas.
+const MAX_RATING_CHANNELS = 5;
+
 class RatingService {
   constructor() {
     /** eventId → Supabase Realtime channel */
@@ -134,6 +139,13 @@ class RatingService {
   subscribeToEvent(eventId, callback) {
     this._callbacks.set(eventId, callback);
     if (this._channels.has(eventId)) return; // channel already open
+
+    // LRU: fecha o canal mais antigo quando o limite é atingido.
+    // Map.keys() retorna na ordem de inserção — o primeiro é o mais antigo.
+    if (this._channels.size >= MAX_RATING_CHANNELS) {
+      const oldestId = this._channels.keys().next().value;
+      this.unsubscribeFromEvent(oldestId);
+    }
 
     const channel = supabase
       .channel(`ratings-${eventId}`)

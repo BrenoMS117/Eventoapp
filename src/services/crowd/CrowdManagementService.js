@@ -29,17 +29,52 @@ function _levelFromCount(count) {
 }
 
 /**
- * Atomically reads checked_in_count + max_capacity, applies delta,
- * recalculates crowd metrics and writes them back.
+ * Aplica delta no crowd_count de forma atômica via RPC.
  *
- * NOTE: uses read-then-write (no stored procedure required).
- * Race-condition risk is acceptable for crowd estimation purposes.
+ * Tenta primeiro a função SQL `adjust_crowd` (sem race condition).
+ * Cai em fallback read-then-write se a RPC ainda não existir no banco.
+ *
+ * SQL necessário (rodar no Supabase SQL Editor):
+ * ─────────────────────────────────────────────────────────────────
+ * CREATE OR REPLACE FUNCTION adjust_crowd(p_event_id UUID, p_delta INTEGER)
+ * RETURNS TABLE(new_count INTEGER, new_level INTEGER, new_label TEXT)
+ * LANGUAGE plpgsql AS $$
+ * DECLARE
+ *   v_count INTEGER; v_cap INTEGER; v_level INTEGER; v_label TEXT;
+ * BEGIN
+ *   UPDATE events
+ *     SET checked_in_count = GREATEST(0, checked_in_count + p_delta)
+ *     WHERE id = p_event_id
+ *     RETURNING checked_in_count, max_capacity INTO v_count, v_cap;
+ *   v_level := CASE
+ *     WHEN v_cap IS NOT NULL THEN LEAST(100, ROUND((v_count::NUMERIC / v_cap) * 100))
+ *     WHEN v_count >= 300 THEN 95 WHEN v_count >= 150 THEN 78
+ *     WHEN v_count >= 75  THEN 55 WHEN v_count >= 30  THEN 32
+ *     WHEN v_count >= 10  THEN 18 ELSE GREATEST(1, v_count * 2) END;
+ *   v_label := CASE
+ *     WHEN v_level >= 85 THEN 'Lotado' WHEN v_level >= 60 THEN 'Bastante cheio'
+ *     WHEN v_level >= 30 THEN 'Moderado' ELSE 'Tranquilo' END;
+ *   UPDATE events SET crowd_level = v_level, crowd_label = v_label WHERE id = p_event_id;
+ *   RETURN QUERY SELECT v_count, v_level, v_label;
+ * END; $$;
+ * ─────────────────────────────────────────────────────────────────
  *
  * @param {string} eventId
  * @param {+1|-1} delta
  * @returns {Promise<{error: any, count?: number, level?: number, label?: string}>}
  */
 async function _applyDelta(eventId, delta) {
+  // ── Caminho atômico (RPC) ─────────────────────────────────────────────────
+  const { data: rpcData, error: rpcErr } = await supabase.rpc('adjust_crowd', {
+    p_event_id: eventId,
+    p_delta: delta,
+  });
+  if (!rpcErr && rpcData?.[0]) {
+    const { new_count, new_level, new_label } = rpcData[0];
+    return { error: null, count: new_count, level: new_level, label: new_label };
+  }
+
+  // ── Fallback: read-then-write (usado até a RPC ser deployada no banco) ────
   const { data, error } = await supabase
     .from('events')
     .select('checked_in_count, max_capacity')

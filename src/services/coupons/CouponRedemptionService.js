@@ -116,18 +116,30 @@ class CouponRedemptionService {
    * @returns {Promise<{ success: boolean, qrCode?: string, redeemedAt?: string, error?: string }>}
    */
   async redeem(couponId, userId) {
-    const qrCode = _generateQrCode();
+    let data  = null;
+    let error = null;
+    let remaining = 3; // tentativas em caso de colisão de QR code
 
-    const { data, error } = await supabase
-      .from('redemptions')
-      .insert({
-        coupon_id:   couponId,
-        user_id:     userId,
-        qr_code:     qrCode,
-        redeemed_at: new Date().toISOString(),
-      })
-      .select('id, qr_code, redeemed_at')
-      .single();
+    // Loop de retry: gera novo QR code se houver violação de unicidade (23505).
+    // Requer SQL: ALTER TABLE redemptions ADD CONSTRAINT redemptions_qr_code_unique UNIQUE (qr_code);
+    // Mesmo sem o constraint, o retry é seguro e prepara o código para quando
+    // o constraint for aplicado no banco.
+    while (remaining-- > 0) {
+      const qrCode = _generateQrCode();
+      ({ data, error } = await supabase
+        .from('redemptions')
+        .insert({
+          coupon_id:   couponId,
+          user_id:     userId,
+          qr_code:     qrCode,
+          redeemed_at: new Date().toISOString(),
+        })
+        .select('id, qr_code, redeemed_at')
+        .single());
+
+      // Sai do loop em caso de sucesso ou erro não relacionado a colisão
+      if (!error || error.code !== '23505') break;
+    }
 
     if (error) {
       return { success: false, error: 'Erro ao registrar resgate. Tente novamente.' };
@@ -145,14 +157,33 @@ class CouponRedemptionService {
 
   /**
    * Observer callback: fired after a new redemption is successfully persisted.
-   * Decrements coupons.remaining_qty — decoupled from the main write.
+   * Decrementa remaining_qty via RPC atômica (sem race condition).
+   * Cai em fallback read-then-write se a RPC ainda não existir no banco.
    *
-   * Uses read-then-write (no stored procedure required).
-   * Race-condition risk is acceptable for coupon stock purposes (same as CrowdManagementService).
+   * SQL necessário (rodar no Supabase SQL Editor):
+   * ─────────────────────────────────────────────────────────────────
+   * CREATE OR REPLACE FUNCTION decrement_coupon_qty(p_coupon_id UUID)
+   * RETURNS INTEGER LANGUAGE plpgsql AS $$
+   * DECLARE v_remaining INTEGER;
+   * BEGIN
+   *   UPDATE coupons
+   *     SET remaining_qty = GREATEST(0, remaining_qty - 1)
+   *     WHERE id = p_coupon_id AND remaining_qty > 0
+   *     RETURNING remaining_qty INTO v_remaining;
+   *   RETURN COALESCE(v_remaining, -1); -- -1 = esgotado ou não encontrado
+   * END; $$;
+   * ─────────────────────────────────────────────────────────────────
    *
    * @param {string} couponId
    */
   async _onRedemptionCreated(couponId) {
+    // ── Caminho atômico (RPC) ───────────────────────────────────────────────
+    const { error: rpcErr } = await supabase.rpc('decrement_coupon_qty', {
+      p_coupon_id: couponId,
+    });
+    if (!rpcErr) return; // RPC tratou atomicamente
+
+    // ── Fallback: read-then-write (usado até a RPC ser deployada no banco) ──
     const { data } = await supabase
       .from('coupons')
       .select('remaining_qty')

@@ -239,22 +239,25 @@ export default function NewEventScreen({ navigation }) {
         return;
       }
 
-      if (Platform.OS === 'web') {
-        window.alert(`Evento "${v.nome}" publicado com sucesso!`);
-        navigation.goBack();
-      } else {
-          Alert.alert(
-          "🚀 Evento publicado!",
-          `"${v.nome}" está no ar!`,
-          [{ text: "Ótimo!", onPress: () => navigation.goBack() }],
-      );
-      }
-      
+      // Upload de fotos em background — não bloqueia a navegação.
+      // Usa Promise.allSettled para capturar falhas sem quebrar o fluxo de sucesso.
+      // Erros exibem um Alert global visível mesmo após navigation.goBack().
       if (fotos.length > 0 && created?.id) {
-        fotos.forEach(uri => addEventPhoto(created.id, uri));
+        Promise.allSettled(fotos.map(uri => addEventPhoto(created.id, uri)))
+          .then(results => {
+            const failed = results.filter(r => r.status === 'rejected' || r.value?.error);
+            if (failed.length > 0) {
+              console.warn(`[NewEventScreen] ${failed.length} foto(s) não enviada(s).`);
+              Alert.alert(
+                '⚠️ Fotos não enviadas',
+                `${failed.length === fotos.length ? 'Nenhuma' : `${failed.length}`} foto(s) não puderam ser enviadas. O evento foi criado com sucesso — você pode tentar adicioná-las novamente pela tela do evento.`,
+                [{ text: 'Entendido' }],
+              );
+            }
+          });
       }
 
-      if (Platform.OS === "web") {
+      if (Platform.OS === 'web') {
         window.alert(`Evento "${v.nome}" publicado com sucesso!`);
         navigation.goBack();
       } else {

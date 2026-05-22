@@ -8,6 +8,8 @@ import { createPermissionStrategy } from "../permissions/PermissionStrategy";
 import { crowdManagementService } from "../services/crowd/CrowdManagementService";
 import { ratingService } from "../services/ratings/RatingService";
 import { couponRedemptionService } from "../services/coupons/CouponRedemptionService";
+import { notificationService } from "../services/notifications/NotificationService";
+import { notificationPreferencesService } from "../services/notifications/NotificationPreferencesService";
 
 const AppContext = createContext(null);
 
@@ -106,61 +108,73 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!currentUser) return;
 
+    // Guard: impede execuções sobrepostas caso um tick demore mais de 60 s
+    // (rede lenta, timeout de DB). Sem isso, múltiplos ticks simultâneos podem
+    // gerar writes duplicados no banco.
+    let _isRunning = false;
+
     async function autoManageEvents() {
-      const now = Date.now();
+      if (_isRunning) return;
+      _isRunning = true;
+      try {
+        const now = Date.now();
 
-      // ── Pass 1: client-side hide for all users ─────────────────────────
-      const toHide = eventsRef.current.filter((e) => {
-        if (e.endsAt) {
+        // ── Pass 1: client-side hide for all users ───────────────────────
+        const toHide = eventsRef.current.filter((e) => {
+          if (e.endsAt) {
+            const t = new Date(e.endsAt).getTime();
+            if (!isNaN(t) && t <= now) return true;
+          }
+          return false;
+        });
+        if (toHide.length > 0) {
+          const hideIds = new Set(toHide.map((e) => e.id));
+          setEvents((prev) => prev.filter((e) => !hideIds.has(e.id)));
+          setCoupons((prev) => prev.filter((c) => !hideIds.has(c.eventId)));
+          setFeedPosts((prev) => prev.filter((p) => !hideIds.has(p.eventId)));
+        }
+
+        // ── Pass 2: DB writes — business owners only ─────────────────────
+        if (currentUser.role !== 'business' || !currentUser.id) return;
+
+        const ownerEvents = eventsRef.current.filter((e) => e.ownerId === currentUser.id);
+
+        // Auto-start: uma única query IN (era N queries sequenciais)
+        const toStart = ownerEvents.filter((e) => {
+          if (e.isLive || e.closedAt) return false;
+          if (!e.startsAt) return false;
+          const t = new Date(e.startsAt).getTime();
+          return !isNaN(t) && t <= now;
+        });
+        if (toStart.length > 0) {
+          await eventsService.startEventsBatch(toStart.map((e) => e.id));
+          const startIds = new Set(toStart.map((e) => e.id));
+          setEvents((prev) =>
+            prev.map((e) => (startIds.has(e.id) ? { ...e, isLive: true } : e)),
+          );
+        }
+
+        // Auto-close: 3 queries paralelas IN (era 3×N queries sequenciais)
+        const toClose = ownerEvents.filter((e) => {
+          if (!e.isLive || e.closedAt) return false;
+          if (!e.endsAt) return false;
           const t = new Date(e.endsAt).getTime();
-          if (!isNaN(t) && t <= now) return true;
+          return !isNaN(t) && t <= now;
+        });
+        if (toClose.length > 0) {
+          const closeIds = toClose.map((e) => e.id);
+          await Promise.all([
+            eventsService.closeEventsBatch(closeIds),
+            couponsService.closeByEventsBatch(closeIds),
+            feedService.closeByEventsBatch(closeIds),
+          ]);
+          const closeIdsSet = new Set(closeIds);
+          setEvents((prev) => prev.filter((e) => !closeIdsSet.has(e.id)));
+          setCoupons((prev) => prev.filter((c) => !closeIdsSet.has(c.eventId)));
+          setFeedPosts((prev) => prev.filter((p) => !closeIdsSet.has(p.eventId)));
         }
-        return false;
-      });
-      if (toHide.length > 0) {
-        const hideIds = new Set(toHide.map((e) => e.id));
-        setEvents((prev) => prev.filter((e) => !hideIds.has(e.id)));
-        setCoupons((prev) => prev.filter((c) => !hideIds.has(c.eventId)));
-        setFeedPosts((prev) => prev.filter((p) => !hideIds.has(p.eventId)));
-      }
-
-      // ── Pass 2: DB writes — business owners only ───────────────────────
-      if (currentUser.role !== 'business' || !currentUser.id) return;
-
-      const ownerEvents = eventsRef.current.filter((e) => e.ownerId === currentUser.id);
-
-      // Auto-start
-      const toStart = ownerEvents.filter((e) => {
-        if (e.isLive || e.closedAt) return false;
-        if (!e.startsAt) return false;
-        const t = new Date(e.startsAt).getTime();
-        return !isNaN(t) && t <= now;
-      });
-      if (toStart.length > 0) {
-        for (const event of toStart) await eventsService.startEvent(event.id);
-        const startIds = new Set(toStart.map((e) => e.id));
-        setEvents((prev) =>
-          prev.map((e) => (startIds.has(e.id) ? { ...e, isLive: true } : e)),
-        );
-      }
-
-      // Auto-close at endsAt
-      const toClose = ownerEvents.filter((e) => {
-        if (!e.isLive || e.closedAt) return false;
-        if (!e.endsAt) return false;
-        const t = new Date(e.endsAt).getTime();
-        return !isNaN(t) && t <= now;
-      });
-      if (toClose.length > 0) {
-        for (const event of toClose) {
-          await eventsService.closeEvent(event.id);
-          await couponsService.closeByEvent(event.id);
-          await feedService.closeByEvent(event.id);
-        }
-        const closeIds = new Set(toClose.map((e) => e.id));
-        setEvents((prev) => prev.filter((e) => !closeIds.has(e.id)));
-        setCoupons((prev) => prev.filter((c) => !closeIds.has(c.eventId)));
-        setFeedPosts((prev) => prev.filter((p) => !closeIds.has(p.eventId)));
+      } finally {
+        _isRunning = false;
       }
     }
 
@@ -352,6 +366,12 @@ export function AppProvider({ children }) {
   async function logout() {
     crowdManagementService.reset();
     ratingService.reset();
+    // Limpa fila de notificações e o mapa de deduplicação (_fired)
+    // para que notificações do usuário anterior não contaminem a próxima sessão.
+    notificationService.reset();
+    // Limpa cache de preferências de notificação para evitar que as prefs
+    // do usuário anterior fiquem visíveis até o próximo load().
+    notificationPreferencesService.clear();
     subscribedRatingsRef.current.clear();
     await authService.signOut();
     stopGeoWatch();
@@ -398,7 +418,7 @@ export function AppProvider({ children }) {
 
   async function closeEvent(eventId) {
     const perms = createPermissionStrategy(currentUser?.role);
-    if (!perms.canEditEventField('status')) {
+    if (!perms.canEditEventField('closeEvent')) {
       return { error: 'Sem permissão para encerrar eventos.' };
     }
     const result = await eventsService.closeEvent(eventId);

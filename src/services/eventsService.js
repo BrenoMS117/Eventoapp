@@ -107,6 +107,34 @@ export const eventsService = {
     return { error };
   },
 
+  /**
+   * Encerra múltiplos eventos de uma vez (soft-close em batch).
+   * Substitui N chamadas sequenciais — elimina N+1 no autoManageEvents.
+   * @param {string[]} ids
+   */
+  async closeEventsBatch(ids) {
+    if (!ids?.length) return { error: null };
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('events')
+      .update({ is_live: false, closed_at: now })
+      .in('id', ids);
+    return { error };
+  },
+
+  /**
+   * Inicia múltiplos eventos de uma vez (batch).
+   * @param {string[]} ids
+   */
+  async startEventsBatch(ids) {
+    if (!ids?.length) return { error: null };
+    const { error } = await supabase
+      .from('events')
+      .update({ is_live: true })
+      .in('id', ids);
+    return { error };
+  },
+
 async uploadPhoto(eventId, uri) {
   const ext = (uri.split('.').pop() || 'jpg').toLowerCase().split('?')[0];
   const path = `${eventId}/${Date.now()}.${ext}`;
@@ -169,6 +197,15 @@ async uploadPhoto(eventId, uri) {
 };
 
 function _mapEvent(d) {
+  const crowdLevel = d.crowd_level ?? 0;
+
+  // heatLevel: chave string usada pela ExploreScreen para colorir badges de intensidade.
+  // Mapeamento: crowdLevel → BLAZING / HOT / WARM / COOL (espelho de COR_HEAT na tela).
+  const heatLevel =
+    crowdLevel >= 85 ? 'BLAZING' :
+    crowdLevel >= 60 ? 'HOT'     :
+    crowdLevel >= 30 ? 'WARM'    : 'COOL';
+
   return {
     id: d.id,
     ownerId: d.owner_id,
@@ -180,7 +217,7 @@ function _mapEvent(d) {
     isLive: d.is_live,
     startsAt: d.starts_at,
     endsAt: d.ends_at,
-    crowdLevel: d.crowd_level ?? 0,
+    crowdLevel,
     crowdLabel: d.crowd_label ?? 'Aguardando',
     queueMinutes: d.queue_minutes ?? 0,
     rating: d.rating ?? 0,
@@ -203,5 +240,11 @@ function _mapEvent(d) {
     maxCapacity: d.max_capacity ?? null,
     closedAt: d.closed_at ?? null,
     createdAt: d.created_at ?? null,
+    // ── Campos derivados usados pela ExploreScreen ──────────────────────────
+    // Aliases calculados aqui para manter a tela livre de lógica de negócio.
+    capacityPct: crowdLevel,                   // 0-100 — barra de lotação no hero
+    vibeMeter:   crowdLevel,                   // 0-100 — componente VibeMeter
+    vibeLabel:   d.crowd_label ?? 'Aguardando', // label textual do termômetro
+    heatLevel,                                 // BLAZING | HOT | WARM | COOL
   };
 }
