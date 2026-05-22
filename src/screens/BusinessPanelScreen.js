@@ -9,6 +9,8 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Modal,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -242,20 +244,213 @@ const fr = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function OwnerCard({ currentUser, onLogout }) {
+  const { updateProfile, updatePassword } = useApp();
+
+  const [modalVisible, setModalVisible]       = useState(false);
+  const [editName, setEditName]               = useState("");
+  const [editAvatar, setEditAvatar]           = useState("");
+  const [editVenueName, setEditVenueName]     = useState("");
+  const [newPassword, setNewPassword]         = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPwd, setShowNewPwd]           = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd]   = useState(false);
+  const [saving, setSaving]                   = useState(false);
+
+  function openModal() {
+    setEditName(currentUser?.name || "");
+    setEditAvatar(currentUser?.avatar || "");
+    setEditVenueName(currentUser?.venueName || "");
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowNewPwd(false);
+    setShowConfirmPwd(false);
+    setModalVisible(true);
+  }
+
+  async function handleSave() {
+    const trimmedName  = editName.trim();
+    const trimmedVenue = editVenueName.trim();
+    if (!trimmedName) {
+      Alert.alert("Atenção", "O nome não pode ficar vazio.");
+      return;
+    }
+    if (!trimmedVenue) {
+      Alert.alert("Atenção", "O nome do estabelecimento não pode ficar vazio.");
+      return;
+    }
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        Alert.alert("Atenção", "A nova senha deve ter pelo menos 6 caracteres.");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        Alert.alert("Atenção", "As senhas não coincidem.");
+        return;
+      }
+    }
+
+    setSaving(true);
+    const profileResult = await updateProfile({
+      name:      trimmedName,
+      avatar:    editAvatar.trim() || trimmedName.slice(0, 2).toUpperCase(),
+      venueName: trimmedVenue,
+    });
+    const passwordResult = newPassword
+      ? await updatePassword(newPassword)
+      : { error: null };
+    setSaving(false);
+
+    const error = profileResult.error || passwordResult.error;
+    if (error) {
+      Alert.alert("Erro", error);
+    } else {
+      setModalVisible(false);
+    }
+  }
+
   return (
-    <View style={s.usuarioCard}>
-      <View style={s.usuarioAvatar}>
-        <Text style={s.usuarioAvatarTexto}>{currentUser?.avatar || "B"}</Text>
+    <>
+      <View style={s.usuarioCard}>
+        <View style={s.usuarioAvatar}>
+          <Text style={s.usuarioAvatarTexto}>{currentUser?.avatar || "B"}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.usuarioNome}>{currentUser?.name || "Estabelecimento"}</Text>
+          <Text style={s.usuarioEmail}>
+            {currentUser?.venueName ? `🏠 ${currentUser.venueName}` : currentUser?.email || ""}
+          </Text>
+        </View>
+        <TouchableOpacity style={s.editProfileBtn} onPress={openModal}>
+          <Ionicons name="person-circle-outline" size={22} color={COLORS.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity style={s.sairBtn} onPress={onLogout}>
+          <Ionicons name="log-out-outline" size={16} color={COLORS.danger} />
+          <Text style={s.sairTexto}>Sair</Text>
+        </TouchableOpacity>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={s.usuarioNome}>{currentUser?.name || "Estabelecimento"}</Text>
-        <Text style={s.usuarioEmail}>{currentUser?.email || ""}</Text>
-      </View>
-      <TouchableOpacity style={s.sairBtn} onPress={onLogout}>
-        <Ionicons name="log-out-outline" size={16} color={COLORS.danger} />
-        <Text style={s.sairTexto}>Sair</Text>
-      </TouchableOpacity>
-    </View>
+
+      {/* ── Modal de edição de perfil ─────────────────────────────── */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={bp.overlay}
+            activeOpacity={1}
+            onPress={() => setModalVisible(false)}
+          >
+            <TouchableOpacity activeOpacity={1} style={bp.sheet}>
+              {/* Cabeçalho */}
+              <View style={bp.sheetHeader}>
+                <Text style={bp.sheetTitle}>Editar Perfil</Text>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <Ionicons name="close" size={22} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Preview avatar */}
+              <View style={bp.avatarPreview}>
+                <Text style={bp.avatarPreviewText}>
+                  {editAvatar || editName.slice(0, 2).toUpperCase() || "B"}
+                </Text>
+              </View>
+
+              {/* Nome */}
+              <Text style={bp.label}>Nome</Text>
+              <TextInput
+                style={bp.input}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Seu nome"
+                placeholderTextColor={COLORS.textMuted}
+                autoCorrect={false}
+              />
+
+              {/* Iniciais */}
+              <Text style={bp.label}>Iniciais (até 2 letras)</Text>
+              <TextInput
+                style={bp.input}
+                value={editAvatar}
+                onChangeText={(v) => setEditAvatar(v.slice(0, 2).toUpperCase())}
+                placeholder="Ex: AB"
+                placeholderTextColor={COLORS.textMuted}
+                maxLength={2}
+                autoCapitalize="characters"
+              />
+
+              {/* Nome do estabelecimento */}
+              <Text style={bp.label}>Nome do Estabelecimento</Text>
+              <TextInput
+                style={bp.input}
+                value={editVenueName}
+                onChangeText={setEditVenueName}
+                placeholder="Ex: Bar do João"
+                placeholderTextColor={COLORS.textMuted}
+                autoCorrect={false}
+              />
+
+              {/* Divisor senha */}
+              <View style={bp.divider} />
+              <Text style={bp.sectionLabel}>Alterar Senha</Text>
+              <Text style={bp.sectionHint}>Deixe em branco para não alterar</Text>
+
+              {/* Nova senha */}
+              <Text style={bp.label}>Nova Senha</Text>
+              <View style={bp.inputRow}>
+                <TextInput
+                  style={[bp.input, { flex: 1, marginBottom: 0, borderWidth: 0, borderRadius: 0 }]}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="Mínimo 6 caracteres"
+                  placeholderTextColor={COLORS.textMuted}
+                  secureTextEntry={!showNewPwd}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity style={bp.eyeBtn} onPress={() => setShowNewPwd(v => !v)}>
+                  <Ionicons name={showNewPwd ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Confirmar senha */}
+              <Text style={[bp.label, { marginTop: 12 }]}>Confirmar Nova Senha</Text>
+              <View style={bp.inputRow}>
+                <TextInput
+                  style={[bp.input, { flex: 1, marginBottom: 0, borderWidth: 0, borderRadius: 0 }]}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Repita a nova senha"
+                  placeholderTextColor={COLORS.textMuted}
+                  secureTextEntry={!showConfirmPwd}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity style={bp.eyeBtn} onPress={() => setShowConfirmPwd(v => !v)}>
+                  <Ionicons name={showConfirmPwd ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Salvar */}
+              <TouchableOpacity
+                style={[bp.saveBtn, saving && { opacity: 0.7 }]}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={bp.saveBtnText}>Salvar</Text>}
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
@@ -1124,4 +1319,69 @@ const s = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 20,
   },
   emptyBtnSecTexto: { fontSize: 13, color: COLORS.textMuted },
+
+  editProfileBtn: { padding: 4, marginRight: 4 },
+});
+
+// ─── Estilos do modal de perfil (business) ────────────────────────────────────
+const bp = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: COLORS.bgCard,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 36,
+    ...SHADOW.md,
+  },
+  sheetHeader: {
+    flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", marginBottom: 20,
+  },
+  sheetTitle: { fontSize: 17, fontWeight: "800", color: COLORS.text },
+
+  avatarPreview: {
+    alignSelf: "center",
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: COLORS.primary + "33",
+    borderWidth: 2, borderColor: COLORS.primary,
+    justifyContent: "center", alignItems: "center",
+    marginBottom: 24,
+  },
+  avatarPreviewText: { fontSize: 26, fontWeight: "900", color: COLORS.primary },
+
+  label: {
+    fontSize: 12, fontWeight: "700", color: COLORS.textMuted,
+    textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 6,
+  },
+  input: {
+    backgroundColor: COLORS.bg,
+    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, color: COLORS.text,
+    marginBottom: 16,
+  },
+
+  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 20 },
+  sectionLabel: { fontSize: 14, fontWeight: "800", color: COLORS.text, marginBottom: 2 },
+  sectionHint:  { fontSize: 12, color: COLORS.textMuted, marginBottom: 14 },
+
+  inputRow: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: COLORS.bg,
+    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg, marginBottom: 0, overflow: "hidden",
+  },
+  eyeBtn: { paddingHorizontal: 12, paddingVertical: 12 },
+
+  saveBtn: {
+    backgroundColor: COLORS.primary, borderRadius: RADIUS.lg,
+    paddingVertical: 14, alignItems: "center", marginTop: 20,
+  },
+  saveBtnText: { fontSize: 15, fontWeight: "800", color: "#fff" },
 });

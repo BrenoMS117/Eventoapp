@@ -143,7 +143,6 @@ function BusinessTabs() {
     <Tab.Navigator tabBar={props => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tab.Screen name="Home" component={ExploreNavigator} options={{ tabBarLabel: 'Home' }} />
       <Tab.Screen name="Community" component={FeedScreen} options={{ tabBarLabel: 'Community' }} />
-      <Tab.Screen name="Rewards" component={RewardsScreen} options={{ tabBarLabel: 'Rewards' }} />
       <Tab.Screen name="Painel" component={BusinessNavigator} options={{ tabBarLabel: 'Painel' }} />
     </Tab.Navigator>
   );

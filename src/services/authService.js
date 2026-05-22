@@ -56,6 +56,24 @@ export const authService = {
     };
   },
 
+  // Atualiza nome, avatar e/ou nome do estabelecimento
+  async updateProfile(userId, { name, avatar, venueName }) {
+    const updates = {};
+    if (name      !== undefined) updates.name       = name;
+    if (avatar    !== undefined) updates.avatar     = avatar;
+    if (venueName !== undefined) updates.venue_name = venueName;
+    const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
+    if (error) return { error: 'Erro ao atualizar perfil.' };
+    return { error: null };
+  },
+
+  // Altera a senha do usuário autenticado
+  async updatePassword(newPassword) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { error: _translateError(error.message) };
+    return { error: null };
+  },
+
   // Recupera sessão ativa (para manter login ao reabrir app)
   async getSession() {
     const { data: { session } } = await supabase.auth.getSession();

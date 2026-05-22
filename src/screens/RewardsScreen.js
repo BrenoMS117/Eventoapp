@@ -7,6 +7,10 @@ import {
   StyleSheet,
   Alert,
   Platform,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -210,7 +214,69 @@ export default function RewardsScreen({ navigation }) {
     redemptionMap,
     currentUser,
     logout,
+    updateProfile,
+    updatePassword,
   } = useApp();
+
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [editName, setEditName]         = useState("");
+  const [editAvatar, setEditAvatar]     = useState("");
+  const [newPassword, setNewPassword]   = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPwd, setShowNewPwd]     = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  function openProfileModal() {
+    setEditName(currentUser?.name || "");
+    setEditAvatar(currentUser?.avatar || "");
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowNewPwd(false);
+    setShowConfirmPwd(false);
+    setProfileModalVisible(true);
+  }
+
+  async function handleSaveProfile() {
+    const trimmedName = editName.trim();
+    if (!trimmedName) {
+      Alert.alert("Atenção", "O nome não pode ficar vazio.");
+      return;
+    }
+    // Validação de senha apenas se o usuário preencheu
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        Alert.alert("Atenção", "A nova senha deve ter pelo menos 6 caracteres.");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        Alert.alert("Atenção", "As senhas não coincidem.");
+        return;
+      }
+    }
+
+    setSavingProfile(true);
+
+    // Atualiza nome/avatar
+    const profileResult = await updateProfile({
+      name: trimmedName,
+      avatar: editAvatar.trim() || trimmedName.slice(0, 2).toUpperCase(),
+    });
+
+    // Atualiza senha (somente se preenchida)
+    const passwordResult = newPassword
+      ? await updatePassword(newPassword)
+      : { error: null };
+
+    setSavingProfile(false);
+
+    const error = profileResult.error || passwordResult.error;
+    if (error) {
+      Alert.alert("Erro", error);
+    } else {
+      setProfileModalVisible(false);
+    }
+  }
 
   const redeemedList = Object.values(redemptionMap).sort(
     (a, b) => new Date(b.redeemedAt) - new Date(a.redeemedAt),
@@ -236,11 +302,25 @@ export default function RewardsScreen({ navigation }) {
           <Text style={s.logo}>LiveVibe</Text>
         </View>
         <Text style={s.headerTitle}>Cupons & Resgates</Text>
-        <TouchableOpacity style={s.iconBtn} onPress={handleLogout}>
+        <TouchableOpacity style={s.iconBtn} onPress={openProfileModal}>
           <Ionicons name="person-circle-outline" size={24} color={COLORS.text} />
         </TouchableOpacity>
+        <TouchableOpacity
+          style={s.iconBtn}
+          onPress={() => {
+            if (Platform.OS === "web") {
+              if (window.confirm("Deseja sair?")) logout();
+            } else {
+              Alert.alert("Sair", "Deseja sair?", [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Sair", onPress: logout },
+              ]);
+            }
+          }}
+        >
+          <Ionicons name="exit-outline" size={24} color={COLORS.text} />
+        </TouchableOpacity>
       </View>
-
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile card */}
         <View style={s.profileCard}>
@@ -318,6 +398,124 @@ export default function RewardsScreen({ navigation }) {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      <Modal
+        visible={profileModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setProfileModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={pm.overlay}
+            activeOpacity={1}
+            onPress={() => setProfileModalVisible(false)}
+          >
+            <TouchableOpacity activeOpacity={1} style={pm.sheet}>
+              {/* Cabeçalho */}
+              <View style={pm.sheetHeader}>
+                <Text style={pm.sheetTitle}>Editar Perfil</Text>
+                <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
+                  <Ionicons name="close" size={22} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Preview do avatar */}
+              <View style={pm.avatarPreview}>
+                <Text style={pm.avatarPreviewText}>
+                  {editAvatar || editName.slice(0, 2).toUpperCase() || "U"}
+                </Text>
+              </View>
+
+              {/* Campo nome */}
+              <Text style={pm.label}>Nome</Text>
+              <TextInput
+                style={pm.input}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Seu nome"
+                placeholderTextColor={COLORS.textMuted}
+                autoCorrect={false}
+              />
+
+              {/* Campo avatar */}
+              <Text style={pm.label}>Iniciais (até 2 letras)</Text>
+              <TextInput
+                style={pm.input}
+                value={editAvatar}
+                onChangeText={(v) => setEditAvatar(v.slice(0, 2).toUpperCase())}
+                placeholder="Ex: AB"
+                placeholderTextColor={COLORS.textMuted}
+                maxLength={2}
+                autoCapitalize="characters"
+              />
+
+              {/* Divisor */}
+              <View style={pm.divider} />
+              <Text style={pm.sectionLabel}>Alterar Senha</Text>
+              <Text style={pm.sectionHint}>Deixe em branco para não alterar</Text>
+
+              {/* Nova senha */}
+              <Text style={pm.label}>Nova Senha</Text>
+              <View style={pm.inputRow}>
+                <TextInput
+                  style={[pm.input, { flex: 1, marginBottom: 0, borderWidth: 0, borderRadius: 0 }]}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="Mínimo 6 caracteres"
+                  placeholderTextColor={COLORS.textMuted}
+                  secureTextEntry={!showNewPwd}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity style={pm.eyeBtn} onPress={() => setShowNewPwd(v => !v)}>
+                  <Ionicons
+                    name={showNewPwd ? "eye-off-outline" : "eye-outline"}
+                    size={20} color={COLORS.textMuted}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Confirmar senha */}
+              <Text style={[pm.label, { marginTop: 12 }]}>Confirmar Nova Senha</Text>
+              <View style={pm.inputRow}>
+                <TextInput
+                  style={[pm.input, { flex: 1, marginBottom: 0, borderWidth: 0, borderRadius: 0 }]}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Repita a nova senha"
+                  placeholderTextColor={COLORS.textMuted}
+                  secureTextEntry={!showConfirmPwd}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity style={pm.eyeBtn} onPress={() => setShowConfirmPwd(v => !v)}>
+                  <Ionicons
+                    name={showConfirmPwd ? "eye-off-outline" : "eye-outline"}
+                    size={20} color={COLORS.textMuted}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Botão salvar */}
+              <TouchableOpacity
+                style={[pm.saveBtn, savingProfile && { opacity: 0.7 }]}
+                onPress={handleSaveProfile}
+                disabled={savingProfile}
+              >
+                {savingProfile ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={pm.saveBtnText}>Salvar</Text>
+                )}
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -380,4 +578,87 @@ const s = StyleSheet.create({
   },
   emptyText: { fontSize: 14, color: COLORS.textSub, fontWeight: "500" },
   emptySubText: { fontSize: 12, color: COLORS.textMuted, marginTop: 4, textAlign: "center", paddingHorizontal: 20 },
+});
+
+// ─── Estilos do modal de perfil ───────────────────────────────────────────────
+const pm = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: COLORS.bgCard,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 36,
+    ...SHADOW.md,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  sheetTitle: { fontSize: 17, fontWeight: "800", color: COLORS.text },
+
+  avatarPreview: {
+    alignSelf: "center",
+    width: 72, height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.primary + "33",
+    borderWidth: 2, borderColor: COLORS.primary,
+    justifyContent: "center", alignItems: "center",
+    marginBottom: 24,
+  },
+  avatarPreviewText: { fontSize: 26, fontWeight: "900", color: COLORS.primary },
+
+  label: {
+    fontSize: 12, fontWeight: "700",
+    color: COLORS.textMuted, textTransform: "uppercase",
+    letterSpacing: 0.7, marginBottom: 6,
+  },
+  input: {
+    backgroundColor: COLORS.bg,
+    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, color: COLORS.text,
+    marginBottom: 16,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 20,
+  },
+  sectionLabel: {
+    fontSize: 14, fontWeight: "800", color: COLORS.text, marginBottom: 2,
+  },
+  sectionHint: {
+    fontSize: 12, color: COLORS.textMuted, marginBottom: 14,
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.bg,
+    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+    marginBottom: 0,
+    overflow: "hidden",
+  },
+  eyeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+
+  saveBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.lg,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 20,
+  },
+  saveBtnText: { fontSize: 15, fontWeight: "800", color: "#fff" },
 });

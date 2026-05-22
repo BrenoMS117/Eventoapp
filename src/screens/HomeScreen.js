@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { useNearbyEvents } from '../hooks/useNearbyEvents';
+import { useNotifications } from '../hooks/useNotifications';
+import NotificationsModal from './NotificationsModal';
 import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
 const { width } = Dimensions.get('window');
@@ -249,6 +251,8 @@ function EmptyNearby({ hasCoords }) {
 export default function HomeScreen({ navigation }) {
   const { currentUser, logout } = useApp();
   const { heroEvent, nearbyEvents, liveEvents, distances, geoLabel, hasCoords } = useNearbyEvents();
+  const { unreadCount } = useNotifications();
+  const [notifVisible, setNotifVisible] = useState(false);
 
   const firstName = currentUser?.name?.split(' ')[0] ?? 'você';
 
@@ -280,20 +284,33 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={s.safe} edges={['top']}>
       {/* ── Header ── */}
       <View style={s.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name="pulse" size={20} color={COLORS.primary} />
-          <Text style={s.logo}>LiveVibe</Text>
-        </View>
-        <Text style={s.greeting}>Olá, {firstName} 👋</Text>
-        <View style={{ flexDirection: 'row', gap: 4 }}>
-          <TouchableOpacity style={s.iconBtn} onPress={goToExplore}>
-            <Ionicons name="search-outline" size={22} color={COLORS.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={s.iconBtn} onPress={handleLogout}>
-            <Ionicons name="person-circle-outline" size={24} color={COLORS.text} />
-          </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center' }}>
+            <Ionicons name="pulse" size={20} color={COLORS.primary} />
+            <Text style={s.logo}>LiveVibe</Text>
+          </View>
+          <Text style={s.greeting}>Olá, {firstName}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {/* Sino de notificações */}
+            <TouchableOpacity style={s.iconBtn} onPress={() => setNotifVisible(true)}>
+              <Ionicons name="notifications-outline" size={22} color={COLORS.text} />
+              {unreadCount > 0 && (
+                <View style={s.notifBadge}>
+                  <Text style={s.notifBadgeText}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {/* Search */}
+            <TouchableOpacity style={s.iconBtn} onPress={goToExplore}>
+              <Ionicons name="search-outline" size={22} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
+
+      <NotificationsModal visible={notifVisible} onClose={() => setNotifVisible(false)} />
 
       {/* ── GPS status bar ── */}
       <View style={s.geoBar}>
@@ -410,7 +427,15 @@ const s = StyleSheet.create({
   },
   logo: { fontSize: 16, fontWeight: '900', color: COLORS.text },
   greeting: { flex: 1, fontSize: 13, color: COLORS.textSub, textAlign: 'center' },
-  iconBtn: { padding: 4 },
+  iconBtn: { padding: 4, position: 'relative' },
+  notifBadge: {
+    position: 'absolute', top: 0, right: 0,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8, minWidth: 16, height: 16,
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: { fontSize: 9, fontWeight: '800', color: '#fff' },
 
   // GPS bar
   geoBar: {

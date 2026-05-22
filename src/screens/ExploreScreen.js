@@ -14,8 +14,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
+import { useNotifications } from "../hooks/useNotifications";
 import { eventsService } from "../services/eventsService";
 import { COLORS, RADIUS } from "../utils/theme";
+import NotificationsModal from "./NotificationsModal";
 
 const { width } = Dimensions.get("window");
 const CARD_W = width * 0.68;
@@ -64,9 +66,11 @@ function VibeMeter({ value }) {
 
 export default function ExploreScreen({ navigation }) {
   const { logout } = useApp();
+  const { unreadCount } = useNotifications();
   const [cat, setCat] = useState("todos");
   const [busca, setBusca] = useState("");
   const [filtrados, setFiltrados] = useState([]);
+  const [notifVisible, setNotifVisible] = useState(false);
   const debounceRef = useRef(null);
 
   useEffect(() => {
@@ -89,36 +93,19 @@ export default function ExploreScreen({ navigation }) {
           <Ionicons name="pulse" size={20} color={COLORS.primary} />
           <Text style={s.logo}>LiveVibe</Text>
         </View>
-        <View style={{ flexDirection: "row", gap: 4 }}>
-          <TouchableOpacity style={s.iconBtn}>
-            <Ionicons
-              name="notifications-outline"
-              size={22}
-              color={COLORS.text}
-            />
-            <View style={s.notifDot} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.iconBtn}
-            onPress={() => {
-               if (Platform.OS === 'web') {
-                 if (window.confirm('Deseja sair?')) logout();
-                 } else {
-                  Alert.alert('Sair', 'Deseja sair?', [
-                  { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Sair', onPress: logout },
-                  ]);
-                }
-             }}
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={26}
-              color={COLORS.text}
-            />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={s.iconBtn} onPress={() => setNotifVisible(true)}>
+          <Ionicons name="notifications-outline" size={22} color={COLORS.text} />
+          {unreadCount > 0 && (
+            <View style={s.notifBadge}>
+              <Text style={s.notifBadgeText}>
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
+
+      <NotificationsModal visible={notifVisible} onClose={() => setNotifVisible(false)} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <View
@@ -131,19 +118,6 @@ export default function ExploreScreen({ navigation }) {
           }}
         >
           <Text style={s.titulo}>Explorar Eventos</Text>
-          <View style={s.filtroPill}>
-            <Ionicons name="options-outline" size={14} color={COLORS.text} />
-            <Text
-              style={{
-                fontSize: 12,
-                color: COLORS.text,
-                fontWeight: "600",
-                marginLeft: 4,
-              }}
-            >
-              Filtrar
-            </Text>
-          </View>
         </View>
 
         <View style={s.buscaBox}>
@@ -265,9 +239,6 @@ export default function ExploreScreen({ navigation }) {
                 marginTop: 10,
               }}
             >
-              {filtrados.slice(0, 3).map((_, i) => (
-                <View key={i} style={[s.dot, i === 0 && s.dotAtivo]} />
-              ))}
             </View>
           </View>
         )}
@@ -415,17 +386,16 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   iconBtn: { padding: 6, position: "relative" },
-  notifDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  notifBadge: {
+    position: "absolute", top: 2, right: 2,
     backgroundColor: COLORS.primary,
-    position: "absolute",
-    top: 6,
-    right: 4,
-    borderWidth: 1.5,
-    borderColor: COLORS.bg,
+    borderRadius: RADIUS.full,
+    minWidth: 16, height: 16,
+    justifyContent: "center", alignItems: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: COLORS.bg,
   },
+  notifBadgeText: { fontSize: 9, fontWeight: "800", color: "#fff" },
   titulo: { fontSize: 22, fontWeight: "800", color: COLORS.text },
   filtroPill: {
     flexDirection: "row",

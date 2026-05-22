@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { notificationService } from '../services/notifications/NotificationService';
+import { notificationPreferencesService } from '../services/notifications/NotificationPreferencesService';
 
 /**
  * useNotifications
@@ -27,6 +28,12 @@ export function useNotifications() {
   } = useApp();
 
   const [notifications, setNotifications] = useState([]);
+  const [prefs, setPrefs] = useState(() => notificationPreferencesService.getCache());
+
+  // Keep prefs in sync so filtering updates without a remount
+  useEffect(() => {
+    return notificationPreferencesService.subscribe(setPrefs);
+  }, []);
 
   // Subscribe once — receives queue updates pushed by NotificationService.
   useEffect(() => {
@@ -60,9 +67,15 @@ export function useNotifications() {
     if (currentUser) notificationService.evaluate(ctx);
   }, [ctx, currentUser]);
 
+  // Filter by user preferences — types absent from prefs object are kept (opt-out model)
+  const filtered = useMemo(
+    () => notifications.filter((n) => prefs[n.type] !== false),
+    [notifications, prefs],
+  );
+
   return {
-    notifications,
-    unreadCount: notifications.filter(n => !n.read).length,
+    notifications: filtered,
+    unreadCount: filtered.filter(n => !n.read).length,
     markRead:    (id) => notificationService.markRead(id),
     markAllRead: ()   => notificationService.markAllRead(),
     clearAll:    ()   => notificationService.clearAll(),

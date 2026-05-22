@@ -201,7 +201,6 @@ export function AppProvider({ children }) {
         crowdManagementService.startRealtimeSubscription();
       }
     } catch (e) {
-      console.log("Session error:", e);
     } finally {
       setAuthLoading(false);
     }
@@ -331,6 +330,23 @@ export function AppProvider({ children }) {
     }
     setCurrentUser(user);
     return true;
+  }
+
+  async function updatePassword(newPassword) {
+    return await authService.updatePassword(newPassword);
+  }
+
+  async function updateProfile({ name, avatar, venueName }) {
+    if (!currentUser?.id) return { error: 'Não autenticado.' };
+    const result = await authService.updateProfile(currentUser.id, { name, avatar, venueName });
+    if (result.error) return result;
+    setCurrentUser((prev) => ({
+      ...prev,
+      ...(name      !== undefined && { name }),
+      ...(avatar    !== undefined && { avatar }),
+      ...(venueName !== undefined && { venueName }),
+    }));
+    return { error: null };
   }
 
   async function logout() {
@@ -483,24 +499,19 @@ export function AppProvider({ children }) {
   }
 
 async function addEventPhoto(eventId, uri) {
-  console.log('2.5 AQUI');
   
   try {
     if (!_supabaseReady || !currentUser?.id) {
-      console.log('Supabase não pronto ou sem usuário');
       return;
     }
 
     const result = await eventsService.uploadPhoto(eventId, uri);
-    console.log('5. uploadPhoto result:', JSON.stringify(result));
 
     if (result.error || !result.url) {
-      console.log('6. ERRO no upload:', JSON.stringify(result.error));
       return { error: result.error };
     }
 
     const saveResult = await eventsService.savePhotoUrl(eventId, result.url);
-    console.log('8. savePhotoUrl result:', JSON.stringify(saveResult));
 
     setEvents((prev) =>
       prev.map((e) => {
@@ -510,10 +521,8 @@ async function addEventPhoto(eventId, uri) {
       }),
     );
 
-    console.log('9. estado local atualizado');
     return { url: result.url };
   } catch (e) {
-    console.log('ERRO CATCH:', e.message);
   }
 }
 
@@ -921,6 +930,8 @@ async function addEventPhoto(eventId, uri) {
     login,
     register,
     logout,
+    updateProfile,
+    updatePassword,
     events,
     feedPosts,
     coupons,

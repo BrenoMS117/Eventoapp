@@ -61,7 +61,7 @@ export class PostEventRatingStrategy extends INotificationStrategy {
           type: 'rating',
           title: 'Como foi o evento?',
           body: `Deixe sua avaliação para ${event.name} e ajude outros usuários.`,
-          icon: 'star-outline',
+          icon: 'star',
           color: COLORS.warning,
           priority: 'low',
           payload: { eventId: event.id },

@@ -307,21 +307,6 @@ export default function FeedScreen() {
               <Text style={s.publicarBtnTexto}>Postar</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={s.iconBtn}
-            onPress={() => {
-              if (Platform.OS === "web") {
-                if (window.confirm("Deseja sair?")) logout();
-              } else {
-                Alert.alert("Sair", "Deseja sair?", [
-                  { text: "Cancelar", style: "cancel" },
-                  { text: "Sair", onPress: logout },
-                ]);
-              }
-            }}
-          >
-            <Ionicons name="person-circle-outline" size={24} color={COLORS.text} />
-          </TouchableOpacity>
         </View>
       </View>
 

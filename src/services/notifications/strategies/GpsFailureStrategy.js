@@ -21,7 +21,7 @@ export class GpsFailureStrategy extends INotificationStrategy {
       type: 'gps',
       title: 'Localização Indisponível',
       body: 'Não foi possível obter sua localização. Verifique as permissões do GPS nas configurações.',
-      icon: 'location-outline',
+      icon: 'location',
       color: COLORS.danger,
       priority: 'high',
       payload: {},
