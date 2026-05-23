@@ -5,25 +5,6 @@ import { feedValidationService } from '../services/feed/FeedValidationService';
 import { FeedFilterService } from '../services/feed/FeedFilterService';
 import { feedService } from '../services/feedService';
 
-/**
- * useFeed — hook que orquestra todo o módulo de Posts.
- *
- * Padrão Observer: assina `userCoords` e `events` do AppContext.
- * Quando a posição muda, FeedValidationService recalcula o `currentEvent`
- * sem que FeedScreen precise conhecer nenhum detalhe de geolocalização.
- *
- * Separação de responsabilidades:
- *   FeedValidationService → sabe se o usuário PODE postar (onde ele está)
- *   FeedFilterService     → sabe O QUE mostrar (filtragem por papel/geo)
- *   useFeed               → orquestra os dois, expõe API limpa + paginação
- *   FeedScreen            → só renderiza o que useFeed retorna
- *
- * Paginação por cursor:
- *   - Posts iniciais (até 30) vêm do AppContext via feedService.getAll()
- *   - Posts adicionais vêm de feedService.getPaged(cursor) ao rolar até o fim
- *   - cursor = created_at do post mais antigo já carregado
- *   - Não há sobreposição: AppContext traz os mais novos, getPaged traz os mais antigos
- */
 export function useFeed() {
   const {
     feedPosts,
@@ -38,7 +19,7 @@ export function useFeed() {
 
   const perms = usePermissions();
 
-  // ── Observer: recalcula evento atual quando a posição muda ────────────
+  // ── Evento atual (Observer de posição) ────────────────────────────────
   const [currentEvent, setCurrentEvent] = useState(null);
 
   useEffect(() => {
@@ -51,31 +32,18 @@ export function useFeed() {
   }, [userCoords, events, currentUser?.role]);
 
   // ── Paginação por cursor ───────────────────────────────────────────────
-  /** Posts carregados além da janela inicial do AppContext */
-  const [extraPosts, setExtraPosts] = useState([]);
-  const [hasMore, setHasMore]         = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  /**
-   * created_at do post mais antigo já exibido.
-   * Inicializado a partir do último post do AppContext no primeiro render
-   * com dados disponíveis; atualizado a cada página carregada.
-   */
-  const cursorRef    = useRef(null);
-  /** Guard: impede chamadas simultâneas a loadMore */
-  const loadingRef   = useRef(false);
+  const [extraPosts, setExtraPosts]     = useState([]);
+  const [hasMore, setHasMore]           = useState(true);
+  const [loadingMore, setLoadingMore]   = useState(false);
+  const cursorRef  = useRef(null);
+  const loadingRef = useRef(false);
 
-  // Inicializa o cursor quando feedPosts do AppContext chegam pela primeira vez
   useEffect(() => {
     if (feedPosts.length > 0 && cursorRef.current === null) {
-      // feedPosts está ordenado por created_at DESC → o último é o mais antigo
       cursorRef.current = feedPosts[feedPosts.length - 1].createdAt ?? null;
     }
   }, [feedPosts]);
 
-  /**
-   * Carrega a próxima página de posts.
-   * Chamado pelo FeedScreen quando o usuário chega perto do fim da lista.
-   */
   const loadMore = useCallback(async () => {
     if (loadingRef.current || !hasMore) return;
     loadingRef.current = true;
@@ -90,7 +58,6 @@ export function useFeed() {
         cursorRef.current = nextCursor;
         if (!nextCursor) setHasMore(false);
       } else {
-        // Sem dados ou erro → não há mais páginas
         setHasMore(false);
       }
     } finally {
@@ -99,7 +66,7 @@ export function useFeed() {
     }
   }, [hasMore]);
 
-  // ── Feed inteligente filtrado por papel e localização ─────────────────
+  // ── Posts filtrados por papel e localização ───────────────────────────
   const posts = useMemo(() => {
     if (currentUser?.role === 'business') {
       const ownerIds = events
@@ -114,7 +81,6 @@ export function useFeed() {
     );
   }, [feedPosts, currentEvent, nearbyEventIds, events, currentUser]);
 
-  // ── Posts adicionais filtrados (páginas 2, 3, ...) ────────────────────
   const extraFiltered = useMemo(() => {
     if (!extraPosts.length) return [];
     if (currentUser?.role === 'business') {
@@ -130,24 +96,18 @@ export function useFeed() {
     );
   }, [extraPosts, currentEvent, nearbyEventIds, events, currentUser]);
 
-  /** Lista completa para exibição: posts recentes (AppContext) + extras (paginados) */
   const allPosts = useMemo(
     () => [...posts, ...extraFiltered],
     [posts, extraFiltered],
   );
 
-  // ── Label de contexto para o header do feed ───────────────────────────
+  // ── Rótulo de contexto ────────────────────────────────────────────────
   const contextLabel = useMemo(
     () => FeedFilterService.feedContextLabel(currentEvent, nearbyEventIds, currentUser?.role),
     [currentEvent, nearbyEventIds, currentUser?.role],
   );
 
-  // ── Validação de postagem (geofence) ──────────────────────────────────
-  /**
-   * Valida localização e persiste o post se aprovado.
-   * @param {{ event, text, photos, tag, type }} postData
-   * @returns {{ success: boolean, error: string | null }}
-   */
+  // ── Validação e envio de post ─────────────────────────────────────────
   const submitPost = useCallback(async (postData) => {
     if (!perms.canPostToFeed()) {
       return { success: false, error: 'Seu perfil não permite criar posts.' };
@@ -178,7 +138,7 @@ export function useFeed() {
     return { success: true, error: null };
   }, [perms, userCoords, currentUser?.role, nearbyEventIds, addFeedPost]);
 
-  // ── TTL label por post ────────────────────────────────────────────────
+  // ── Rótulo de expiração por post ──────────────────────────────────────
   const getTimeLeft = useCallback(
     (post) => feedValidationService.formatTimeLeft(post.expiresAt),
     [],
@@ -193,7 +153,6 @@ export function useFeed() {
     likePost,
     dislikePost,
     getTimeLeft,
-    // Paginação
     loadMore,
     hasMore,
     loadingMore,

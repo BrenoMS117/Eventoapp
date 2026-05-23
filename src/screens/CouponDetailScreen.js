@@ -8,9 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// QRCode — visual grid representation
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── QRCode
 function QRCode({ code, color }) {
   return (
     <View style={[s.qrWrap, { borderColor: color }]}>
@@ -30,9 +28,7 @@ function QRCode({ code, color }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CouponDetailScreen
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── CouponDetailScreen
 export default function CouponDetailScreen({ route, navigation }) {
   const { couponId } = route.params;
   const {
@@ -49,17 +45,13 @@ export default function CouponDetailScreen({ route, navigation }) {
   const isSoldOut  = coupon.remainingQty === 0;
   const pct        = coupon.totalQty > 0 ? (coupon.remainingQty / coupon.totalQty) * 100 : 0;
 
-  // Geo status: uses 150 m geofence (same criterion as redeemCoupon in AppContext).
-  // Replaces the old nearbyEventIds (5 km discovery radius) — correct gate for redemption.
   const { canRedeem, message: geoMessage } = canRedeemCoupon(couponId);
 
-  // Use the QR code stored in the DB (set after successful redemption)
   const redemptionDetails = getRedemptionDetails(couponId);
   const qrCode = redemptionDetails?.qrCode ?? '';
 
   async function handleRedeem() {
     if (!canRedeem) {
-      // Show the precise geo message from checkGeofence (includes distance in metres)
       Alert.alert('📍 Vá ao local', geoMessage);
       return;
     }
@@ -74,7 +66,6 @@ export default function CouponDetailScreen({ route, navigation }) {
           if (!r.success) {
             Alert.alert('Erro ao resgatar', r.error ?? 'Tente novamente.');
           }
-          // On success: isRedeemed becomes true + getRedemptionDetails returns QR — auto-updates
         },
       },
     ]);
@@ -82,7 +73,6 @@ export default function CouponDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
-      {/* Header */}
       <View style={[s.header, { backgroundColor: coupon.highlightColor }]}>
         <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={20} color="#fff" />
@@ -92,7 +82,6 @@ export default function CouponDetailScreen({ route, navigation }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero */}
         <View style={[s.hero, { backgroundColor: coupon.highlightColor }]}>
           <View style={[s.heroGlow, { backgroundColor: (coupon.gradient?.[1] ?? coupon.highlightColor), opacity: 0.4 }]} />
           <Text style={s.heroIcon}>{coupon.icon}</Text>
@@ -104,7 +93,6 @@ export default function CouponDetailScreen({ route, navigation }) {
         </View>
 
         <View style={s.body}>
-          {/* Status banners */}
           {isRedeemed ? (
             <View style={s.successBanner}>
               <Ionicons name="checkmark-circle" size={22} color={COLORS.success} />
@@ -136,7 +124,6 @@ export default function CouponDetailScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* QR code — shown after redemption, uses persisted code from DB */}
           {isRedeemed && qrCode ? (
             <View style={s.qrSection}>
               <QRCode code={qrCode} color={coupon.highlightColor} />
@@ -149,13 +136,11 @@ export default function CouponDetailScreen({ route, navigation }) {
             </View>
           ) : null}
 
-          {/* About */}
           <View style={s.infoCard}>
             <Text style={s.infoCardTitle}>Sobre este cupom</Text>
             <Text style={s.infoCardText}>{coupon.description}</Text>
           </View>
 
-          {/* Conditions */}
           <View style={s.infoCard}>
             <Text style={s.infoCardTitle}>Condições</Text>
             <Text style={s.infoCardText}>{coupon.conditions}</Text>
@@ -167,7 +152,6 @@ export default function CouponDetailScreen({ route, navigation }) {
             )}
           </View>
 
-          {/* Availability */}
           <View style={s.infoCard}>
             <Text style={s.infoCardTitle}>Disponibilidade</Text>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 10 }}>
@@ -182,7 +166,6 @@ export default function CouponDetailScreen({ route, navigation }) {
             )}
           </View>
 
-          {/* CTA */}
           {!isRedeemed && !isSoldOut && (
             <TouchableOpacity
               style={[

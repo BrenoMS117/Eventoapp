@@ -33,7 +33,6 @@ const D = {
   borderAccent: COLORS.primaryLight,
 };
 
-// Status de lotação mapeados para labels + níveis percentuais
 const CROWD_STATUS = [
   { key: 'tranquilo', label: 'Tranquilo', level: 15 },
   { key: 'moderado',  label: 'Moderado',  level: 45 },
@@ -48,9 +47,7 @@ const ANUNCIOS = [
   { icon: "⚠️", type: 'warning',    label: "Aviso",         title: "Aviso importante ⚠️",        msg: "Estamos quase lotados" },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Utilitários ─────────────────────────────────────────────────────────────
 
 function formatDate(iso) {
   if (!iso) return "—";
@@ -73,9 +70,7 @@ function formatStartLabel(startsAt) {
   return { label: isPast ? `Iniciando às ${time}…` : label, legacy: false, isPast };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CrowdGauge — painel de lotação com comparação histórica (lógica preservada)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── CrowdGauge ──────────────────────────────────────────────────────────────
 
 function CrowdGauge({ eventoAtivo, meusEventos }) {
   const level = eventoAtivo.crowdLevel ?? 0;
@@ -146,9 +141,7 @@ const cg = StyleSheet.create({
   avgLabel: { fontSize: 11, color: D.textSub },
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FeaturedRatingCard — percepção do público (lógica preservada)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── FeaturedRatingCard ──────────────────────────────────────────────────────
 
 function FeaturedRatingCard({ featured, totalVotes }) {
   if (!featured) {
@@ -192,9 +185,7 @@ const fr = StyleSheet.create({
   barFill: { height: '100%', borderRadius: 4 },
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// OwnerCard — card de perfil com modal de edição (usado em Empty/Inactive)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── OwnerCard ───────────────────────────────────────────────────────────────
 
 function OwnerCard({ currentUser, onLogout }) {
   const { updateProfile, updatePassword } = useApp();
@@ -269,9 +260,7 @@ function OwnerCard({ currentUser, onLogout }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ProfileHeader — header de perfil estilo Figma (usado no ActivePanel)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── ProfileHeader ───────────────────────────────────────────────────────────
 
 function ProfileHeader({ currentUser, onLogout }) {
   const { updateProfile, updatePassword } = useApp();
@@ -312,7 +301,6 @@ function ProfileHeader({ currentUser, onLogout }) {
     else setModalVisible(false);
   }
 
-  // Gera handle a partir do nome: "Ricardo Almeida" → "@ricardo_almeida"
   const handle = currentUser?.name
     ? '@' + currentUser.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
     : '@usuario';
@@ -320,18 +308,15 @@ function ProfileHeader({ currentUser, onLogout }) {
   return (
     <>
       <View style={nd.profileSection}>
-        {/* Avatar com borda */}
         <TouchableOpacity style={nd.avatarBorder} onPress={openModal} activeOpacity={0.8}>
           <View style={nd.avatarInner}>
             <Text style={nd.avatarText}>{currentUser?.avatar || "B"}</Text>
           </View>
         </TouchableOpacity>
-        {/* Nome + handle */}
         <View style={{ flex: 1 }}>
           <Text style={nd.profileName}>{currentUser?.name || "Estabelecimento"}</Text>
           <Text style={nd.profileHandle}>{handle}</Text>
         </View>
-        {/* Botão sair */}
         <TouchableOpacity style={nd.sairBtnNew} onPress={onLogout}>
           <Ionicons name="log-out-outline" size={14} color={D.primary} />
           <Text style={nd.sairTextNew}>Sair</Text>
@@ -353,9 +338,7 @@ function ProfileHeader({ currentUser, onLogout }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// EditProfileModal — modal de edição extraído para reuso
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── EditProfileModal ─────────────────────────────────────────────────────────
 
 function EditProfileModal({
   visible, onClose,
@@ -412,9 +395,7 @@ function EditProfileModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MetricCard — usado no InactivePanel (preservado)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── MetricCard ──────────────────────────────────────────────────────────────
 
 function MetricCard({ icon, label, valor, sub, cor }) {
   return (
@@ -427,9 +408,7 @@ function MetricCard({ icon, label, valor, sub, cor }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// InfoCard — card estilo Figma para as 3 métricas no ActivePanel
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── InfoCard ────────────────────────────────────────────────────────────────
 
 function InfoCard({ iconName, value, label, accentBorder }) {
   return (
@@ -441,9 +420,7 @@ function InfoCard({ iconName, value, label, accentBorder }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CouponRow — linha de cupom (preservada, novo estilo Figma)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── CouponRow ───────────────────────────────────────────────────────────────
 
 function CouponRow({ c, onPress }) {
   return (
@@ -463,9 +440,7 @@ function CouponRow({ c, onPress }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STATE 1 — EmptyState
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── EmptyState ──────────────────────────────────────────────────────────────
 
 function EmptyState({ currentUser, onLogout, onCreateEvent }) {
   return (
@@ -497,9 +472,7 @@ function EmptyState({ currentUser, onLogout, onCreateEvent }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STATE 2 — InactivePanel
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── InactivePanel ───────────────────────────────────────────────────────────
 
 function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreateEvent, navigation }) {
   const ultimoEvento = meusEventos[0];
@@ -610,9 +583,7 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STATE 3 — ActivePanel — design Figma aplicado
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── ActivePanel ─────────────────────────────────────────────────────────────
 
 function ActivePanel({
   currentUser, eventoAtivo, businessStats, cuponsDoAtivo, meusEventos,
@@ -634,7 +605,6 @@ function ActivePanel({
   const [novoHorarioFim, setNovoHorarioFim] = useState("");
   const [salvando, setSalvando]             = useState(false);
   const [settingCrowd, setSettingCrowd]     = useState(false);
-  /** type do anúncio sendo enviado, ou null se nenhum envio em curso */
   const [sendingAnuncio, setSendingAnuncio] = useState(null);
 
   async function handleSalvarCampos() {
@@ -674,12 +644,11 @@ function ActivePanel({
   }
 
   async function handleAnuncio(a) {
-    if (sendingAnuncio) return; // evita envios duplos
+    if (sendingAnuncio) return;
     setSendingAnuncio(a.type);
     const { error } = await sendAnnouncement(eventoAtivo.id, {
       type:  a.type,
       title: a.title,
-      // Inclui o nome do evento no corpo para que o usuário saiba de qual evento vem
       body:  `${eventoAtivo.name}: ${a.msg}`,
       icon:  a.icon,
     });
@@ -691,7 +660,6 @@ function ActivePanel({
     }
   }
 
-  // Detecta qual botão de status está ativo comparando o label atual
   const currentCrowdKey = CROWD_STATUS.find(
     cs => cs.label.toLowerCase() === (eventoAtivo.crowdLabel ?? '').toLowerCase()
   )?.key ?? null;
@@ -723,15 +691,12 @@ function ActivePanel({
         {/* ── Perfil ────────────────────────────────────────────────────── */}
         <ProfileHeader currentUser={currentUser} onLogout={onLogout} />
 
-        {/* ── Venue Area ────────────────────────────────────────────────── */}
+        {/* ── Área do Evento ── */}
         <View style={nd.venueCard}>
-          {/* Foto de capa como background */}
           {coverPhoto ? (
             <Image source={{ uri: coverPhoto }} style={nd.venueBgImage} resizeMode="cover" />
           ) : null}
-          {/* Overlay escuro degradê */}
           <View style={nd.venueOverlay} />
-          {/* Conteúdo */}
           <View style={nd.venueContent}>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={nd.venueName} numberOfLines={2}>{eventoAtivo.name}</Text>
@@ -761,7 +726,7 @@ function ActivePanel({
           </View>
         )}
 
-        {/* ── Info Cards (3 métricas) ───────────────────────────────────── */}
+        {/* ── Métricas ── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={nd.infoCardsScroll} contentContainerStyle={nd.infoCardsContent}>
           <InfoCard
             iconName="people"
@@ -785,10 +750,7 @@ function ActivePanel({
         <View style={nd.section}>
           <Text style={nd.sectionTitle}>Status de Lotação</Text>
 
-          {/* Gauge histórico */}
           <CrowdGauge eventoAtivo={eventoAtivo} meusEventos={meusEventos} />
-
-          {/* Botões de status manual (Figma) */}
           <View style={nd.crowdGrid}>
             {CROWD_STATUS.map((cs) => {
               const isActive = cs.key === currentCrowdKey;
@@ -947,9 +909,8 @@ function ActivePanel({
           </View>
         )}
 
-        {/* ── Promo Card (Figma: "Alcance mais pessoas") ───────────────── */}
+        {/* ── Card Promocional ── */}
         <View style={nd.promoCard}>
-          {/* Simulação do gradiente com dois layers */}
           <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#1a0a10', borderRadius: 16 }]} />
           <View style={[StyleSheet.absoluteFillObject, { backgroundColor: D.primary, opacity: 0.18, borderRadius: 16 }]} />
           <View style={nd.promoContent}>
@@ -967,9 +928,7 @@ function ActivePanel({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BusinessPanelScreen — State Machine Coordinator (lógica preservada)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── BusinessPanelScreen ─────────────────────────────────────────────────────
 
 export default function BusinessPanelScreen({ navigation }) {
   const {
@@ -1028,9 +987,7 @@ export default function BusinessPanelScreen({ navigation }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Styles — compartilhados (EmptyState / InactivePanel)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Estilos compartilhados ────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
@@ -1082,13 +1039,11 @@ const s = StyleSheet.create({
   impulsionarBtnTexto: { color: "#fff", fontWeight: "800", fontSize: 13 },
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// nd — New Design styles (ActivePanel / Figma)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Estilos do painel ativo ───────────────────────────────────────────────────
 const nd = StyleSheet.create({
   safe: { flex: 1, backgroundColor: D.bg },
 
-  // TopAppBar
+  // ── Barra superior ──
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: D.bg, borderBottomWidth: 0.5, borderBottomColor: D.border },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   logoText: { fontSize: 22, fontWeight: '800', color: D.primary },
@@ -1097,7 +1052,7 @@ const nd = StyleSheet.create({
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ade80' },
   liveChipText: { fontSize: 12, color: D.text, fontWeight: '600' },
 
-  // Profile Section
+  // ── Seção de perfil ──
   profileSection: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 20 },
   avatarBorder: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: D.primary + '88', padding: 2, justifyContent: 'center', alignItems: 'center' },
   avatarInner: { width: 48, height: 48, borderRadius: 24, backgroundColor: D.card, justifyContent: 'center', alignItems: 'center' },
@@ -1107,7 +1062,7 @@ const nd = StyleSheet.create({
   sairBtnNew: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 0.5, borderColor: D.primary + '55' },
   sairTextNew: { fontSize: 13, fontWeight: '600', color: D.primary },
 
-  // Venue Card
+  // ── Card do evento ──
   venueCard: { marginHorizontal: 16, marginBottom: 16, borderRadius: 12, overflow: 'hidden', backgroundColor: D.card, borderWidth: 0.5, borderColor: D.border, minHeight: 140 },
   venueBgImage: { ...StyleSheet.absoluteFillObject },
   venueOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(13,10,20,0.72)' },
@@ -1117,33 +1072,33 @@ const nd = StyleSheet.create({
   addPhotosBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 10, gap: 4, alignItems: 'center', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.3)', marginLeft: 12 },
   addPhotosBtnText: { fontSize: 10, color: '#fff', fontWeight: '600', textAlign: 'center', lineHeight: 14 },
 
-  // Fotos
+  // ── Fotos ──
   fotosSection: { backgroundColor: D.card, marginHorizontal: 16, marginBottom: 16, borderRadius: 12, padding: 16, borderWidth: 0.5, borderColor: D.border },
   fotosTitle: { fontSize: 14, fontWeight: '700', color: D.text, marginBottom: 4 },
   fotosSub: { fontSize: 12, color: D.textSub, marginBottom: 12 },
 
-  // Info Cards
+  // ── Métricas ──
   infoCardsScroll: { marginBottom: 4 },
   infoCardsContent: { paddingHorizontal: 16, gap: 12 },
   infoCard: { width: 160, backgroundColor: D.card, borderRadius: 12, padding: 20, borderWidth: 0.5, borderColor: D.border, gap: 10 },
   infoCardValue: { fontSize: 24, fontWeight: '700', color: D.text },
   infoCardLabel: { fontSize: 12, fontWeight: '500', color: D.primary, lineHeight: 16 },
 
-  // Section
+  // ── Seção ──
   section: { paddingHorizontal: 16, marginBottom: 24 },
   sectionTitle: { fontSize: 22, fontWeight: '600', color: D.text, marginBottom: 4 },
   sectionSub:   { fontSize: 12, color: D.textSub, marginBottom: 14 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   linkBtn: { fontSize: 14, fontWeight: '700', color: D.primary },
 
-  // Crowd status grid
+  // ── Grade de lotação ──
   crowdGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
   crowdBtn: { flex: 1, minWidth: '44%', backgroundColor: D.bg, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center', borderWidth: 0.5, borderColor: D.border },
   crowdBtnActive: { backgroundColor: D.card2, borderColor: D.borderAccent },
   crowdBtnText: { fontSize: 14, fontWeight: '600', color: D.textSub },
   crowdBtnTextActive: { fontWeight: '700', color: D.primary },
 
-  // Edit campos
+  // ── Campos de edição ──
   editCampo: { backgroundColor: D.card2, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: D.border },
   editLabel: { fontSize: 11, fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   editAtual: { fontSize: 12, color: D.textSub, marginBottom: 10 },
@@ -1153,13 +1108,13 @@ const nd = StyleSheet.create({
   encerrarBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: D.primary + '18', borderRadius: 12, paddingVertical: 12, borderWidth: 1, borderColor: D.primary + '55' },
   encerrarBtnText: { color: D.primary, fontWeight: '700', fontSize: 14 },
 
-  // Notificações
+  // ── Notificações ──
   notifCard: { flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: D.card, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: D.border },
   notifIconBg: { width: 36, height: 36, borderRadius: 8, backgroundColor: D.primaryLight + '33', justifyContent: 'center', alignItems: 'center' },
   notifTitle: { fontSize: 15, fontWeight: '700', color: D.text, marginBottom: 2 },
   notifMsg: { fontSize: 12, color: D.textSub, lineHeight: 17 },
 
-  // Cupons
+  // ── Cupons ──
   couponRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: D.card2, borderRadius: 12, padding: 16, marginBottom: 10, borderWidth: 0.5, borderColor: D.border },
   couponIconWrap: { width: 36, height: 36, borderRadius: 8, backgroundColor: D.primary + '22', justifyContent: 'center', alignItems: 'center' },
   couponTitle: { fontSize: 14, fontWeight: '700', color: D.text, marginBottom: 4 },
@@ -1170,14 +1125,14 @@ const nd = StyleSheet.create({
   vazioTitle: { fontSize: 15, fontWeight: '700', color: D.text, marginBottom: 4 },
   vazioSub: { fontSize: 13, color: D.textSub, textAlign: 'center' },
 
-  // Reviews
+  // ── Avaliações ──
   reviewCard: { backgroundColor: D.card, borderRadius: 12, padding: 16, marginBottom: 10, borderWidth: 0.5, borderColor: D.border, gap: 10 },
   reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   reviewUser: { fontSize: 15, fontWeight: '700', color: D.text },
   reviewRating: { fontSize: 14, fontWeight: '600', color: D.primary },
   reviewText: { fontSize: 14, color: D.textSub, lineHeight: 20, fontStyle: 'italic' },
 
-  // Promo card
+  // ── Card promocional ──
   promoCard: { marginHorizontal: 16, marginBottom: 8, borderRadius: 16, overflow: 'hidden', minHeight: 180, borderWidth: 0.5, borderColor: D.primary + '44' },
   promoContent: { padding: 28, gap: 12 },
   promoTitle: { fontSize: 28, fontWeight: '700', color: '#fff', lineHeight: 34 },
@@ -1186,7 +1141,7 @@ const nd = StyleSheet.create({
   promoBtnText: { fontSize: 14, fontWeight: '700', color: D.primary },
 });
 
-// ─── Estilos do modal de perfil ───────────────────────────────────────────────
+// ── Estilos do modal de perfil ────────────────────────────────────────────────
 const bp = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
   sheet: { backgroundColor: COLORS.bgCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36, ...SHADOW.md },

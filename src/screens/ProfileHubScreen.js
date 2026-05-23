@@ -1,12 +1,3 @@
-/**
- * ProfileHubScreen
- *
- * Full-screen modal with two tabs:
- *   1. Perfil    — edit name, avatar initials, venue name (business), password
- *   2. Notificações — 24h history + push preference toggles
- *
- * Opened by the bell icon in ExploreScreen header.
- */
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -30,9 +21,7 @@ import { useNotificationPreferences } from '../hooks/useNotificationPreferences'
 import { PREFS_META } from '../services/notifications/NotificationPreferencesService';
 import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Utilitários
 const PRIORITY_COLOR = {
   high:   COLORS.danger,
   normal: COLORS.primary,
@@ -47,9 +36,7 @@ function relativeTime(date) {
   return `${Math.floor(diff / 3600)}h atrás`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-component: single notification row
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── NotifRow
 function NotifRow({ notif, onRead }) {
   return (
     <TouchableOpacity
@@ -72,9 +59,7 @@ function NotifRow({ notif, onRead }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tab: Notificações
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── NotificacoesTab
 function NotificacoesTab() {
   const { currentUser } = useApp();
   const { notifications, unreadCount, markRead, markAllRead, clearAll } = useNotifications();
@@ -83,14 +68,13 @@ function NotificacoesTab() {
   const role    = currentUser?.role ?? 'user';
   const metaList = PREFS_META[role] ?? [];
 
-  // Last 24h
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   const recent = notifications.filter((n) => new Date(n.createdAt).getTime() >= cutoff);
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
-      {/* ── History ────────────────────────────────────────────── */}
+      {/* ── Histórico ── */}
       <View style={h.section}>
         <View style={h.sectionHeader}>
           <View style={{ flex: 1 }}>
@@ -130,7 +114,7 @@ function NotificacoesTab() {
         )}
       </View>
 
-      {/* ── Preferences ────────────────────────────────────────── */}
+      {/* ── Preferências ── */}
       <View style={h.section}>
         <Text style={h.sectionTitle}>Preferências de Push</Text>
         <Text style={h.sectionSub}>Escolha quais alertas deseja receber no celular</Text>
@@ -158,9 +142,7 @@ function NotificacoesTab() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tab: Perfil
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── PerfilTab
 function PerfilTab() {
   const { currentUser, updateProfile, updatePassword } = useApp();
   const isBusiness = currentUser?.role === 'business';
@@ -219,7 +201,6 @@ function PerfilTab() {
     >
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
-        {/* Avatar preview */}
         <View style={p.avatarWrap}>
           <View style={p.avatar}>
             <Text style={p.avatarText}>
@@ -309,7 +290,6 @@ function PerfilTab() {
           </View>
         </View>
 
-        {/* ── Save ────────────────────────────────────────────────── */}
         <View style={{ paddingHorizontal: 16 }}>
           <TouchableOpacity
             style={[p.saveBtn, saving && { opacity: 0.6 }]}
@@ -327,15 +307,12 @@ function PerfilTab() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ProfileHubScreen — main export
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── ProfileHubScreen
 export default function ProfileHubScreen({ visible, onClose }) {
   const { currentUser } = useApp();
   const { unreadCount } = useNotifications();
   const [activeTab, setActiveTab] = useState('perfil');
 
-  // Reset tab on every open
   const handleClose = useCallback(() => {
     setActiveTab('perfil');
     onClose();
@@ -371,7 +348,7 @@ export default function ProfileHubScreen({ visible, onClose }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── Tab pills ─────────────────────────────────────────── */}
+        {/* ── Abas ── */}
         <View style={hub.tabBar}>
           {TABS.map((tab) => {
             const active = activeTab === tab.key;
@@ -402,7 +379,7 @@ export default function ProfileHubScreen({ visible, onClose }) {
           })}
         </View>
 
-        {/* ── Tab content ───────────────────────────────────────── */}
+        {/* ── Conteúdo ── */}
         <View style={{ flex: 1 }}>
           {activeTab === 'perfil'       && <PerfilTab />}
           {activeTab === 'notificacoes' && <NotificacoesTab />}
@@ -413,9 +390,7 @@ export default function ProfileHubScreen({ visible, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Estilos
 
 const hub = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
@@ -466,7 +441,7 @@ const hub = StyleSheet.create({
   tabBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
 });
 
-// ── Notificações tab styles ───────────────────────────────────────────────────
+// ── Estilos da aba notificações
 const h = StyleSheet.create({
   section: {
     paddingHorizontal: 16, paddingTop: 20,
@@ -526,7 +501,7 @@ const h = StyleSheet.create({
   prefLabel: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.text },
 });
 
-// ── Perfil tab styles ─────────────────────────────────────────────────────────
+// ── Estilos da aba perfil
 const p = StyleSheet.create({
   avatarWrap: {
     alignItems: 'center', paddingTop: 24, paddingBottom: 8,

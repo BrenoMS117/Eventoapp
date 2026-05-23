@@ -6,9 +6,6 @@ export const couponsService = {
     const { data, error } = await supabase
       .from('coupons')
       .select('*')
-      // Exclude coupons whose expires_at is already in the past.
-      // This covers both naturally-timed coupons and coupons closed
-      // by closeByEvent() when the owner ends the event.
       .or(`expires_at.is.null,expires_at.gt.${now}`)
       .order('created_at', { ascending: false });
     if (error) return { data: null, error };
@@ -88,14 +85,6 @@ export const couponsService = {
     return { error };
   },
 
-  /**
-   * Marks all coupons of an event as expired (sets expires_at = NOW()).
-   * Called automatically when the owner closes an event so no new
-   * redemptions are possible from that point on.
-   *
-   * @param {string} eventId  UUID of the event being closed.
-   * @returns {Promise<{ error: any }>}
-   */
   async closeByEvent(eventId) {
     const now = new Date().toISOString();
     const { error } = await supabase
@@ -105,11 +94,6 @@ export const couponsService = {
     return { error };
   },
 
-  /**
-   * Expira cupons de múltiplos eventos em uma única query (batch).
-   * Substitui N chamadas sequenciais — elimina N+1 no autoManageEvents.
-   * @param {string[]} eventIds
-   */
   async closeByEventsBatch(eventIds) {
     if (!eventIds?.length) return { error: null };
     const now = new Date().toISOString();
@@ -137,7 +121,7 @@ function _mapCoupon(d) {
     totalQty: d.total_qty,
     remainingQty: d.remaining_qty,
     isNearby: d.is_nearby ?? false,
-    isRedeemed: false, // computed from redemptions
+    isRedeemed: false,
     gradient: d.gradient ?? ['#1D9E75', '#085041'],
     highlightColor: d.highlight_color ?? '#0D9E75',
     redemptionRules: d.redemption_rules ?? null,

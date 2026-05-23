@@ -25,7 +25,7 @@ const CARD_W   = width * 0.60;
 const CARD_H   = 200;
 const LIVE_W   = width * 0.50;
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── Utilitários ─────────────────────────────────────────────────────────────
 
 const CATEGORY_ICON = {
   rave:     'musical-notes',
@@ -68,7 +68,6 @@ function LiveBadge() {
 }
 
 // ─── HeroCard ────────────────────────────────────────────────────────────────
-// Large featured card for the nearest / most relevant event.
 
 function HeroCard({ event, distanceKm, onPress }) {
   const bgColor = Array.isArray(event.gradient) ? event.gradient[0] : COLORS.bgElevated;
@@ -76,17 +75,14 @@ function HeroCard({ event, distanceKm, onPress }) {
 
   return (
     <TouchableOpacity style={s.heroCard} onPress={onPress} activeOpacity={0.92}>
-      {/* Background: photo or gradient */}
       {event.coverPhoto ? (
         <Image source={{ uri: event.coverPhoto }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       ) : (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: bgColor }]} />
       )}
 
-      {/* Dark overlay */}
       <View style={s.heroOverlay} />
 
-      {/* Content */}
       <View style={s.heroContent}>
         <View style={s.heroTopRow}>
           {event.isLive && <LiveBadge />}
@@ -129,7 +125,6 @@ function HeroCard({ event, distanceKm, onPress }) {
 }
 
 // ─── CarouselCard ─────────────────────────────────────────────────────────────
-// Compact card for the horizontal carousel.
 
 function CarouselCard({ event, distanceKm, onPress }) {
   const bgColor = Array.isArray(event.gradient) ? event.gradient[0] : COLORS.bgElevated;
@@ -137,7 +132,6 @@ function CarouselCard({ event, distanceKm, onPress }) {
 
   return (
     <TouchableOpacity style={s.carCard} onPress={onPress} activeOpacity={0.88}>
-      {/* Background */}
       {event.coverPhoto ? (
         <Image source={{ uri: event.coverPhoto }} style={s.carImage} resizeMode="cover" />
       ) : (
@@ -146,10 +140,8 @@ function CarouselCard({ event, distanceKm, onPress }) {
         </View>
       )}
 
-      {/* Overlay */}
       <View style={s.carOverlay} />
 
-      {/* Badges row */}
       <View style={s.carBadgeRow}>
         {event.isLive && <LiveBadge />}
         {dist && (
@@ -160,7 +152,6 @@ function CarouselCard({ event, distanceKm, onPress }) {
         )}
       </View>
 
-      {/* Info */}
       <View style={s.carInfo}>
         <Text style={s.carName} numberOfLines={2}>{event.name}</Text>
         <Text style={s.carVenue} numberOfLines={1}>{event.venue}</Text>
@@ -176,7 +167,6 @@ function CarouselCard({ event, distanceKm, onPress }) {
 }
 
 // ─── LiveEventRow ─────────────────────────────────────────────────────────────
-// Compact horizontal row card for "Ao vivo agora" section.
 
 function LiveEventRow({ event, distanceKm, onPress }) {
   const bgColor = Array.isArray(event.gradient) ? event.gradient[0] : COLORS.bgElevated;
@@ -275,14 +265,13 @@ export default function HomeScreen({ navigation }) {
     }
   }
 
-  // Carousel excludes the hero to avoid repetition
   const carouselEvents = heroEvent
     ? nearbyEvents.filter((e) => e.id !== heroEvent.id)
     : nearbyEvents;
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
-      {/* ── Header ── */}
+      {/* ── Cabeçalho ── */}
       <View style={s.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center' }}>
@@ -291,7 +280,6 @@ export default function HomeScreen({ navigation }) {
           </View>
           <Text style={s.greeting}>Olá, {firstName}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            {/* Sino de notificações */}
             <TouchableOpacity style={s.iconBtn} onPress={() => setNotifVisible(true)}>
               <Ionicons name="notifications-outline" size={22} color={COLORS.text} />
               {unreadCount > 0 && (
@@ -302,7 +290,6 @@ export default function HomeScreen({ navigation }) {
                 </View>
               )}
             </TouchableOpacity>
-            {/* Search */}
             <TouchableOpacity style={s.iconBtn} onPress={goToExplore}>
               <Ionicons name="search-outline" size={22} color={COLORS.text} />
             </TouchableOpacity>
@@ -312,7 +299,7 @@ export default function HomeScreen({ navigation }) {
 
       <NotificationsModal visible={notifVisible} onClose={() => setNotifVisible(false)} />
 
-      {/* ── GPS status bar ── */}
+      {/* ── Barra de status GPS ── */}
       <View style={s.geoBar}>
         <Ionicons
           name={hasCoords ? 'navigate-circle' : 'navigate-circle-outline'}
@@ -329,7 +316,7 @@ export default function HomeScreen({ navigation }) {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
-        {/* ── Hero ── */}
+        {/* ── Destaque ── */}
         {heroEvent ? (
           <View style={{ paddingHorizontal: 16, marginTop: 12, marginBottom: 8 }}>
             <SectionHeader
@@ -348,7 +335,7 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* ── Carousel: Próximos de você ── */}
+        {/* ── Próximos de você ── */}
         {(carouselEvents.length > 0 || nearbyEvents.length > 0) && (
           <View style={{ marginTop: 16 }}>
             <View style={{ paddingHorizontal: 16 }}>
@@ -411,13 +398,10 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Estilos ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -437,7 +421,6 @@ const s = StyleSheet.create({
   },
   notifBadgeText: { fontSize: 9, fontWeight: '800', color: '#fff' },
 
-  // GPS bar
   geoBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -454,7 +437,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.textMuted,
   },
 
-  // Section header
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -465,7 +447,6 @@ const s = StyleSheet.create({
   moreBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   moreBtnText: { fontSize: 12, color: COLORS.primary, fontWeight: '600' },
 
-  // Live badge
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -478,7 +459,7 @@ const s = StyleSheet.create({
   liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#fff' },
   liveText: { fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
 
-  // ── Hero card ──
+  // ── Card de destaque ──
   heroCard: {
     height: HERO_H,
     borderRadius: RADIUS.xl,
@@ -550,7 +531,7 @@ const s = StyleSheet.create({
   },
   heroBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
-  // ── Carousel card ──
+  // ── Card do carrossel ──
   carCard: {
     width: CARD_W,
     height: CARD_H,
@@ -594,7 +575,7 @@ const s = StyleSheet.create({
   carVenue: { fontSize: 11, color: 'rgba(255,255,255,0.7)' },
   carTime: { fontSize: 10, color: COLORS.textMuted },
 
-  // ── Live card row ──
+  // ── Linha de evento ao vivo ──
   liveCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -613,7 +594,7 @@ const s = StyleSheet.create({
   liveCardVenue: { fontSize: 11, color: COLORS.textSub },
   liveCardDist: { fontSize: 11, color: COLORS.primary, fontWeight: '600' },
 
-  // ── Empty state ──
+  // ── Estado vazio ──
   emptyCard: {
     alignItems: 'center',
     padding: 32,
@@ -625,7 +606,7 @@ const s = StyleSheet.create({
   emptyTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
   emptySub: { fontSize: 12, color: COLORS.textSub, textAlign: 'center', lineHeight: 18 },
 
-  // ── Explore all button ──
+  // ── Botão explorar todos ──
   exploreAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -31,9 +31,7 @@ const TIPOS_POST = [
   { key: "acessibilidade", label: "Acesso",   icon: "♿" },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PostDetailModal — view expandida com like/dislike e TTL
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── PostDetailModal ──────────────────────────────────────────────────────────
 function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLeft }) {
   if (!post) return null;
   const timeLeft = getTimeLeft(post);
@@ -48,10 +46,8 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
     >
       <View style={s.modalOverlay}>
         <View style={s.modalCard}>
-          {/* Handle bar */}
           <View style={s.modalHandle} />
 
-          {/* Header */}
           <View style={s.modalHeader}>
             <View style={[s.modalAvatar, { backgroundColor: post.user.color }]}>
               <Text style={[s.modalAvatarTexto, { color: post.user.textColor }]}>
@@ -74,7 +70,6 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Foto */}
             {post.photos?.length > 0 && (
               <Image
                 source={{ uri: post.photos[0] }}
@@ -83,7 +78,6 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
               />
             )}
 
-            {/* Tipo + texto */}
             <View style={s.modalCorpo}>
               {post.tag && (
                 <View style={s.modalTagChip}>
@@ -94,7 +88,6 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
                 <Text style={s.modalTexto}>{post.text}</Text>
               ) : null}
 
-              {/* Metadados */}
               <View style={s.modalMeta}>
                 <Text style={s.modalTempo}>{post.time}</Text>
                 {timeLeft && (
@@ -105,7 +98,6 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
                 )}
               </View>
 
-              {/* Like / Dislike */}
               <View style={s.modalAcoes}>
                 <TouchableOpacity
                   style={s.modalAcaoBtn}
@@ -143,9 +135,7 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PostCard — card compacto no grid
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── PostCard ─────────────────────────────────────────────────────────────────
 function PostCard({ post, onPress, onLike, onDislike }) {
   const temFotos = post.photos?.length > 0;
   return (
@@ -206,9 +196,7 @@ function PostCard({ post, onPress, onLike, onDislike }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AtEventBanner — faixa que mostra em qual evento o usuário está
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── AtEventBanner ───────────────────────────────────────────────────────────
 function AtEventBanner({ event }) {
   if (!event) return null;
   return (
@@ -222,9 +210,7 @@ function AtEventBanner({ event }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FeedScreen principal
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── FeedScreen ───────────────────────────────────────────────────────────────
 export default function FeedScreen() {
   const { events, nearbyEventIds, logout } = useApp();
   const { posts, currentEvent, contextLabel, canPost, submitPost, likePost, dislikePost, getTimeLeft, loadMore, hasMore, loadingMore } = useFeed();
@@ -291,7 +277,6 @@ export default function FeedScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Header */}
       <View style={s.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Ionicons name="pulse" size={18} color={COLORS.primary} />
@@ -311,13 +296,11 @@ export default function FeedScreen() {
         </View>
       </View>
 
-      {/* Faixa "você está em..." */}
       <AtEventBanner event={currentEvent} />
 
-      {/* Compositor */}
+      {/* ── Compositor ── */}
       {compondo && canPost && (
         <View style={s.compositor}>
-          {/* Erro de geofence */}
           {erroGeo ? (
             <View style={s.erroGeoCard}>
               <Ionicons name="location-outline" size={16} color={COLORS.danger} />
@@ -409,7 +392,7 @@ export default function FeedScreen() {
         </View>
       )}
 
-      {/* Feed — FlatList com infinite scroll */}
+      {/* ── Feed ── */}
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
@@ -420,14 +403,12 @@ export default function FeedScreen() {
         contentContainerStyle={s.postsContent}
         onEndReached={loadMore}
         onEndReachedThreshold={0.4}
-        // Label de contexto geográfico como cabeçalho da lista
         ListHeaderComponent={
           <View style={s.contextBar}>
             <Ionicons name="navigate-circle-outline" size={14} color={COLORS.primary} />
             <Text style={s.contextLabel}>{contextLabel}</Text>
           </View>
         }
-        // Estado vazio
         ListEmptyComponent={
           <View style={s.vazioCard}>
             <Text style={{ fontSize: 40, marginBottom: 10 }}>📍</Text>
@@ -439,7 +420,6 @@ export default function FeedScreen() {
             </Text>
           </View>
         }
-        // Rodapé: spinner de carregamento ou marcador de fim do feed
         ListFooterComponent={
           loadingMore
             ? <ActivityIndicator size="small" color={COLORS.primary} style={s.loadingMore} />
@@ -459,7 +439,7 @@ export default function FeedScreen() {
         )}
       />
 
-      {/* Modal de detalhes */}
+      {/* ── Modal de detalhes ── */}
       <PostDetailModal
         post={selectedPost}
         visible={!!selectedPost}
@@ -472,9 +452,7 @@ export default function FeedScreen() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Estilos ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
 
@@ -497,7 +475,7 @@ const s = StyleSheet.create({
   },
   publicarBtnTexto: { fontSize: 13, color: "#fff", fontWeight: "700" },
 
-  // At-event banner
+  // ── Faixa de evento ──
   atEventBanner: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: COLORS.primary + "18",
@@ -509,14 +487,14 @@ const s = StyleSheet.create({
   },
   atEventTexto: { fontSize: 12, color: COLORS.text },
 
-  // Context bar
+  // ── Barra de contexto ──
   contextBar: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 16, paddingVertical: 8,
   },
   contextLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: "600" },
 
-  // Compositor
+  // ── Compositor ──
   compositor: {
     backgroundColor: COLORS.bgCard, padding: 14,
     borderBottomWidth: 0.5, borderBottomColor: COLORS.border,
@@ -563,19 +541,19 @@ const s = StyleSheet.create({
     paddingVertical: 9, borderRadius: RADIUS.md,
   },
 
-  // Grid (FlatList numColumns={2})
+  // ── Grade ──
   postsContent: { paddingBottom: 32 },
-  postsRow: { paddingHorizontal: 16, gap: 14 },   // columnWrapperStyle: espaço entre colunas
-  postWrapper: { flex: 1 },                         // ocupa metade da largura disponível
+  postsRow: { paddingHorizontal: 16, gap: 14 },
+  postWrapper: { flex: 1 },
 
-  // Infinite scroll
+  // ── Carregamento infinito ──
   loadingMore: { marginVertical: 20 },
   fimFeed: {
     textAlign: 'center', fontSize: 12, color: COLORS.textMuted,
     marginVertical: 20, paddingHorizontal: 16,
   },
 
-  // PostCard
+  // ── PostCard ──
   postCard: {
     backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,
     overflow: "hidden", borderWidth: 0.5, borderColor: COLORS.border, ...SHADOW.sm,
@@ -598,14 +576,14 @@ const s = StyleSheet.create({
   },
   acaoCount: { fontSize: 11, color: COLORS.textMuted, fontWeight: "600" },
 
-  // Vazio
+  // ── Estado vazio ──
   vazioCard: {
     alignItems: "center", padding: 40, marginTop: 20,
   },
   vazioTitulo: { fontSize: 16, fontWeight: "700", color: COLORS.text, marginBottom: 8 },
   vazioSub: { fontSize: 13, color: COLORS.textSub, textAlign: "center", lineHeight: 19 },
 
-  // PostDetailModal
+  // ── PostDetailModal ──
   modalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end",
   },

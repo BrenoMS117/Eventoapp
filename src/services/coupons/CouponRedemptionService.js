@@ -1,73 +1,40 @@
 import { supabase } from '../../lib/supabase';
 
-// ── Configuration ────────────────────────────────────────────────────────────
+// ── Configuração ──────────────────────────────────────────────────────────────
 export const REDEMPTION_CONFIG = {
-  RATE_LIMIT_PER_24H: 5,    // max redeems per user in any rolling 24 h window
-  GEOFENCE_RADIUS_M:  150,  // must match GeoProfiles.user.geofenceRadiusM
+  RATE_LIMIT_PER_24H: 5,
+  GEOFENCE_RADIUS_M:  150,
 };
 
-// ── QR code generation ────────────────────────────────────────────────────────
+// ── Geração de QR code ────────────────────────────────────────────────────────
 function _generateQrCode() {
   const ts  = Date.now().toString(36).toUpperCase().slice(-6);
   const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `LV-${ts}-${rnd}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CouponRedemptionService
-//
-// Single source of truth for all coupon redemption logic.
-// Decoupled from React — owns no state, no hooks, no components.
-//
-// Integration points:
-//   • validate(couponId, userId)           → pre-flight checks (DB level)
-//   • redeem(couponId, userId)             → write redemption + Observer triggers stock decrement
-//   • getUserRedemptions(userId)           → full list with QR codes
-//   • getRedemptionForCoupon(userId, couponId) → single QR for display
-//   • getCouponRedemptionCount(couponId)   → for owner conversion metrics
-//
-// DB migration required:
-//   ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS redeemed_at TIMESTAMPTZ DEFAULT NOW();
-//   ALTER TABLE redemptions ADD COLUMN IF NOT EXISTS qr_code TEXT;
-//   CREATE INDEX IF NOT EXISTS idx_redemptions_user ON redemptions(user_id);
-//   CREATE INDEX IF NOT EXISTS idx_redemptions_user_time ON redemptions(user_id, redeemed_at);
-// ─────────────────────────────────────────────────────────────────────────────
+// ── CouponRedemptionService ───────────────────────────────────────────────────
 
 class CouponRedemptionService {
-  // ── Validation Pipeline ───────────────────────────────────────────────────
 
-  /**
-   * Runs all DB-level pre-redemption validations in a single round-trip batch.
-   * Caller is responsible for local geo check (userCoords) before calling this.
-   *
-   * Checks (in order):
-   *   1. Duplicate: user already redeemed this coupon
-   *   2. Rate limit: ≤ RATE_LIMIT_PER_24H redeems in the last 24 h
-   *   3. Stock: remaining_qty > 0
-   *
-   * @param {string} couponId
-   * @param {string} userId
-   * @returns {Promise<{ allowed: boolean, reason?: string }>}
-   */
+  // ── Validação ─────────────────────────────────────────────────────────────
+
   async validate(couponId, userId) {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const [userCouponRes, rateRes, stockRes] = await Promise.all([
-      // 1. How many times has this user redeemed this specific coupon?
       supabase
         .from('redemptions')
         .select('*', { count: 'exact', head: true })
         .eq('coupon_id', couponId)
         .eq('user_id', userId),
 
-      // 2. How many total redeems by this user in the last 24 h? (system-wide rate limit)
       supabase
         .from('redemptions')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
         .gte('redeemed_at', since),
 
-      // 3. Current stock + owner-defined per-user limit from redemption_rules
       supabase
         .from('coupons')
         .select('remaining_qty, redemption_rules')
@@ -75,8 +42,6 @@ class CouponRedemptionService {
         .single(),
     ]);
 
-    // Per-user limit: owner can set maxPerUser in redemption_rules (default: 1).
-    // Check before the system-wide rate limit so the error message is more specific.
     const maxPerUser = stockRes.data?.redemption_rules?.maxPerUser ?? 1;
     const userRedeemCount = userCouponRes.count ?? 0;
     if (userRedeemCount >= maxPerUser) {
@@ -88,7 +53,6 @@ class CouponRedemptionService {
       };
     }
 
-    // System-wide 24 h rate limit across all coupons
     if ((rateRes.count ?? 0) >= REDEMPTION_CONFIG.RATE_LIMIT_PER_24H) {
       return {
         allowed: false,
@@ -103,27 +67,13 @@ class CouponRedemptionService {
     return { allowed: true };
   }
 
-  // ── Command ───────────────────────────────────────────────────────────────
+  // ── Comando ───────────────────────────────────────────────────────────────
 
-  /**
-   * Atomically writes a redemption record, then triggers stock decrement
-   * via the Observer callback _onRedemptionCreated.
-   *
-   * Always call validate() before this method.
-   *
-   * @param {string} couponId
-   * @param {string} userId
-   * @returns {Promise<{ success: boolean, qrCode?: string, redeemedAt?: string, error?: string }>}
-   */
   async redeem(couponId, userId) {
     let data  = null;
     let error = null;
-    let remaining = 3; // tentativas em caso de colisão de QR code
+    let remaining = 3;
 
-    // Loop de retry: gera novo QR code se houver violação de unicidade (23505).
-    // Requer SQL: ALTER TABLE redemptions ADD CONSTRAINT redemptions_qr_code_unique UNIQUE (qr_code);
-    // Mesmo sem o constraint, o retry é seguro e prepara o código para quando
-    // o constraint for aplicado no banco.
     while (remaining-- > 0) {
       const qrCode = _generateQrCode();
       ({ data, error } = await supabase
@@ -137,7 +87,6 @@ class CouponRedemptionService {
         .select('id, qr_code, redeemed_at')
         .single());
 
-      // Sai do loop em caso de sucesso ou erro não relacionado a colisão
       if (!error || error.code !== '23505') break;
     }
 
@@ -145,7 +94,6 @@ class CouponRedemptionService {
       return { success: false, error: 'Erro ao registrar resgate. Tente novamente.' };
     }
 
-    // Observer: redemption created → decrement remaining_qty
     await this._onRedemptionCreated(couponId);
 
     return {
@@ -155,35 +103,14 @@ class CouponRedemptionService {
     };
   }
 
-  /**
-   * Observer callback: fired after a new redemption is successfully persisted.
-   * Decrementa remaining_qty via RPC atômica (sem race condition).
-   * Cai em fallback read-then-write se a RPC ainda não existir no banco.
-   *
-   * SQL necessário (rodar no Supabase SQL Editor):
-   * ─────────────────────────────────────────────────────────────────
-   * CREATE OR REPLACE FUNCTION decrement_coupon_qty(p_coupon_id UUID)
-   * RETURNS INTEGER LANGUAGE plpgsql AS $$
-   * DECLARE v_remaining INTEGER;
-   * BEGIN
-   *   UPDATE coupons
-   *     SET remaining_qty = GREATEST(0, remaining_qty - 1)
-   *     WHERE id = p_coupon_id AND remaining_qty > 0
-   *     RETURNING remaining_qty INTO v_remaining;
-   *   RETURN COALESCE(v_remaining, -1); -- -1 = esgotado ou não encontrado
-   * END; $$;
-   * ─────────────────────────────────────────────────────────────────
-   *
-   * @param {string} couponId
-   */
   async _onRedemptionCreated(couponId) {
-    // ── Caminho atômico (RPC) ───────────────────────────────────────────────
+    // ── Via RPC (atômica) ─────────────────────────────────────────────────
     const { error: rpcErr } = await supabase.rpc('decrement_coupon_qty', {
       p_coupon_id: couponId,
     });
-    if (!rpcErr) return; // RPC tratou atomicamente
+    if (!rpcErr) return;
 
-    // ── Fallback: read-then-write (usado até a RPC ser deployada no banco) ──
+    // ── Fallback: read-then-write ─────────────────────────────────────────
     const { data } = await supabase
       .from('coupons')
       .select('remaining_qty')
@@ -196,15 +123,8 @@ class CouponRedemptionService {
       .eq('id', couponId);
   }
 
-  // ── Queries ───────────────────────────────────────────────────────────────
+  // ── Consultas ─────────────────────────────────────────────────────────────
 
-  /**
-   * Full redemption list for a user, newest first.
-   * Includes QR codes for display.
-   *
-   * @param {string} userId
-   * @returns {Promise<Array<{ couponId: string, qrCode: string, redeemedAt: string }>>}
-   */
   async getUserRedemptions(userId) {
     const { data } = await supabase
       .from('redemptions')
@@ -218,14 +138,6 @@ class CouponRedemptionService {
     }));
   }
 
-  /**
-   * Fetch a single redemption for a (user, coupon) pair.
-   * Returns null if not found.
-   *
-   * @param {string} userId
-   * @param {string} couponId
-   * @returns {Promise<{ qrCode: string, redeemedAt: string } | null>}
-   */
   async getRedemptionForCoupon(userId, couponId) {
     const { data } = await supabase
       .from('redemptions')
@@ -238,12 +150,6 @@ class CouponRedemptionService {
       : null;
   }
 
-  /**
-   * Total number of redemptions for a coupon — for owner conversion metrics.
-   *
-   * @param {string} couponId
-   * @returns {Promise<number>}
-   */
   async getCouponRedemptionCount(couponId) {
     const { count } = await supabase
       .from('redemptions')

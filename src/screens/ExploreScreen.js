@@ -154,7 +154,7 @@ export default function ExploreScreen({ navigation }) {
           ))}
         </ScrollView>
 
-        {/* Hero */}
+        {/* ── Destaque ── */}
         {heroEvento && (
           <View style={{ marginHorizontal: 16, marginBottom: 6 }}>
             <TouchableOpacity
@@ -243,7 +243,7 @@ export default function ExploreScreen({ navigation }) {
           </View>
         )}
 
-        {/* Cards */}
+        {/* ── Cartões ── */}
         <View style={{ marginTop: 4 }}>
           <Text style={[s.secaoTitulo, { marginLeft: 16 }]}>
             Acontecendo Agora

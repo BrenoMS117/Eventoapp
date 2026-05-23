@@ -56,14 +56,6 @@ function maskTime(raw) {
   return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 
-/**
- * Builds a full ISO 8601 datetime string from separate date and time fields.
- *
- * @param {string} dateStr  "DD/MM/AAAA"
- * @param {string} timeStr  "HH:MM"
- * @param {boolean} nextDay true for overnight events where the end is the next calendar day
- * @returns {string|null}   ISO string, or null if either input is invalid
- */
 function buildEventDateTime(dateStr, timeStr, nextDay = false) {
   if (!dateStr || !timeStr) return null;
   const [day, month, year] = dateStr.split('/').map(Number);
@@ -206,8 +198,6 @@ export default function NewEventScreen({ navigation }) {
     setPublicando(true);
     try {
       const catInfo = CATEGORIAS.find((c) => c.key === v.categoria);
-      // Build full ISO datetimes so the system can auto-start/expire by schedule.
-      // isOvernight handles events that end after midnight (end day = start day + 1).
       const startsAtISO = buildEventDateTime(v.data, v.horarioInicio);
       const endsAtISO   = v.horarioFim
         ? buildEventDateTime(v.data, v.horarioFim, isOvernight(v.horarioInicio, v.horarioFim))
@@ -219,7 +209,7 @@ export default function NewEventScreen({ navigation }) {
         address: `${v.endereco.trim()}${v.bairro ? ` - ${v.bairro.trim()}` : ""}`,
         category: v.categoria,
         categoryLabel: catInfo?.label || v.categoria,
-        startsAt: startsAtISO ?? v.horarioInicio, // ISO preferred; time-string fallback
+        startsAt: startsAtISO ?? v.horarioInicio,
         endsAt: endsAtISO ?? v.horarioFim ?? null,
         price: v.entrada_gratis ? "Gratuito" : v.preco.trim(),
         accessible: v.acessivel,
@@ -239,9 +229,6 @@ export default function NewEventScreen({ navigation }) {
         return;
       }
 
-      // Upload de fotos em background — não bloqueia a navegação.
-      // Usa Promise.allSettled para capturar falhas sem quebrar o fluxo de sucesso.
-      // Erros exibem um Alert global visível mesmo após navigation.goBack().
       if (fotos.length > 0 && created?.id) {
         Promise.allSettled(fotos.map(uri => addEventPhoto(created.id, uri)))
           .then(results => {

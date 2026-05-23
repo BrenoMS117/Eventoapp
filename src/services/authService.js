@@ -1,7 +1,6 @@
 import { supabase } from '../lib/supabase';
 
 export const authService = {
-  // Login com e-mail/senha
   async signIn(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { user: null, error: _translateError(error.message) };
@@ -10,12 +9,10 @@ export const authService = {
     return { user: { ...data.user, ...profile }, error: null };
   },
 
-  // Cadastro + criação de perfil
   async signUp({ email, password, name, role, venueName }) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { user: null, error: _translateError(error.message) };
 
-    // Cria perfil na tabela profiles
     const safeName = (name ?? '').trim() || 'U';
     const avatar = safeName.split(/\s+/).filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
     const { error: profileError } = await supabase.from('profiles').insert({
@@ -33,13 +30,11 @@ export const authService = {
     return { user: { ...data.user, ...profile }, error: null };
   },
 
-  // Logout
   async signOut() {
     const { error } = await supabase.auth.signOut();
     return { error };
   },
 
-  // Busca perfil do usuário
   async getProfile(userId) {
     const { data } = await supabase
       .from('profiles')
@@ -57,7 +52,6 @@ export const authService = {
     };
   },
 
-  // Atualiza nome, avatar e/ou nome do estabelecimento
   async updateProfile(userId, { name, avatar, venueName }) {
     const updates = {};
     if (name      !== undefined) updates.name       = name;
@@ -68,14 +62,12 @@ export const authService = {
     return { error: null };
   },
 
-  // Altera a senha do usuário autenticado
   async updatePassword(newPassword) {
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) return { error: _translateError(error.message) };
     return { error: null };
   },
 
-  // Recupera sessão ativa (para manter login ao reabrir app)
   async getSession() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;

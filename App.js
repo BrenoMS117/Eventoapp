@@ -13,11 +13,11 @@ import { COLORS } from './src/utils/theme';
 import { useNotifications } from './src/hooks/useNotifications';
 import { NotificationBanner } from './src/components/NotificationBanner';
 
-// Auth
+// ── Autenticação
 import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
 
-// User screens
+// ── Telas do usuário
 import HomeScreen from './src/screens/HomeScreen';
 import ExploreScreen from './src/screens/ExploreScreen';
 import FeedScreen from './src/screens/FeedScreen';
@@ -25,7 +25,7 @@ import RewardsScreen from './src/screens/RewardsScreen';
 import EventDetailScreen from './src/screens/EventDetailScreen';
 import CouponDetailScreen from './src/screens/CouponDetailScreen';
 
-// Business screens
+// ── Telas do estabelecimento
 import BusinessPanelScreen from './src/screens/BusinessPanelScreen';
 import AddCouponScreen from './src/screens/AddCouponScreen';
 import NewEventScreen from './src/screens/NewEventScreen';
@@ -148,7 +148,6 @@ function BusinessTabs() {
   );
 }
 
-// Headless component — drives notification evaluations while mounted.
 function NotificationEngine() {
   useNotifications();
   return null;
@@ -176,7 +175,6 @@ export default function App() {
           <StatusBar style="light" backgroundColor={COLORS.bg} />
           <AppNavigator />
         </NavigationContainer>
-        {/* Banner floats above NavigationContainer on every screen */}
         <NotificationBanner />
       </AppProvider>
     </SafeAreaProvider>

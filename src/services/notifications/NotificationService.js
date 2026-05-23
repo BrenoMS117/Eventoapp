@@ -11,46 +11,19 @@ import { PostEventRatingStrategy }    from './strategies/PostEventRatingStrategy
 
 const QUEUE_CAP = 50;
 
-/**
- * NotificationService — central orchestrator (Singleton).
- *
- * Responsibilities:
- *   1. Maintain a registry of INotificationStrategy instances.
- *   2. Run all strategies on each `evaluate(ctx)` call.
- *   3. Deduplicate via a shared `_fired` Map<dedupeKey, Date>.
- *   4. Maintain a capped notification queue (newest first).
- *   5. Broadcast queue updates to all UI subscribers.
- *
- * Adding a new notification type requires only:
- *   a) Create a class extending INotificationStrategy.
- *   b) `.register(new YourStrategy())` below — nothing else changes.
- */
 class NotificationService {
   constructor() {
-    /** @type {import('./INotificationStrategy').INotificationStrategy[]} */
     this._strategies = [];
-    /** @type {Map<string, Date>} dedupeKey → last fired time */
     this._fired = new Map();
-    /** @type {import('./INotificationStrategy').NotificationPayload[]} newest first */
     this._queue = [];
-    /** @type {Set<Function>} UI subscribers */
     this._listeners = new Set();
   }
 
-  /**
-   * Registers a strategy. Chainable.
-   * @param {import('./INotificationStrategy').INotificationStrategy} strategy
-   */
   register(strategy) {
     this._strategies.push(strategy);
     return this;
   }
 
-  /**
-   * Runs all strategies against the given context snapshot.
-   * Safe to call on every React render cycle — strategies self-debounce via dedupeKeys.
-   * @param {import('./INotificationStrategy').NotificationContext} ctx
-   */
   evaluate(ctx) {
     for (const strategy of this._strategies) {
       try {
@@ -60,26 +33,19 @@ class NotificationService {
           this._fired.set(notification.dedupeKey, ctx.now);
         }
       } catch (err) {
-        // Isolate a faulty strategy — never crash the whole pipeline.
         console.warn(`[NotificationService] ${strategy.constructor.name} threw:`, err.message);
       }
     }
   }
 
-  /**
-   * Injeta uma notificação diretamente na fila, sem passar pelas estratégias.
-   * Usado por eventos Realtime (ex: anúncios de donos de evento) que chegam
-   * por fora do ciclo evaluate() e precisam ser exibidos imediatamente.
-   * @param {import('./INotificationStrategy').NotificationPayload} notification
-   */
   push(notification) {
     this._enqueue(notification);
   }
 
-  // ── Queue management ──────────────────────────────────────────────────
+  // ── Gerenciamento de fila ─────────────────────────────────────────────────
 
   _enqueue(notification) {
-    this._queue.unshift(notification); // newest first
+    this._queue.unshift(notification);
     if (this._queue.length > QUEUE_CAP) this._queue.pop();
     this._emit();
   }
@@ -88,12 +54,6 @@ class NotificationService {
     this._listeners.forEach(fn => fn([...this._queue]));
   }
 
-  /**
-   * Subscribe to queue updates. Returns an unsubscribe function.
-   * The subscriber is called immediately with the current queue snapshot.
-   * @param {(notifications: import('./INotificationStrategy').NotificationPayload[]) => void} fn
-   * @returns {() => void}
-   */
   subscribe(fn) {
     this._listeners.add(fn);
     fn([...this._queue]);
@@ -115,11 +75,6 @@ class NotificationService {
     this._emit();
   }
 
-  /**
-   * Full reset — call on logout.
-   * Clears queue, deduplication map, and emits to subscribers.
-   * Listeners are preserved so UI components can react to the empty state.
-   */
   reset() {
     this._queue = [];
     this._fired.clear();
@@ -131,18 +86,18 @@ class NotificationService {
   }
 }
 
-// ── Singleton — register all strategies here ─────────────────────────────────
+// ── Singleton — registrar todas as estratégias aqui ───────────────────────────
 export const notificationService = new NotificationService()
-  // ── User strategies ──────────────────────────────────────────────────
+  // ── Estratégias de usuário ────────────────────────────────────────────
   .register(new ProximityStrategy())
   .register(new EventEndingStrategy())
   .register(new SocialEngagementStrategy())
   .register(new LocalCouponsStrategy())
   .register(new GpsFailureStrategy())
-  // ── Owner strategies ─────────────────────────────────────────────────
+  // ── Estratégias de proprietário ───────────────────────────────────────
   .register(new CouponStockStrategy())
   .register(new CrowdLevelStrategy())
   .register(new CrowdSurgeStrategy())
   .register(new PremiumConversionStrategy())
-  // ── Shared ───────────────────────────────────────────────────────────
+  // ── Compartilhadas ────────────────────────────────────────────────────
   .register(new PostEventRatingStrategy());

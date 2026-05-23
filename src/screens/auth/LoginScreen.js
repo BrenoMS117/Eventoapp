@@ -76,7 +76,6 @@ export default function LoginScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Hero */}
           <View style={s.hero}>
             <View style={s.logoCircle}>
               <View style={s.logoCircleInner}>
@@ -87,7 +86,6 @@ export default function LoginScreen({ navigation }) {
             <Text style={s.logoSlogan}>Sinta o pulso da cidade</Text>
           </View>
 
-          {/* Acesso rápido demo */}
           <View style={s.demoSecao}>
             <Text style={s.demoLabel}>Acesso rápido para testar</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
@@ -115,7 +113,6 @@ export default function LoginScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Formulário */}
           <View style={s.form}>
             <Text style={s.formTitulo}>Entrar na sua conta</Text>
 

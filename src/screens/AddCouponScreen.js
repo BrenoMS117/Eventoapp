@@ -53,15 +53,12 @@ export default function AddCouponScreen({ navigation }) {
   const [maxPerUser, setMaxPerUser] = useState(1);
   const [userTypeRestriction, setUserTypeRestriction] = useState("all");
 
-  // Derive the live event directly from `events` state so this screen is
-  // always in sync — even if businessStats hasn't updated yet.
   const eventoAtivo =
     events.find((e) => e.ownerId === currentUser?.id && e.isLive) ??
     (businessStats.activeEventId
       ? events.find((e) => e.id === businessStats.activeEventId)
       : null);
 
-  // Guard: must have a live event before creating coupons.
   useEffect(() => {
     if (!eventoAtivo) {
       Alert.alert(
@@ -116,7 +113,6 @@ export default function AddCouponScreen({ navigation }) {
       tipoInfo,
     );
 
-    // Validate before hitting the DB
     const { isValid, errors } = CouponSchema.validate(dto);
     if (!isValid) {
       Alert.alert('Dados inválidos', Object.values(errors)[0]);
@@ -151,7 +147,6 @@ export default function AddCouponScreen({ navigation }) {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Cabeçalho */}
       <View style={s.header}>
         <TouchableOpacity
           style={s.voltarBtn}
@@ -167,7 +162,6 @@ export default function AddCouponScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Barra de progresso */}
       <View style={s.progressBar}>
         <View style={[s.progressFill, { width: `${(etapa / 3) * 100}%` }]} />
       </View>
@@ -409,7 +403,6 @@ export default function AddCouponScreen({ navigation }) {
                 É assim que os usuários vão visualizar
               </Text>
 
-              {/* Preview */}
               <View style={s.previewCard}>
                 <View
                   style={[s.previewBanda, { backgroundColor: tipoInfo.cor }]}
@@ -499,7 +492,6 @@ export default function AddCouponScreen({ navigation }) {
                 </View>
               </View>
 
-              {/* Aviso de notificação */}
               <View style={s.notifCard}>
                 <Ionicons
                   name="notifications"
@@ -512,7 +504,6 @@ export default function AddCouponScreen({ navigation }) {
                 </Text>
               </View>
 
-              {/* Resumo com edição por seção */}
               {[
                 {
                   etapa: 1,
@@ -566,7 +557,6 @@ export default function AddCouponScreen({ navigation }) {
           <View style={{ height: 20 }} />
         </ScrollView>
 
-        {/* Botão inferior */}
         <View style={s.bottomBar}>
           {etapa < 3 ? (
             <TouchableOpacity style={s.proximoBtn} onPress={avancar}>

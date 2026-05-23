@@ -25,13 +25,11 @@ const COR_HEAT = {
 };
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RatingSection — real-time event characteristic monitoring
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── RatingSection ───────────────────────────────────────────────────────────
 
 function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
-  const [submitting, setSubmitting] = useState(null); // category key being submitted
-  const [feedback, setFeedback]     = useState(false); // success flash
+  const [submitting, setSubmitting] = useState(null);
+  const [feedback, setFeedback]     = useState(false);
 
   const counts   = userRating?.counts   ?? {};
   const userVote = userRating?.userVote ?? null;
@@ -40,7 +38,7 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
 
   async function handleVote(category) {
     if (!canVote || submitting) return;
-    if (category === userVote) return; // no-op: already voted for this
+    if (category === userVote) return;
     setSubmitting(category);
     const result = await onVote(evento.id, category);
     setSubmitting(null);
@@ -54,7 +52,6 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
 
   return (
     <View style={rs.wrap}>
-      {/* ── Featured banner (shown when there's a dominant characteristic) ── */}
       {featured?.isClear && (
         <View style={[rs.featBanner, { borderColor: featured.cor + '55' }]}>
           <Text style={rs.featLabel}>⚡ CARACTERÍSTICA EM DESTAQUE</Text>
@@ -74,7 +71,6 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
         </View>
       )}
 
-      {/* ── Section header ─────────────────────────────────────────────────── */}
       <View style={rs.header}>
         <Text style={rs.headerTitle}>
           {isOwner ? '👁 PERCEPÇÃO DO PÚBLICO' : 'COMO ESTÁ O EVENTO?'}
@@ -84,7 +80,6 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
         )}
       </View>
 
-      {/* ── Pills grid — 2 columns ──────────────────────────────────────────── */}
       <View style={rs.grid}>
         {RATING_OPTIONS.map((opt) => {
           const count      = counts[opt.key] ?? 0;
@@ -106,7 +101,6 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
               disabled={isDisabled}
               activeOpacity={canVote ? 0.72 : 1}
             >
-              {/* Background progress fill */}
               {pct > 0 && !isVoted && (
                 <View
                   style={[
@@ -116,7 +110,6 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
                 />
               )}
 
-              {/* Content */}
               {isBusy
                 ? <ActivityIndicator size="small" color={opt.cor} style={rs.pillIconSlot} />
                 : <Text style={rs.pillIcon}>{opt.icon}</Text>
@@ -140,7 +133,6 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
         })}
       </View>
 
-      {/* ── User status ────────────────────────────────────────────────────── */}
       {feedback && (
         <View style={rs.feedbackRow}>
           <Ionicons name="checkmark-circle" size={15} color={COLORS.success} />
@@ -169,7 +161,7 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
 const rs = StyleSheet.create({
   wrap: { paddingHorizontal: 12, marginTop: 16 },
 
-  // Featured banner
+  // ── Banner em destaque ──
   featBanner: {
     backgroundColor: COLORS.bgCard, borderRadius: 16, padding: 14,
     borderWidth: 1, marginBottom: 16,
@@ -190,7 +182,7 @@ const rs = StyleSheet.create({
   featPct: { fontSize: 24, fontWeight: '900', lineHeight: 26 },
   featCount: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
 
-  // Section header
+  // ── Cabeçalho ──
   header: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'baseline', marginBottom: 12,
@@ -201,7 +193,7 @@ const rs = StyleSheet.create({
   },
   headerCount: { fontSize: 11, color: COLORS.textMuted },
 
-  // Pills
+  // ── Opções ──
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: {
     flex: 1,
@@ -214,7 +206,7 @@ const rs = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     gap: 8,
-    overflow: 'hidden',   // clips the progress fill
+    overflow: 'hidden',
     position: 'relative',
     minHeight: 58,
   },
@@ -229,7 +221,7 @@ const rs = StyleSheet.create({
   pillVotes: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   trophyIcon: { fontSize: 13 },
 
-  // Status rows
+  // ── Status do usuário ──
   votedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: COLORS.bgOverlay, borderRadius: 10,
@@ -246,13 +238,11 @@ const rs = StyleSheet.create({
   hintText: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 10 },
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CrowdPanel — real-time public crowd display for users
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── CrowdPanel ──────────────────────────────────────────────────────────────
 
 function CrowdPanel({ evento, isProximo, onCheckIn, onCheckOut, isCheckedIn }) {
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState(null); // 'in' | 'out' | null
+  const [feedback, setFeedback] = useState(null);
 
   const level = evento.crowdLevel ?? 0;
   const barColor =
@@ -289,12 +279,10 @@ function CrowdPanel({ evento, isProximo, onCheckIn, onCheckOut, isCheckedIn }) {
     <View style={cs.panel}>
       <Text style={cs.panelLabel}>👥 PÚBLICO AO VIVO</Text>
 
-      {/* Level bar */}
       <View style={cs.barBg}>
         <View style={[cs.barFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor }]} />
       </View>
 
-      {/* Stats row */}
       <View style={cs.statsRow}>
         <View>
           <Text style={[cs.levelPct, { color: barColor }]}>{level}%</Text>
@@ -308,7 +296,6 @@ function CrowdPanel({ evento, isProximo, onCheckIn, onCheckOut, isCheckedIn }) {
         </View>
       </View>
 
-      {/* Check-in / check-out button — only for live events when nearby */}
       {evento.isLive && (
         <View style={cs.checkInRow}>
           {feedback === 'in' && (
@@ -472,7 +459,6 @@ export default function EventDetailScreen({ route, navigation }) {
     canRedeemCoupon,
   } = useApp();
 
-  // Subscribe to real-time ratings for this event
   useEffect(() => {
     subscribeToEventRatings(eventId);
   }, [eventId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -496,8 +482,6 @@ export default function EventDetailScreen({ route, navigation }) {
       Alert.alert("Já resgatado", "Você já usou este cupom.");
       return;
     }
-    // Use the same 150 m geofence + check-in bypass as CouponDetailScreen.
-    // Replaces the old isProximo (5 km discovery radius) — wrong criterion for redemption.
     const { canRedeem, message: geoMsg } = canRedeemCoupon(cupom.id);
     if (!canRedeem) {
       Alert.alert("📍 Vá ao local", geoMsg);
@@ -520,7 +504,6 @@ export default function EventDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Hero header */}
       <View style={[s.hero, { backgroundColor: evento.gradient[0] }]}>
         <View
           style={[
@@ -584,12 +567,12 @@ export default function EventDetailScreen({ route, navigation }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Carrossel de fotos */}
+        {/* ── Carrossel de fotos ── */}
         {evento.photos?.length > 0 && (
           <PhotoCarousel photos={evento.photos} height={240} />
         )}
 
-        {/* Painel de público em tempo real */}
+        {/* ── Painel de público ── */}
         {evento.isLive && (
           <CrowdPanel
             evento={evento}
@@ -600,13 +583,13 @@ export default function EventDetailScreen({ route, navigation }) {
           />
         )}
 
-        {/* Termômetro */}
+        {/* ── Termômetro ── */}
         <View style={s.vibeSecao}>
           <Text style={s.vibeSecaoLabel}>TERMÔMETRO DO EVENTO</Text>
           <VibeMeter value={evento.vibeMeter} />
         </View>
 
-        {/* Stats */}
+        {/* ── Estatísticas ── */}
         <View style={s.statsGrid}>
           {[
             {
@@ -652,7 +635,7 @@ export default function EventDetailScreen({ route, navigation }) {
           ))}
         </View>
 
-        {/* Tocando agora */}
+        {/* ── Tocando agora ── */}
         {evento.nowPlaying && (
           <View style={s.tocandoCard}>
             <View style={{ flex: 1 }}>
@@ -681,7 +664,7 @@ export default function EventDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Avaliação em tempo real */}
+        {/* ── Avaliações ── */}
         <RatingSection
           evento={evento}
           userRating={getEventRatings(eventId)}
@@ -690,7 +673,7 @@ export default function EventDetailScreen({ route, navigation }) {
           isOwner={currentUser?.role === 'business'}
         />
 
-        {/* Cupons */}
+        {/* ── Cupons ── */}
         {cupons.length > 0 && (
           <View style={s.secao}>
             <View
@@ -786,7 +769,7 @@ export default function EventDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Feed do evento */}
+        {/* ── Feed do evento ── */}
         {posts.length > 0 && (
           <View style={s.secao}>
             <Text style={s.secaoTitulo}>O QUE ESTÃO DIZENDO</Text>

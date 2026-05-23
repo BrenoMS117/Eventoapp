@@ -2,11 +2,6 @@ import { INotificationStrategy } from '../INotificationStrategy';
 import { makeNotif } from '../notifUtils';
 import { COLORS } from '../../../utils/theme';
 
-/**
- * Fires when a new coupon becomes available for a nearby event.
- * Role: user only.
- * Dedupe: once per coupon ID (never repeats the same coupon).
- */
 export class LocalCouponsStrategy extends INotificationStrategy {
   _seenCouponIds = new Set();
 
@@ -23,11 +18,9 @@ export class LocalCouponsStrategy extends INotificationStrategy {
 
       const dedupeKey = `local-coupon:${coupon.id}`;
 
-      // Track seen IDs in memory (survives across evaluations, resets on restart)
       if (this._seenCouponIds.has(coupon.id)) continue;
       this._seenCouponIds.add(coupon.id);
 
-      // Also skip if we already fired for this coupon in a previous app session.
       if (fired.has(dedupeKey)) continue;
 
       const event = ctx.events.find(e => e.id === coupon.eventId);
@@ -39,7 +32,7 @@ export class LocalCouponsStrategy extends INotificationStrategy {
         title: 'Novo Cupom Disponível',
         body: `"${coupon.title}" disponível em ${venueName}. Resgate agora!`,
         icon: 'pricetag',
-        color: COLORS.success,
+        color: COLORS.primary,
         priority: 'normal',
         payload: { couponId: coupon.id, eventId: coupon.eventId },
         now: ctx.now,

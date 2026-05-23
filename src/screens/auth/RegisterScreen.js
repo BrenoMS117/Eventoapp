@@ -107,7 +107,6 @@ export default function RegisterScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Cabeçalho */}
           <View style={[s.header, { borderBottomColor: corAcento + "44" }]}>
             <TouchableOpacity
               onPress={() => {
@@ -130,7 +129,6 @@ export default function RegisterScreen({ navigation }) {
           </View>
 
           <View style={s.corpo}>
-            {/* Seleção de perfil */}
             <Text style={s.secaoLabel}>Você é...</Text>
             <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
               {[
@@ -181,7 +179,6 @@ export default function RegisterScreen({ navigation }) {
               ))}
             </View>
 
-            {/* Benefícios */}
             <View style={[s.beneficiosCard, { borderColor: corAcento + "55" }]}>
               {BENEFICIOS[perfil].map((item, i) => (
                 <View
@@ -204,7 +201,6 @@ export default function RegisterScreen({ navigation }) {
               ))}
             </View>
 
-            {/* Erro geral */}
             {authError ? (
               <View style={s.erroBanner}>
                 <Ionicons

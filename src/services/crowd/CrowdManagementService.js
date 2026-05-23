@@ -1,13 +1,7 @@
 import { supabase } from '../../lib/supabase';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pure helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Funções auxiliares ────────────────────────────────────────────────────────
 
-/**
- * Returns a crowd_label for the given 0–100 level.
- * Matches the labels already used by eventsService.updateCrowdLevel.
- */
 function _labelFromLevel(level) {
   return level >= 85 ? 'Lotado'
        : level >= 60 ? 'Bastante cheio'
@@ -15,10 +9,6 @@ function _labelFromLevel(level) {
        : 'Tranquilo';
 }
 
-/**
- * Estimates a qualitative crowd_level when max_capacity is unknown.
- * Based on absolute checked-in count.
- */
 function _levelFromCount(count) {
   if (count >= 300) return 95;
   if (count >= 150) return 78;
@@ -28,43 +18,8 @@ function _levelFromCount(count) {
   return Math.max(1, count * 2);
 }
 
-/**
- * Aplica delta no crowd_count de forma atômica via RPC.
- *
- * Tenta primeiro a função SQL `adjust_crowd` (sem race condition).
- * Cai em fallback read-then-write se a RPC ainda não existir no banco.
- *
- * SQL necessário (rodar no Supabase SQL Editor):
- * ─────────────────────────────────────────────────────────────────
- * CREATE OR REPLACE FUNCTION adjust_crowd(p_event_id UUID, p_delta INTEGER)
- * RETURNS TABLE(new_count INTEGER, new_level INTEGER, new_label TEXT)
- * LANGUAGE plpgsql AS $$
- * DECLARE
- *   v_count INTEGER; v_cap INTEGER; v_level INTEGER; v_label TEXT;
- * BEGIN
- *   UPDATE events
- *     SET checked_in_count = GREATEST(0, checked_in_count + p_delta)
- *     WHERE id = p_event_id
- *     RETURNING checked_in_count, max_capacity INTO v_count, v_cap;
- *   v_level := CASE
- *     WHEN v_cap IS NOT NULL THEN LEAST(100, ROUND((v_count::NUMERIC / v_cap) * 100))
- *     WHEN v_count >= 300 THEN 95 WHEN v_count >= 150 THEN 78
- *     WHEN v_count >= 75  THEN 55 WHEN v_count >= 30  THEN 32
- *     WHEN v_count >= 10  THEN 18 ELSE GREATEST(1, v_count * 2) END;
- *   v_label := CASE
- *     WHEN v_level >= 85 THEN 'Lotado' WHEN v_level >= 60 THEN 'Bastante cheio'
- *     WHEN v_level >= 30 THEN 'Moderado' ELSE 'Tranquilo' END;
- *   UPDATE events SET crowd_level = v_level, crowd_label = v_label WHERE id = p_event_id;
- *   RETURN QUERY SELECT v_count, v_level, v_label;
- * END; $$;
- * ─────────────────────────────────────────────────────────────────
- *
- * @param {string} eventId
- * @param {+1|-1} delta
- * @returns {Promise<{error: any, count?: number, level?: number, label?: string}>}
- */
 async function _applyDelta(eventId, delta) {
-  // ── Caminho atômico (RPC) ─────────────────────────────────────────────────
+  // ── Via RPC (atômica) ─────────────────────────────────────────────────────
   const { data: rpcData, error: rpcErr } = await supabase.rpc('adjust_crowd', {
     p_event_id: eventId,
     p_delta: delta,
@@ -74,7 +29,7 @@ async function _applyDelta(eventId, delta) {
     return { error: null, count: new_count, level: new_level, label: new_label };
   }
 
-  // ── Fallback: read-then-write (usado até a RPC ser deployada no banco) ────
+  // ── Fallback: read-then-write ─────────────────────────────────────────────
   const { data, error } = await supabase
     .from('events')
     .select('checked_in_count, max_capacity')
@@ -98,72 +53,34 @@ async function _applyDelta(eventId, delta) {
   return { error: upErr ?? null, count: newCount, level, label };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CrowdManagementService
-// ─────────────────────────────────────────────────────────────────────────────
+// ── CrowdManagementService ────────────────────────────────────────────────────
 
-/**
- * CrowdManagementService
- *
- * Handles the full check-in / check-out lifecycle for crowd tracking.
- * Decoupled from React: owns no state, no hooks, no components.
- *
- * Integration points:
- *   • setUpdateCallback(fn)  — called with (eventId, patch) on every crowd change
- *   • checkIn(eventId)       — manual or triggered by coupon redemption
- *   • checkOut(eventId)      — manual, geo-exit, or event-end timer
- *   • startRealtimeSubscription() / stopRealtimeSubscription()
- *   • processGeoUpdate(nearbyIds) — auto-checkout for events left behind
- *   • reset()                — call on logout
- *
- * DB migration required:
- *   ALTER TABLE events ADD COLUMN IF NOT EXISTS max_capacity INTEGER DEFAULT NULL;
- *   (checked_in_count, crowd_level, crowd_label already exist)
- */
 class CrowdManagementService {
   constructor() {
-    /** eventIds the current device user is actively checked into */
     this._checkedInEvents = new Set();
-    /** auto check-out timers keyed by eventId */
     this._checkOutTimers = new Map();
-    /** AppContext callback to propagate crowd patches to events state */
     this._onUpdate = null;
-    /** Supabase Realtime channel for live crowd broadcasts */
     this._realtimeChannel = null;
   }
 
-  // ── Callback wiring ───────────────────────────────────────────────────────
+  // ── Registro de callback ──────────────────────────────────────────────────
 
-  /**
-   * Register the function AppContext uses to apply crowd patches.
-   * Called once at AppProvider mount with a stable setter reference.
-   * @param {(eventId: string, patch: object) => void} fn
-   */
   setUpdateCallback(fn) {
     this._onUpdate = fn;
   }
 
-  // ── Check-in status ───────────────────────────────────────────────────────
+  // ── Status de check-in ────────────────────────────────────────────────────
 
-  /** Returns true if the user is currently checked into the given event. */
   isCheckedIn(eventId) {
     return this._checkedInEvents.has(eventId);
   }
 
-  /** Returns all event IDs the user is currently checked into. */
   getCheckedInEventIds() {
     return [...this._checkedInEvents];
   }
 
   // ── Check-in ──────────────────────────────────────────────────────────────
 
-  /**
-   * Check the current user into an event.
-   * Adds the event to the in-memory set, writes the DB, and notifies AppContext.
-   *
-   * @param {string} eventId
-   * @returns {Promise<{error: any, alreadyIn?: boolean, count?: number, level?: number, label?: string}>}
-   */
   async checkIn(eventId) {
     if (this._checkedInEvents.has(eventId)) return { alreadyIn: true };
 
@@ -171,7 +88,6 @@ class CrowdManagementService {
     const result = await _applyDelta(eventId, +1);
 
     if (result.error) {
-      // Rollback the optimistic add
       this._checkedInEvents.delete(eventId);
     } else {
       this._onUpdate?.(eventId, {
@@ -185,13 +101,6 @@ class CrowdManagementService {
 
   // ── Check-out ─────────────────────────────────────────────────────────────
 
-  /**
-   * Check the current user out from an event.
-   * Silently no-ops if the user was not checked in.
-   *
-   * @param {string} eventId
-   * @returns {Promise<{error: any, notIn?: boolean, count?: number, level?: number, label?: string}>}
-   */
   async checkOut(eventId) {
     this._clearTimer(eventId);
 
@@ -209,26 +118,14 @@ class CrowdManagementService {
     return result;
   }
 
-  // ── Auto check-out: event end timer ───────────────────────────────────────
+  // ── Auto check-out: fim do evento ────────────────────────────────────────
 
-  /**
-   * Schedule an automatic check-out when the event's ends_at time arrives.
-   * Replaces any existing timer for this event.
-   *
-   * @param {string} eventId
-   * @param {string|null} endsAtIso  ISO-8601 timestamp or null
-   */
   scheduleAutoCheckOut(eventId, endsAtIso) {
     if (!endsAtIso) return;
     const endTime = new Date(endsAtIso).getTime();
-    // Guard: endsAt is stored as a plain "HH:MM" time string, not a full
-    // ISO-8601 datetime. new Date("02:00") → Invalid Date → NaN.
-    // setTimeout(fn, NaN) coerces to setTimeout(fn, 0) and fires immediately,
-    // causing instant checkout right after check-in. Skip scheduling in that case.
     if (isNaN(endTime)) return;
     const delay = endTime - Date.now();
     if (delay <= 0) {
-      // Event already over — check out immediately if still in
       if (this._checkedInEvents.has(eventId)) this.checkOut(eventId);
       return;
     }
@@ -240,29 +137,16 @@ class CrowdManagementService {
     this._checkOutTimers.set(eventId, timer);
   }
 
-  // ── Auto check-out: geo exit ──────────────────────────────────────────────
+  // ── Auto check-out: saída do geofence ────────────────────────────────────
 
-  /**
-   * Called by AppContext's geo watcher after it computes new nearby event IDs.
-   * Returns the list of eventIds that were checked in but are no longer nearby
-   * — AppContext uses this to update checkedInEventIds state and call checkOut.
-   *
-   * @param {string[]} currentNearbyIds
-   * @returns {string[]} eventIds to check out
-   */
   getStaleCheckIns(currentNearbyIds) {
     return [...this._checkedInEvents].filter(
       (id) => !currentNearbyIds.includes(id),
     );
   }
 
-  // ── Realtime subscription ─────────────────────────────────────────────────
+  // ── Assinatura Realtime ───────────────────────────────────────────────────
 
-  /**
-   * Subscribe to all event UPDATE events via Supabase Realtime.
-   * Patches crowd fields into AppContext's events state.
-   * Safe to call multiple times — only opens one channel.
-   */
   startRealtimeSubscription() {
     if (this._realtimeChannel) return;
 
@@ -279,7 +163,6 @@ class CrowdManagementService {
             crowdLabel:     d.crowd_label      ?? 'Aguardando',
             checkedInCount: d.checked_in_count ?? 0,
             isLive:         d.is_live          ?? false,
-            // Propagate rating metadata updated by RatingService.submitVote
             rating:         d.rating           ?? 0,
             reviewCount:    d.review_count     ?? 0,
           });
@@ -295,12 +178,8 @@ class CrowdManagementService {
     }
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  // ── Ciclo de vida ─────────────────────────────────────────────────────────
 
-  /**
-   * Full teardown — call on logout.
-   * Cancels all timers, clears the checked-in set, stops Realtime.
-   */
   reset() {
     for (const timer of this._checkOutTimers.values()) clearTimeout(timer);
     this._checkOutTimers.clear();
@@ -309,7 +188,7 @@ class CrowdManagementService {
     this._onUpdate = null;
   }
 
-  // ── Private ───────────────────────────────────────────────────────────────
+  // ── Privado ───────────────────────────────────────────────────────────────
 
   _clearTimer(eventId) {
     const timer = this._checkOutTimers.get(eventId);

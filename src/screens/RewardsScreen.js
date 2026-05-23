@@ -17,9 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// QRCode — visual representation (same pattern as CouponDetailScreen)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── QRCodeDisplay
 function QRCodeDisplay({ code, color }) {
   return (
     <View style={[qr.wrap, { borderColor: color }]}>
@@ -61,9 +59,7 @@ const qr = StyleSheet.create({
   code: { fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RedemptionCard — shows a single past redemption with its QR code
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── RedemptionCard
 function RedemptionCard({ coupon, qrCode, redeemedAt }) {
   const [expanded, setExpanded] = useState(false);
   const dateStr = redeemedAt
@@ -138,9 +134,7 @@ const rc = StyleSheet.create({
   },
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CouponCard — horizontal card in the "Meus Cupons" carousel
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── CouponCard
 function CouponCard({ coupon, redeemed, onPress }) {
   const esgotado = coupon.remainingQty === 0;
   return (
@@ -204,9 +198,7 @@ const cc = StyleSheet.create({
   stockText: { fontSize: 11, color: COLORS.textMuted },
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RewardsScreen
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── RewardsScreen
 export default function RewardsScreen({ navigation }) {
   const {
     coupons,
@@ -243,7 +235,6 @@ export default function RewardsScreen({ navigation }) {
       Alert.alert("Atenção", "O nome não pode ficar vazio.");
       return;
     }
-    // Validação de senha apenas se o usuário preencheu
     if (newPassword) {
       if (newPassword.length < 6) {
         Alert.alert("Atenção", "A nova senha deve ter pelo menos 6 caracteres.");
@@ -257,13 +248,11 @@ export default function RewardsScreen({ navigation }) {
 
     setSavingProfile(true);
 
-    // Atualiza nome/avatar
     const profileResult = await updateProfile({
       name: trimmedName,
       avatar: editAvatar.trim() || trimmedName.slice(0, 2).toUpperCase(),
     });
 
-    // Atualiza senha (somente se preenchida)
     const passwordResult = newPassword
       ? await updatePassword(newPassword)
       : { error: null };
@@ -295,7 +284,6 @@ export default function RewardsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* Header */}
       <View style={s.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Ionicons name="pulse" size={18} color={COLORS.primary} />
@@ -322,7 +310,6 @@ export default function RewardsScreen({ navigation }) {
         </TouchableOpacity>
       </View>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Profile card */}
         <View style={s.profileCard}>
           <View style={s.profileAvatar}>
             <Text style={s.profileAvatarText}>{currentUser?.avatar || "U"}</Text>
@@ -337,7 +324,6 @@ export default function RewardsScreen({ navigation }) {
           </View>
         </View>
 
-        {/* My Coupons — horizontal scroll */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Cupons Disponíveis</Text>
           {coupons.length === 0 ? (
@@ -363,7 +349,6 @@ export default function RewardsScreen({ navigation }) {
           )}
         </View>
 
-        {/* Redemption history */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <Text style={s.sectionTitle}>Histórico de Resgates</Text>
@@ -415,7 +400,6 @@ export default function RewardsScreen({ navigation }) {
             onPress={() => setProfileModalVisible(false)}
           >
             <TouchableOpacity activeOpacity={1} style={pm.sheet}>
-              {/* Cabeçalho */}
               <View style={pm.sheetHeader}>
                 <Text style={pm.sheetTitle}>Editar Perfil</Text>
                 <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
@@ -423,14 +407,12 @@ export default function RewardsScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Preview do avatar */}
               <View style={pm.avatarPreview}>
                 <Text style={pm.avatarPreviewText}>
                   {editAvatar || editName.slice(0, 2).toUpperCase() || "U"}
                 </Text>
               </View>
 
-              {/* Campo nome */}
               <Text style={pm.label}>Nome</Text>
               <TextInput
                 style={pm.input}
@@ -441,7 +423,6 @@ export default function RewardsScreen({ navigation }) {
                 autoCorrect={false}
               />
 
-              {/* Campo avatar */}
               <Text style={pm.label}>Iniciais (até 2 letras)</Text>
               <TextInput
                 style={pm.input}
@@ -453,12 +434,10 @@ export default function RewardsScreen({ navigation }) {
                 autoCapitalize="characters"
               />
 
-              {/* Divisor */}
               <View style={pm.divider} />
               <Text style={pm.sectionLabel}>Alterar Senha</Text>
               <Text style={pm.sectionHint}>Deixe em branco para não alterar</Text>
 
-              {/* Nova senha */}
               <Text style={pm.label}>Nova Senha</Text>
               <View style={pm.inputRow}>
                 <TextInput
@@ -479,7 +458,6 @@ export default function RewardsScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Confirmar senha */}
               <Text style={[pm.label, { marginTop: 12 }]}>Confirmar Nova Senha</Text>
               <View style={pm.inputRow}>
                 <TextInput
@@ -500,7 +478,6 @@ export default function RewardsScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Botão salvar */}
               <TouchableOpacity
                 style={[pm.saveBtn, savingProfile && { opacity: 0.7 }]}
                 onPress={handleSaveProfile}
@@ -530,7 +507,7 @@ const s = StyleSheet.create({
   headerTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: COLORS.text, textAlign: "center" },
   iconBtn: { padding: 4 },
 
-  // Profile card
+  // ── Card de perfil ──
   profileCard: {
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: COLORS.bgCard, marginHorizontal: 16, marginBottom: 6,
@@ -555,7 +532,7 @@ const s = StyleSheet.create({
   statsChipNum: { fontSize: 18, fontWeight: "900", color: COLORS.primary },
   statsChipLabel: { fontSize: 10, color: COLORS.primary, fontWeight: "600" },
 
-  // Sections
+  // ── Seções ──
   section: { paddingLeft: 16, marginTop: 20, marginBottom: 4 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, paddingRight: 16 },
   sectionTitle: {
@@ -570,7 +547,7 @@ const s = StyleSheet.create({
   },
   countBadgeText: { fontSize: 11, fontWeight: "700", color: COLORS.primary },
 
-  // Empty states
+  // ── Estados vazios ──
   emptyState: {
     alignItems: "center", paddingVertical: 24,
     backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,

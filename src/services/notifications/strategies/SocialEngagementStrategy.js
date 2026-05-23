@@ -2,17 +2,8 @@ import { INotificationStrategy } from '../INotificationStrategy';
 import { makeNotif, hourBucket } from '../notifUtils';
 import { COLORS } from '../../../utils/theme';
 
-/**
- * Groups new likes on the current user's posts and fires once per hour.
- * Avoids spam by batching all like activity into a single hourly digest.
- * Role: user only.
- * Dedupe: once per user per clock-hour.
- *
- * Requires feedPost.authorId — see feedService._mapPost note.
- */
 export class SocialEngagementStrategy extends INotificationStrategy {
-  // Snapshot of like counts at last evaluation to compute deltas.
-  _likeSnapshot = new Map(); // postId → likes
+  _likeSnapshot = new Map();
 
   evaluate(ctx, fired) {
     if (ctx.currentUser?.role !== 'user') return [];
@@ -24,7 +15,7 @@ export class SocialEngagementStrategy extends INotificationStrategy {
     for (const post of myPosts) {
       const prev = this._likeSnapshot.has(post.id)
         ? this._likeSnapshot.get(post.id)
-        : post.likes; // baseline on first sight — no spike on init
+        : post.likes;
       const delta = post.likes - prev;
       if (delta > 0) newLikes += delta;
       this._likeSnapshot.set(post.id, post.likes);

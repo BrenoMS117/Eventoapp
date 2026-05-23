@@ -1,19 +1,9 @@
 import * as ExpoLocation from 'expo-location';
 import { ILocationProvider } from '../ILocationProvider';
 
-/**
- * ExpoLocationProvider — concrete implementation backed by expo-location.
- *
- * To migrate to a different engine (Google Maps SDK, Mapbox, custom GPS):
- *   1. Create a new file in this /providers/ folder.
- *   2. Extend ILocationProvider and implement the same four methods.
- *   3. Change the single import line in GeoService.js.
- *   No other file in the project needs to change.
- */
 export class ExpoLocationProvider extends ILocationProvider {
   constructor() {
     super();
-    /** true once the user has granted foreground permission in this session */
     this._permissionGranted = false;
   }
 
@@ -29,7 +19,6 @@ export class ExpoLocationProvider extends ILocationProvider {
 
   async getCurrentPosition() {
     try {
-      // Skip the permission round-trip when we already know it's granted.
       if (!this._permissionGranted) {
         const perm = await this.requestPermission();
         if (!perm.granted) return { coords: null, error: perm.error };
@@ -48,13 +37,11 @@ export class ExpoLocationProvider extends ILocationProvider {
   }
 
   watchPosition(callback) {
-    // watchPositionAsync returns a Promise<LocationSubscription>.
-    // We wrap it in a stable handle so callers never touch Expo internals.
     const subPromise = ExpoLocation.watchPositionAsync(
       {
         accuracy: ExpoLocation.Accuracy.Balanced,
-        distanceInterval: 30, // fire only when device moves ≥ 30 m
-        timeInterval: 15000,  // or every 15 s — whichever comes first
+        distanceInterval: 30,
+        timeInterval: 15000,
       },
       (loc) =>
         callback({

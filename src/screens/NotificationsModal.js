@@ -1,12 +1,3 @@
-/**
- * NotificationsModal
- *
- * Hub de notificações com duas seções em scroll único:
- *   1. Histórico — alertas das últimas 24 h (marcar lido / limpar)
- *   2. Preferências — toggles de push por role (user | business)
- *
- * Não contém nada relacionado a perfil ou dados pessoais.
- */
 import React from 'react';
 import {
   View,
@@ -27,9 +18,7 @@ import { PREFS_META }                  from '../services/notifications/Notificat
 import { useApp }                      from '../context/AppContext';
 import { COLORS, RADIUS }              from '../utils/theme';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Utilitários
 function relativeTime(date) {
   if (!date) return '';
   const diff = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -38,9 +27,7 @@ function relativeTime(date) {
   return `${Math.floor(diff / 3600)}h atrás`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NotifRow — item do histórico
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── NotifRow
 function NotifRow({ notif, onRead }) {
   const accent = notif.color ?? COLORS.primary;
   return (
@@ -49,7 +36,6 @@ function NotifRow({ notif, onRead }) {
       onPress={() => onRead(notif.id)}
       activeOpacity={0.75}
     >
-      {/* Barra lateral colorida */}
       <View style={[s.rowAccent, { backgroundColor: accent }]} />
 
       <View style={[s.rowIcon, { backgroundColor: accent + '22' }]}>
@@ -69,9 +55,7 @@ function NotifRow({ notif, onRead }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PrefRow — item de preferência de push
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── PrefRow
 function PrefRow({ item, enabled, onToggle }) {
   return (
     <View style={s.prefRow}>
@@ -92,9 +76,7 @@ function PrefRow({ item, enabled, onToggle }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SectionHeader
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── SectionHeader
 function SectionHeader({ icon, title, subtitle, actions }) {
   return (
     <View style={s.sectionHeaderWrap}>
@@ -123,9 +105,7 @@ function ActionChip({ icon, label, color = COLORS.primary, onPress }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NotificationsModal
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── NotificationsModal
 export default function NotificationsModal({ visible, onClose }) {
   const { currentUser }                              = useApp();
   const { notifications, unreadCount,
@@ -135,7 +115,6 @@ export default function NotificationsModal({ visible, onClose }) {
   const role     = currentUser?.role ?? 'user';
   const metaList = PREFS_META[role] ?? [];
 
-  // Histórico: apenas últimas 24 h
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   const recent = notifications.filter(
     (n) => new Date(n.createdAt).getTime() >= cutoff,
@@ -269,9 +248,7 @@ export default function NotificationsModal({ visible, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Estilos
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: COLORS.bg },
   scroll: { paddingBottom: 48 },

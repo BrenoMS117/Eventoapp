@@ -43,7 +43,6 @@ export function PhotoCarousel({ photos, height = 260 }) {
         ))}
       </ScrollView>
 
-      {/* Dots */}
       {photos.length > 1 && (
         <View style={s.dots}>
           {photos.map((_, i) => (
@@ -52,7 +51,6 @@ export function PhotoCarousel({ photos, height = 260 }) {
         </View>
       )}
 
-      {/* Counter */}
       <View style={s.counter}>
         <Text style={s.counterText}>
           {active + 1}/{photos.length}
@@ -121,7 +119,6 @@ export function PhotoManager({ photos = [], onAdd, onRemove, maxPhotos = 8 }) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.photoRow}
       >
-        {/* Existing photos */}
         {photos.map((uri, i) => (
           <View key={i} style={s.photoThumb}>
             <Image source={{ uri }} style={s.thumbImg} />
@@ -139,7 +136,6 @@ export function PhotoManager({ photos = [], onAdd, onRemove, maxPhotos = 8 }) {
           </View>
         ))}
 
-        {/* Add button */}
         {photos.length < maxPhotos && (
           <TouchableOpacity style={s.addThumb} onPress={showAddOptions}>
             <Ionicons name="camera-outline" size={26} color={COLORS.primary} />
@@ -232,7 +228,7 @@ export function PostPhotoSelector({ photos = [], onAdd, onRemove }) {
 }
 
 const s = StyleSheet.create({
-  // Carousel
+  // ── Carrossel ──
   dots: {
     position: "absolute",
     bottom: 12,
@@ -258,7 +254,7 @@ const s = StyleSheet.create({
   },
   counterText: { fontSize: 11, color: "#fff", fontWeight: "600" },
 
-  // Photo manager
+  // ── Gerenciador de fotos ──
   photoRow: { gap: 10, paddingVertical: 4 },
   photoThumb: {
     width: 100,
@@ -305,7 +301,7 @@ const s = StyleSheet.create({
   },
   hint: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
 
-  // Post photo
+  // ── Foto do post ──
   postPhotoBtn: {
     flexDirection: "row",
     alignItems: "center",

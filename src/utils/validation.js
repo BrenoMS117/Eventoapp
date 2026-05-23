@@ -1,4 +1,3 @@
-// Retorna string de erro ou '' se válido
 export const validate = {
   required: (v, label = 'Campo') =>
     !v?.trim() ? `${label} é obrigatório.` : '',
@@ -42,7 +41,6 @@ export const validate = {
     return isNaN(n) || n <= 0 ? `${label} deve ser maior que zero.` : '';
   },
 
-  // Valida um objeto inteiro e retorna { errors, isValid }
   form: (rules) => {
     const errors = {};
     let isValid = true;

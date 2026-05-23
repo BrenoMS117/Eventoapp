@@ -2,13 +2,8 @@ import { INotificationStrategy } from '../INotificationStrategy';
 import { makeNotif, hourBucket } from '../notifUtils';
 import { COLORS } from '../../../utils/theme';
 
-const CROWD_THRESHOLD = 90; // percent
+const CROWD_THRESHOLD = 90;
 
-/**
- * Fires when a live owned event reaches ≥90% crowd capacity.
- * Role: business only.
- * Dedupe: once per event per clock-hour (re-fires each hour the event stays packed).
- */
 export class CrowdLevelStrategy extends INotificationStrategy {
   evaluate(ctx, fired) {
     if (ctx.currentUser?.role !== 'business') return [];
@@ -32,7 +27,7 @@ export class CrowdLevelStrategy extends INotificationStrategy {
         title: 'Lotação Alta!',
         body: `${event.name} atingiu ${event.crowdLevel}% da capacidade. Verifique o controle de acesso.`,
         icon: 'people',
-        color: COLORS.danger,
+        color: COLORS.primary,
         priority: 'high',
         payload: { eventId: event.id },
         now: ctx.now,

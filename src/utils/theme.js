@@ -1,30 +1,28 @@
-// ──────────────────────────────────────────────
-// LiveVibe Dark Theme — redesign baseado nas refs
-// ──────────────────────────────────────────────
+// ─── LiveVibe — Tema escuro
 
 export const COLORS = {
-  // Backgrounds
+  // Fundos
   bg:          '#0D0F1A',
   bgCard:      '#141824',
   bgElevated:  '#1C2033',
   bgOverlay:   '#252A42',
 
-  // Brand gradient: vermelho → roxo
+  // Gradiente da marca
   gradStart:   '#E83B5C',
   gradMid:     '#B8296E',
   gradEnd:     '#7B2FBE',
 
-  // Accent primário (rosa-vermelho vibrante)
+  // Primária
   primary:     '#E83B5C',
   primaryDark: '#C0294A',
   primaryLight:'#FF6B87',
 
-  // Accent secundário (roxo)
+  // Secundária
   purple:      '#7B2FBE',
   purpleLight: '#A855F7',
   purpleDark:  '#5B1F9A',
 
-  // Vibe levels
+  // Níveis de vibe
   vibeParty:   '#E83B5C',
   vibeChill:   '#3B82F6',
   vibeIntense: '#7B2FBE',
@@ -35,13 +33,13 @@ export const COLORS = {
   gold:        '#F59E0B',
   goldLight:   '#FCD34D',
 
-  // Heat levels
+  // Níveis de calor
   heatBlazing: '#FF4500',
   heatHot:     '#E83B5C',
   heatWarm:    '#F59E0B',
   heatCool:    '#3B82F6',
 
-  // Text
+  // Texto
   text:        '#F1F5F9',
   textSub:     '#94A3B8',
   textMuted:   '#64748B',
@@ -52,7 +50,7 @@ export const COLORS = {
   borderGlow:  '#E83B5C44',
   surface:     '#141824',
 
-  // Legacy compatibility
+  // Compatibilidade legada
   success:     '#10B981',
   successLight:'#D1FAE5',
   warning:     '#F59E0B',
@@ -101,7 +99,6 @@ export const SHADOW = {
   },
 };
 
-// Gradientes prontos para LinearGradient
 export const GRADIENTS = {
   brand:    ['#E83B5C', '#7B2FBE'],
   brandH:   ['#FF6B87', '#A855F7'],

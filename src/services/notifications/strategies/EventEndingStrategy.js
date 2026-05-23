@@ -2,13 +2,8 @@ import { INotificationStrategy } from '../INotificationStrategy';
 import { makeNotif } from '../notifUtils';
 import { COLORS } from '../../../utils/theme';
 
-const WARN_BEFORE_MS = 10 * 60 * 1000; // 10 minutes
+const WARN_BEFORE_MS = 10 * 60 * 1000;
 
-/**
- * Fires 10 minutes before a nearby live event ends.
- * Role: user only.
- * Dedupe: once per event (per endsAt timestamp, so re-fires if extended).
- */
 export class EventEndingStrategy extends INotificationStrategy {
   evaluate(ctx, fired) {
     if (ctx.currentUser?.role !== 'user') return [];
@@ -26,7 +21,6 @@ export class EventEndingStrategy extends INotificationStrategy {
       const msUntilEnd = endsAt.getTime() - nowMs;
       if (msUntilEnd <= 0 || msUntilEnd > WARN_BEFORE_MS) continue;
 
-      // Include endsAt in the key so a re-scheduled event fires again.
       const dedupeKey = `ending:${event.id}:${endsAt.getTime()}`;
       if (fired.has(dedupeKey)) continue;
 
@@ -37,7 +31,7 @@ export class EventEndingStrategy extends INotificationStrategy {
         title: 'Evento Encerrando em Breve',
         body: `${event.name} encerra em ${minsLeft} minuto${minsLeft !== 1 ? 's' : ''}. Aproveite!`,
         icon: 'time',
-        color: COLORS.warning,
+        color: COLORS.primary,
         priority: 'high',
         payload: { eventId: event.id },
         now: ctx.now,

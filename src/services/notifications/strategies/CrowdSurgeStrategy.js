@@ -2,17 +2,10 @@ import { INotificationStrategy } from '../INotificationStrategy';
 import { makeNotif, minuteBucket } from '../notifUtils';
 import { COLORS } from '../../../utils/theme';
 
-const HISTORY_WINDOW_MS = 5 * 60 * 1000; // 5-minute rolling window
-const SURGE_DELTA = 20;                   // crowd-level points to trigger
+const HISTORY_WINDOW_MS = 5 * 60 * 1000;
+const SURGE_DELTA = 20;
 
-/**
- * Fires when crowd level rises ≥20 points within a 5-minute window.
- * Intended as an immediate security/capacity alert for owners.
- * Role: business only.
- * Dedupe: once per event per 5-minute bucket.
- */
 export class CrowdSurgeStrategy extends INotificationStrategy {
-  // eventId → Array<{ level: number, ts: Date }>
   _history = new Map();
 
   evaluate(ctx, fired) {
@@ -47,7 +40,7 @@ export class CrowdSurgeStrategy extends INotificationStrategy {
         title: 'Lotação Subindo Rápido!',
         body: `${event.name} subiu +${delta}% em 5 minutos. Verifique a segurança imediatamente.`,
         icon: 'trending-up',
-        color: COLORS.danger,
+        color: COLORS.primary,
         priority: 'high',
         payload: { eventId: event.id },
         now: ctx.now,

@@ -5,24 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { notificationService } from '../services/notifications/NotificationService';
 import { COLORS } from '../utils/theme';
 
-const DISPLAY_MS  = 4000;
-const SLIDE_IN_MS = 350;
+const DISPLAY_MS   = 4000;
+const SLIDE_IN_MS  = 350;
 const SLIDE_OUT_MS = 280;
 
-/**
- * NotificationBanner
- *
- * Floating in-app banner that:
- *   - Subscribes directly to NotificationService (no prop drilling).
- *   - Queues arriving notifications and displays them one at a time.
- *   - Auto-dismisses after 4 s; tap to dismiss early.
- *   - High-priority notifications skip the queue and jump to front.
- *   - Marks each notification as read on dismiss.
- */
 export function NotificationBanner() {
   const [current, setCurrent] = useState(null);
-  const pendingRef = useRef([]);      // in-order queue of unshown notifications
-  const shownIds   = useRef(new Set()); // prevents showing the same notif twice
+  const pendingRef = useRef([]);
+  const shownIds   = useRef(new Set());
   const slideY     = useRef(new Animated.Value(-120)).current;
   const timer      = useRef(null);
   const insets     = useSafeAreaInsets();
@@ -34,7 +24,6 @@ export function NotificationBanner() {
       );
       if (fresh.length === 0) return;
 
-      // High-priority items jump to the front of the pending queue.
       const high   = fresh.filter(n => n.priority === 'high');
       const normal = fresh.filter(n => n.priority !== 'high');
       const toAdd  = [...high, ...normal].filter(
@@ -49,7 +38,6 @@ export function NotificationBanner() {
   }, []);
 
   function showNext() {
-    // If already displaying something, the useEffect below will trigger the next.
     setCurrent(prev => {
       if (prev !== null) return prev;
       return dequeue();
@@ -64,7 +52,6 @@ export function NotificationBanner() {
     return next;
   }
 
-  // Animate in whenever `current` changes to a non-null value.
   useEffect(() => {
     if (!current) return;
 
@@ -116,7 +103,6 @@ export function NotificationBanner() {
         <Ionicons name="close" size={16} color={COLORS.textMuted} style={styles.close} />
       </Pressable>
 
-      {/* Priority indicator stripe */}
       {current.priority === 'high' && (
         <View style={[styles.priorityStripe, { backgroundColor: current.color }]} />
       )}

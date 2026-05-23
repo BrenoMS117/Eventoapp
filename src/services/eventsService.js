@@ -2,17 +2,11 @@ import { supabase } from '../lib/supabase';
 
 export const eventsService = {
   async getAll() {
-    // Safety net: don't load non-live events older than 14 days.
-    // Live events always bypass this limit.
     const maxAge = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('events')
       .select('*')
-      // Only open events (closed_at IS NULL = not yet closed by owner or auto-close).
-      // Events are soft-closed — they stay in the DB for history but disappear from the feed.
       .is('closed_at', null)
-      // Safety net: live OR recently created.
-      // Prevents legacy events without closed_at from loading forever.
       .or(`is_live.eq.true,created_at.gt.${maxAge}`)
       .order('created_at', { ascending: false });
     if (error) return { data: null, error };
@@ -74,12 +68,6 @@ export const eventsService = {
     return { data: data.map(_mapEvent), error: null };
   },
 
-  /**
-   * Atualiza campos permitidos de um evento.
-   * Apenas as chaves presentes em `fields` são enviadas ao banco.
-   * @param {string} id
-   * @param {{ nextAct?: string, endsAt?: string }} fields
-   */
   async updateFields(id, fields) {
     const columnMap = { nextAct: 'next_act', endsAt: 'ends_at', crowdLabel: 'crowd_label', crowdLevel: 'crowd_level' };
     const patch = {};
@@ -107,11 +95,6 @@ export const eventsService = {
     return { error };
   },
 
-  /**
-   * Encerra múltiplos eventos de uma vez (soft-close em batch).
-   * Substitui N chamadas sequenciais — elimina N+1 no autoManageEvents.
-   * @param {string[]} ids
-   */
   async closeEventsBatch(ids) {
     if (!ids?.length) return { error: null };
     const now = new Date().toISOString();
@@ -122,10 +105,6 @@ export const eventsService = {
     return { error };
   },
 
-  /**
-   * Inicia múltiplos eventos de uma vez (batch).
-   * @param {string[]} ids
-   */
   async startEventsBatch(ids) {
     if (!ids?.length) return { error: null };
     const { error } = await supabase
@@ -135,34 +114,34 @@ export const eventsService = {
     return { error };
   },
 
-async uploadPhoto(eventId, uri) {
-  const ext = (uri.split('.').pop() || 'jpg').toLowerCase().split('?')[0];
-  const path = `${eventId}/${Date.now()}.${ext}`;
-  console.log('uploadPhoto - path:', path);
+  async uploadPhoto(eventId, uri) {
+    const ext = (uri.split('.').pop() || 'jpg').toLowerCase().split('?')[0];
+    const path = `${eventId}/${Date.now()}.${ext}`;
+    console.log('uploadPhoto - path:', path);
 
-  const formData = new FormData();
-  formData.append('file', {
-    uri,
-    name: `photo.${ext}`,
-    type: `image/${ext}`,
-  });
-  console.log('uploadPhoto - formData montado');
+    const formData = new FormData();
+    formData.append('file', {
+      uri,
+      name: `photo.${ext}`,
+      type: `image/${ext}`,
+    });
+    console.log('uploadPhoto - formData montado');
 
-  const { data, error } = await supabase.storage
-    .from('event-photos')
-    .upload(path, formData, { contentType: `image/${ext}` });
+    const { data, error } = await supabase.storage
+      .from('event-photos')
+      .upload(path, formData, { contentType: `image/${ext}` });
 
-  console.log('uploadPhoto - upload retornou - data:', data, 'error:', JSON.stringify(error));
+    console.log('uploadPhoto - upload retornou - data:', data, 'error:', JSON.stringify(error));
 
-  if (error) return { url: null, path: null, error };
+    if (error) return { url: null, path: null, error };
 
-  const { data: { publicUrl } } = supabase.storage
-    .from('event-photos')
-    .getPublicUrl(path);
+    const { data: { publicUrl } } = supabase.storage
+      .from('event-photos')
+      .getPublicUrl(path);
 
-  console.log('uploadPhoto - publicUrl:', publicUrl);
-  return { url: publicUrl, path, error: null };
-},
+    console.log('uploadPhoto - publicUrl:', publicUrl);
+    return { url: publicUrl, path, error: null };
+  },
 
   async removePhoto(path) {
     const { error } = await supabase.storage
@@ -193,14 +172,11 @@ async uploadPhoto(eventId, uri) {
       .eq('id', id);
     return { error };
   },
-
 };
 
 function _mapEvent(d) {
   const crowdLevel = d.crowd_level ?? 0;
 
-  // heatLevel: chave string usada pela ExploreScreen para colorir badges de intensidade.
-  // Mapeamento: crowdLevel → BLAZING / HOT / WARM / COOL (espelho de COR_HEAT na tela).
   const heatLevel =
     crowdLevel >= 85 ? 'BLAZING' :
     crowdLevel >= 60 ? 'HOT'     :
@@ -240,11 +216,9 @@ function _mapEvent(d) {
     maxCapacity: d.max_capacity ?? null,
     closedAt: d.closed_at ?? null,
     createdAt: d.created_at ?? null,
-    // ── Campos derivados usados pela ExploreScreen ──────────────────────────
-    // Aliases calculados aqui para manter a tela livre de lógica de negócio.
-    capacityPct: crowdLevel,                   // 0-100 — barra de lotação no hero
-    vibeMeter:   crowdLevel,                   // 0-100 — componente VibeMeter
-    vibeLabel:   d.crowd_label ?? 'Aguardando', // label textual do termômetro
-    heatLevel,                                 // BLAZING | HOT | WARM | COOL
+    capacityPct: crowdLevel,
+    vibeMeter:   crowdLevel,
+    vibeLabel:   d.crowd_label ?? 'Aguardando',
+    heatLevel,
   };
 }

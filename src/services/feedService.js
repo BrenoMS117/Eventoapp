@@ -5,23 +5,13 @@ export const feedService = {
     const { data, error } = await supabase
       .from('feed_posts')
       .select('*')
-      // Exclude posts that have already expired on the server side.
-      // Posts with no expires_at are treated as permanent.
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
-      .limit(30); // Carrega os 30 mais recentes; use getPaged() para paginação
+      .limit(30);
     if (error) return { data: null, error };
     return { data: data.map(_mapPost), error: null };
   },
 
-  /**
-   * Paginação por cursor — use no lugar de getAll() para feeds longos.
-   * Retorna `nextCursor` (created_at do último item) para buscar a próxima página.
-   *
-   * @param {string|null} cursor  created_at do último post da página anterior
-   * @param {number}      limit   posts por página (padrão 20)
-   * @returns {{ data, error, nextCursor: string|null }}
-   */
   async getPaged(cursor = null, limit = 20) {
     let q = supabase
       .from('feed_posts')
@@ -73,10 +63,8 @@ export const feedService = {
   },
 
   async like(postId) {
-    // Caminho atômico — sem race condition
     const { error: rpcErr } = await supabase.rpc('increment_post_likes', { p_post_id: postId });
     if (!rpcErr) return { error: null };
-    // Fallback read-then-write (caso a RPC não exista no ambiente)
     console.warn('[feedService.like] RPC falhou, usando fallback:', rpcErr.message);
     const { data: post } = await supabase.from('feed_posts').select('likes').eq('id', postId).single();
     if (!post) return { error: 'Post não encontrado.' };
@@ -85,10 +73,8 @@ export const feedService = {
   },
 
   async dislike(postId) {
-    // Caminho atômico — sem race condition
     const { error: rpcErr } = await supabase.rpc('increment_post_dislikes', { p_post_id: postId });
     if (!rpcErr) return { error: null };
-    // Fallback read-then-write (caso a RPC não exista no ambiente)
     console.warn('[feedService.dislike] RPC falhou, usando fallback:', rpcErr.message);
     const { data: post } = await supabase.from('feed_posts').select('dislikes').eq('id', postId).single();
     if (!post) return { error: 'Post não encontrado.' };
@@ -96,13 +82,6 @@ export const feedService = {
     return { error };
   },
 
-  /**
-   * Expires all feed posts linked to an event by setting expires_at = NOW().
-   * Called when the event is closed so the posts stop appearing in all feeds.
-   *
-   * @param {string} eventId  UUID of the event being closed.
-   * @returns {Promise<{ error: any }>}
-   */
   async closeByEvent(eventId) {
     const now = new Date().toISOString();
     const { error } = await supabase
@@ -112,11 +91,6 @@ export const feedService = {
     return { error };
   },
 
-  /**
-   * Expira posts de múltiplos eventos em uma única query (batch).
-   * Substitui N chamadas sequenciais — elimina N+1 no autoManageEvents.
-   * @param {string[]} eventIds
-   */
   async closeByEventsBatch(eventIds) {
     if (!eventIds?.length) return { error: null };
     const now = new Date().toISOString();
@@ -142,7 +116,7 @@ function _mapPost(d) {
   const expiresAt = d.expires_at ? new Date(d.expires_at) : null;
   return {
     id: d.id,
-    authorId: d.user_id,   // used by SocialEngagementStrategy
+    authorId: d.user_id,
     eventId: d.event_id,
     eventName: d.event_name,
     user: {
@@ -161,7 +135,7 @@ function _mapPost(d) {
     time: timeAgo === 0 ? 'agora mesmo' : `há ${timeAgo} min`,
     timeAgo,
     expiresAt,
-    createdAt: d.created_at ?? null, // cursor de paginação
+    createdAt: d.created_at ?? null,
     photos: d.photos ?? [],
   };
 }

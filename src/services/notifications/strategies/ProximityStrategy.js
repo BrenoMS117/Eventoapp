@@ -2,11 +2,6 @@ import { INotificationStrategy } from '../INotificationStrategy';
 import { makeNotif } from '../notifUtils';
 import { COLORS } from '../../../utils/theme';
 
-/**
- * Fires when a new event enters the user's discovery radius.
- * Role: user only.
- * Dedupe: once per event (resets if user leaves and re-enters the radius).
- */
 export class ProximityStrategy extends INotificationStrategy {
   _prevNearbyIds = new Set();
 
