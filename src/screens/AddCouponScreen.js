@@ -18,12 +18,12 @@ import { CouponSchema } from "../validation/CouponSchema";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
 
 const TIPOS_CUPOM = [
-  { key: "bebida", icon: "🥃", label: "Drinque Grátis", cor: "#E83B5C" },
-  { key: "comida", icon: "🍕", label: "Comida Grátis", cor: "#D85A30" },
-  { key: "desconto", icon: "🎟", label: "Desconto", cor: "#F59E0B" },
-  { key: "experiencia", icon: "⭐", label: "Experiência VIP", cor: "#7B2FBE" },
-  { key: "brinde", icon: "🎁", label: "Brinde", cor: "#059669" },
-  { key: "acesso", icon: "🚪", label: "Acesso Especial", cor: "#0C447C" },
+  { key: "bebida",      label: "Drinque Grátis",  cor: "#E83B5C" },
+  { key: "comida",      label: "Comida Grátis",   cor: "#D85A30" },
+  { key: "desconto",    label: "Desconto",        cor: "#F59E0B" },
+  { key: "experiencia", label: "Experiência VIP", cor: "#7B2FBE" },
+  { key: "brinde",      label: "Brinde",          cor: "#059669" },
+  { key: "acesso",      label: "Acesso Especial", cor: "#0C447C" },
 ];
 
 const OPCOES_VALIDADE = [
@@ -194,14 +194,6 @@ export default function AddCouponScreen({ navigation }) {
                     ]}
                     onPress={() => setTipoSelecionado(t.key)}
                   >
-                    <View
-                      style={[
-                        s.tipoIconCircle,
-                        { backgroundColor: t.cor + "33" },
-                      ]}
-                    >
-                      <Text style={s.tipoIcon}>{t.icon}</Text>
-                    </View>
                     <Text
                       style={[
                         s.tipoLabel,
@@ -459,11 +451,11 @@ export default function AddCouponScreen({ navigation }) {
                     }}
                   >
                     <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
-                      📍 {eventoAtivo?.venue || businessStats.venueName}
+                      {eventoAtivo?.venue || businessStats.venueName}
                     </Text>
                     {validade && (
                       <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
-                        ⏱ Até {validade}
+                        Até {validade}
                       </Text>
                     )}
                   </View>
@@ -486,7 +478,7 @@ export default function AddCouponScreen({ navigation }) {
                   </View>
                   <View style={s.previewCTA}>
                     <Text style={[s.previewCTATexto, { color: tipoInfo.cor }]}>
-                      🎯 Você está no local — Resgatar →
+                      Você está no local — Resgatar →
                     </Text>
                   </View>
                 </View>
@@ -508,7 +500,7 @@ export default function AddCouponScreen({ navigation }) {
                 {
                   etapa: 1,
                   titulo: 'Tipo',
-                  rows: [["Tipo", `${tipoInfo.icon} ${tipoInfo.label}`]],
+                  rows: [["Tipo", tipoInfo.label]],
                 },
                 {
                   etapa: 2,
@@ -547,7 +539,7 @@ export default function AddCouponScreen({ navigation }) {
                 <View style={s.resumoRow}>
                   <Text style={s.resumoLabel}>Status</Text>
                   <Text style={[s.resumoVal, { color: eventoAtivo?.isLive ? '#4ade80' : COLORS.textMuted }]}>
-                    {eventoAtivo?.isLive ? '🟢 Ao vivo' : '⏸ Não iniciado'}
+                    {eventoAtivo?.isLive ? 'Ao vivo' : 'Não iniciado'}
                   </Text>
                 </View>
               </View>
@@ -638,6 +630,9 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.border,
     position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 64,
   },
   tipoIconCircle: {
     width: 48,

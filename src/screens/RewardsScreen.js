@@ -75,9 +75,6 @@ function RedemptionCard({ coupon, qrCode, redeemedAt }) {
       activeOpacity={0.85}
     >
       <View style={rc.header}>
-        <View style={[rc.iconWrap, { backgroundColor: (coupon?.highlightColor ?? COLORS.primary) + "33" }]}>
-          <Text style={{ fontSize: 20 }}>{coupon?.icon ?? "🎟"}</Text>
-        </View>
         <View style={{ flex: 1 }}>
           <Text style={rc.title} numberOfLines={1}>
             {coupon?.title ?? "Cupom"}
@@ -145,7 +142,7 @@ function CouponCard({ coupon, redeemed, onPress }) {
       disabled={esgotado && !redeemed}
     >
       <View style={[cc.band, { backgroundColor: coupon.gradient[0] }]}>
-        <Text style={cc.icon}>{coupon.icon}</Text>
+        {coupon.icon ? <Text style={cc.icon}>{coupon.icon}</Text> : null}
         <View style={{ flex: 1 }}>
           <Text style={cc.typeLabel}>{coupon.typeLabel}</Text>
           <Text style={cc.title}>{coupon.title}</Text>
@@ -328,7 +325,6 @@ export default function RewardsScreen({ navigation }) {
           <Text style={s.sectionTitle}>Cupons Disponíveis</Text>
           {coupons.length === 0 ? (
             <View style={s.emptyState}>
-              <Text style={{ fontSize: 32, marginBottom: 8 }}>🎟</Text>
               <Text style={s.emptyText}>Nenhum cupom disponível no momento</Text>
             </View>
           ) : (
@@ -360,7 +356,6 @@ export default function RewardsScreen({ navigation }) {
           </View>
           {redeemedList.length === 0 ? (
             <View style={s.emptyState}>
-              <Text style={{ fontSize: 32, marginBottom: 8 }}>🎫</Text>
               <Text style={s.emptyText}>Nenhum resgate ainda</Text>
               <Text style={s.emptySubText}>
                 Vá a um evento e resgate cupons para vê-los aqui

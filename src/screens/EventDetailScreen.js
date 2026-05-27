@@ -54,9 +54,8 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
     <View style={rs.wrap}>
       {featured?.isClear && (
         <View style={[rs.featBanner, { borderColor: featured.cor + '55' }]}>
-          <Text style={rs.featLabel}>⚡ CARACTERÍSTICA EM DESTAQUE</Text>
+          <Text style={rs.featLabel}>CARACTERÍSTICA EM DESTAQUE</Text>
           <View style={rs.featRow}>
-            <Text style={rs.featIcon}>{featured.icon}</Text>
             <View style={{ flex: 1 }}>
               <Text style={[rs.featName, { color: featured.cor }]}>{featured.label}</Text>
               <View style={rs.featBarBg}>
@@ -73,7 +72,7 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
 
       <View style={rs.header}>
         <Text style={rs.headerTitle}>
-          {isOwner ? '👁 PERCEPÇÃO DO PÚBLICO' : 'COMO ESTÁ O EVENTO?'}
+          {isOwner ? 'PERCEPÇÃO DO PÚBLICO' : 'COMO ESTÁ O EVENTO?'}
         </Text>
         {total > 0 && (
           <Text style={rs.headerCount}>{total} {total === 1 ? 'avaliação' : 'avaliações'}</Text>
@@ -110,10 +109,9 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
                 />
               )}
 
-              {isBusy
-                ? <ActivityIndicator size="small" color={opt.cor} style={rs.pillIconSlot} />
-                : <Text style={rs.pillIcon}>{opt.icon}</Text>
-              }
+              {isBusy && (
+                <ActivityIndicator size="small" color={opt.cor} style={rs.pillIconSlot} />
+              )}
               <View style={{ flex: 1 }}>
                 <Text style={[rs.pillLabel, isVoted && { color: opt.cor, fontWeight: '800' }]}>
                   {opt.label}
@@ -124,9 +122,6 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
               </View>
               {isVoted && (
                 <Ionicons name="star" size={13} color={opt.cor} />
-              )}
-              {isTop && !isVoted && count > 0 && (
-                <Text style={rs.trophyIcon}>🏆</Text>
               )}
             </TouchableOpacity>
           );
@@ -143,16 +138,16 @@ function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
         <View style={rs.votedRow}>
           <Ionicons name="star" size={13} color={RATING_MAP[userVote]?.cor ?? COLORS.primary} />
           <Text style={rs.votedText}>
-            Você votou: {RATING_MAP[userVote]?.icon} {RATING_MAP[userVote]?.label}
+            Você votou: {RATING_MAP[userVote]?.label}
             {canVote ? ' — toque em outra para mudar' : ''}
           </Text>
         </View>
       )}
       {isOwner && (
-        <Text style={rs.hintText}>👁 Donos de estabelecimento visualizam em modo leitura</Text>
+        <Text style={rs.hintText}>Donos de estabelecimento visualizam em modo leitura</Text>
       )}
       {!canVote && !isOwner && (
-        <Text style={rs.hintText}>📍 Vá ao local para avaliar</Text>
+        <Text style={rs.hintText}>Vá ao local para avaliar</Text>
       )}
     </View>
   );
@@ -277,7 +272,7 @@ function CrowdPanel({ evento, isProximo, onCheckIn, onCheckOut, isCheckedIn }) {
 
   return (
     <View style={cs.panel}>
-      <Text style={cs.panelLabel}>👥 PÚBLICO AO VIVO</Text>
+      <Text style={cs.panelLabel}>PÚBLICO AO VIVO</Text>
 
       <View style={cs.barBg}>
         <View style={[cs.barFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor }]} />
@@ -300,7 +295,7 @@ function CrowdPanel({ evento, isProximo, onCheckIn, onCheckOut, isCheckedIn }) {
         <View style={cs.checkInRow}>
           {feedback === 'in' && (
             <View style={cs.feedbackChip}>
-              <Text style={cs.feedbackText}>✓ Check-in feito! Aproveite 🎉</Text>
+              <Text style={cs.feedbackText}>Check-in feito!</Text>
             </View>
           )}
           {feedback === 'out' && (
@@ -335,14 +330,11 @@ function CrowdPanel({ evento, isProximo, onCheckIn, onCheckOut, isCheckedIn }) {
               >
                 {loading
                   ? <ActivityIndicator size="small" color="#fff" />
-                  : <>
-                      <Text style={cs.checkInBtnIcon}>📍</Text>
-                      <Text style={cs.checkInBtnText}>Fazer check-in</Text>
-                    </>
+                  : <Text style={cs.checkInBtnText}>Fazer check-in</Text>
                 }
               </TouchableOpacity>
             ) : (
-              <Text style={cs.nearbyHint}>📍 Chegue ao local para fazer check-in</Text>
+              <Text style={cs.nearbyHint}>Chegue ao local para fazer check-in</Text>
             )
           )}
         </View>
@@ -484,7 +476,7 @@ export default function EventDetailScreen({ route, navigation }) {
     }
     const { canRedeem, message: geoMsg } = canRedeemCoupon(cupom.id);
     if (!canRedeem) {
-      Alert.alert("📍 Vá ao local", geoMsg);
+      Alert.alert("Vá ao local", geoMsg);
       return;
     }
     Alert.alert(`Resgatar: ${cupom.title}`, cupom.description, [
@@ -494,7 +486,7 @@ export default function EventDetailScreen({ route, navigation }) {
         onPress: async () => {
           const r = await redeemCoupon(cupom.id);
           if (r.success)
-            Alert.alert("✅ Resgatado!", `Apresente ao atendente de ${cupom.venue}.`);
+            Alert.alert("Resgatado!", `Apresente ao atendente de ${cupom.venue}.`);
           else
             Alert.alert("Erro ao resgatar", r.error ?? "Tente novamente.");
         },
@@ -547,7 +539,7 @@ export default function EventDetailScreen({ route, navigation }) {
             </View>
           )}
           <Text style={s.heroNome}>{evento.name}</Text>
-          <Text style={s.heroVenue}>📍 {evento.venue}</Text>
+          <Text style={s.heroVenue}>{evento.venue}</Text>
           {evento.heatLevel && (
             <View
               style={[
@@ -559,7 +551,7 @@ export default function EventDetailScreen({ route, navigation }) {
               ]}
             >
               <Text style={[s.heatChipTexto, { color: corHeat }]}>
-                🔥 NÍVEL: {evento.heatLevel}
+                NÍVEL: {evento.heatLevel}
               </Text>
             </View>
           )}
@@ -593,14 +585,12 @@ export default function EventDetailScreen({ route, navigation }) {
         <View style={s.statsGrid}>
           {[
             {
-              icon: "👥",
               label: "Lotação",
               valor: `${evento.crowdLevel}%`,
               sub: evento.crowdLabel,
               cor: corLotacao,
             },
             {
-              icon: "⏱",
               label: "Fila",
               valor:
                 evento.queueMinutes > 0
@@ -610,22 +600,19 @@ export default function EventDetailScreen({ route, navigation }) {
               cor: evento.queueMinutes > 10 ? COLORS.warning : COLORS.success,
             },
             {
-              icon: "⭐",
               label: "Avaliação",
               valor: evento.rating || "—",
               sub: `${evento.reviewCount} avaliações`,
               cor: COLORS.gold,
             },
             {
-              icon: "♿",
               label: "Acessível",
-              valor: evento.accessible ? "✓ Sim" : "✗ Não",
+              valor: evento.accessible ? "Sim" : "Não",
               sub: evento.accessibilityNotes?.slice(0, 14) || "",
               cor: evento.accessible ? COLORS.success : COLORS.danger,
             },
           ].map((stat) => (
             <View key={stat.label} style={s.statCard}>
-              <Text style={s.statIcon}>{stat.icon}</Text>
               <Text style={[s.statValor, { color: stat.cor }]}>
                 {stat.valor}
               </Text>
@@ -639,7 +626,7 @@ export default function EventDetailScreen({ route, navigation }) {
         {evento.nowPlaying && (
           <View style={s.tocandoCard}>
             <View style={{ flex: 1 }}>
-              <Text style={s.tocandoLabel}>🎵 TOCANDO AGORA</Text>
+              <Text style={s.tocandoLabel}>TOCANDO AGORA</Text>
               <Text style={s.tocandoArtista}>{evento.nowPlaying}</Text>
               {evento.nextAct ? (
                 <Text style={s.proximoArtista}>A seguir: {evento.nextAct}</Text>
@@ -707,14 +694,14 @@ export default function EventDetailScreen({ route, navigation }) {
                       { backgroundColor: cupom.highlightColor },
                     ]}
                   >
-                    <Text style={s.cupomBandaIcon}>{cupom.icon}</Text>
+                    {cupom.icon ? <Text style={s.cupomBandaIcon}>{cupom.icon}</Text> : null}
                     <View style={{ flex: 1 }}>
                       <Text style={s.cupomBandaTipo}>{cupom.typeLabel}</Text>
                       <Text style={s.cupomBandaTitulo}>{cupom.title}</Text>
                     </View>
                     {resgatado && (
                       <View style={s.resgatadoBadge}>
-                        <Text style={s.resgatadoTexto}>✓</Text>
+                        <Text style={s.resgatadoTexto}>OK</Text>
                       </View>
                     )}
                     {esgotado && !resgatado && (
@@ -747,7 +734,7 @@ export default function EventDetailScreen({ route, navigation }) {
                             { color: cupom.highlightColor },
                           ]}
                         >
-                          {isProximo ? "Resgatar →" : "📍 Vá ao local"}
+                          {isProximo ? "Resgatar →" : "Vá ao local"}
                         </Text>
                       )}
                     </View>
@@ -792,7 +779,7 @@ export default function EventDetailScreen({ route, navigation }) {
                     <Text style={s.feedNome}>{post.user.name}</Text>
                     {post.verified && (
                       <View style={s.verificadoBadge}>
-                        <Text style={s.verificadoTexto}>✓ No local</Text>
+                        <Text style={s.verificadoTexto}>No local</Text>
                       </View>
                     )}
                     <Text style={s.feedTempo}>{post.time}</Text>

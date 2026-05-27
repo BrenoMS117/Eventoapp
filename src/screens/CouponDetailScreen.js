@@ -52,7 +52,7 @@ export default function CouponDetailScreen({ route, navigation }) {
 
   async function handleRedeem() {
     if (!canRedeem) {
-      Alert.alert('📍 Vá ao local', geoMessage);
+      Alert.alert('Vá ao local', geoMessage);
       return;
     }
     Alert.alert('Resgatar agora?', `${coupon.title}\n\n${coupon.conditions ?? ''}`, [
@@ -84,7 +84,7 @@ export default function CouponDetailScreen({ route, navigation }) {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={[s.hero, { backgroundColor: coupon.highlightColor }]}>
           <View style={[s.heroGlow, { backgroundColor: (coupon.gradient?.[1] ?? coupon.highlightColor), opacity: 0.4 }]} />
-          <Text style={s.heroIcon}>{coupon.icon}</Text>
+          {coupon.icon ? <Text style={s.heroIcon}>{coupon.icon}</Text> : null}
           <View style={s.heroTypeBadge}>
             <Text style={[s.heroTypeText, { color: coupon.highlightColor }]}>{coupon.typeLabel.toUpperCase()}</Text>
           </View>
@@ -162,7 +162,7 @@ export default function CouponDetailScreen({ route, navigation }) {
               <View style={[s.progressFill, { width: `${pct}%`, backgroundColor: coupon.highlightColor }]} />
             </View>
             {coupon.remainingQty <= 5 && coupon.remainingQty > 0 && (
-              <Text style={s.lowStockText}>⚡ Últimas unidades! Resgate agora.</Text>
+              <Text style={s.lowStockText}>Últimas unidades! Resgate agora.</Text>
             )}
           </View>
 
