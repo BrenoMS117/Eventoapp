@@ -134,13 +134,11 @@ export default function RegisterScreen({ navigation }) {
               {[
                 {
                   key: "user",
-                  icon: "👤",
                   label: "Usuário",
                   cor: COLORS.primary,
                 },
                 {
                   key: "business",
-                  icon: "🏢",
                   label: "Estabelecimento",
                   cor: COLORS.purple,
                 },
@@ -159,9 +157,6 @@ export default function RegisterScreen({ navigation }) {
                     setErros((prev) => ({ ...prev, nomeEstabelecimento: "" }));
                   }}
                 >
-                  <Text style={{ fontSize: 28, marginBottom: 6 }}>
-                    {p.icon}
-                  </Text>
                   <Text
                     style={[
                       s.perfilLabel,

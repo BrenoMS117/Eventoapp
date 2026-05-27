@@ -20,14 +20,12 @@ const CONTAS_DEMO = [
     label: "Usuário",
     email: "dantas@dantas.com",
     password: "123456",
-    icon: "👤",
     cor: COLORS.primary,
   },
   {
     label: "Estabelecimento",
     email: "claudio@gmail.com",
     password: "123456",
-    icon: "🏢",
     cor: COLORS.purple,
   },
 ];
@@ -101,9 +99,6 @@ export default function LoginScreen({ navigation }) {
                     setAuthError("");
                   }}
                 >
-                  <Text style={{ fontSize: 24, marginBottom: 4 }}>
-                    {d.icon}
-                  </Text>
                   <Text style={[s.demoCardLabel, { color: d.cor }]}>
                     {d.label}
                   </Text>

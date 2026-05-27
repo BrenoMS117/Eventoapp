@@ -40,7 +40,7 @@ export const CouponSchema = {
       venue: data.venue,
       type: data.type,
       typeLabel: typeInfo?.label || data.type,
-      icon: typeInfo?.icon || '🎟',
+      icon: typeInfo?.icon || '',
       title: (data.title || '').trim(),
       description: (data.description || '').trim(),
       conditions: conditionsParts.join(' '),

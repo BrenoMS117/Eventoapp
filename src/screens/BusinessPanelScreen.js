@@ -41,10 +41,10 @@ const CROWD_STATUS = [
 ];
 
 const ANUNCIOS = [
-  { icon: "🎤", type: 'new_artist', label: "Novo artista",  title: "Novo artista a caminho!",   msg: "Um novo artista irá se apresentar em breve" },
-  { icon: "⬇️", type: 'queue_down', label: "Fila diminuiu", title: "A fila diminuiu! ⬇️",        msg: "A entrada está mais rápida neste momento" },
-  { icon: "🎁", type: 'promo',      label: "Promoção",      title: "Promoção especial! 🎁",      msg: "2 drinks pelo preço de 1 até meia-noite!" },
-  { icon: "⚠️", type: 'warning',    label: "Aviso",         title: "Aviso importante ⚠️",        msg: "Estamos quase lotados" },
+  { type: 'new_artist', label: "Novo artista",  title: "Novo artista a caminho!",   msg: "Um novo artista irá se apresentar em breve" },
+  { type: 'queue_down', label: "Fila diminuiu", title: "A fila diminuiu!",           msg: "A entrada está mais rápida neste momento" },
+  { type: 'promo',      label: "Promoção",      title: "Promoção especial!",         msg: "2 drinks pelo preço de 1 até meia-noite!" },
+  { type: 'warning',    label: "Aviso",         title: "Aviso importante",           msg: "Estamos quase lotados" },
 ];
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────
@@ -147,14 +147,13 @@ function FeaturedRatingCard({ featured, totalVotes }) {
   if (!featured) {
     return (
       <View style={fr.empty}>
-        <Text style={fr.emptyText}>💬 Aguardando avaliações do público…</Text>
+        <Text style={fr.emptyText}>Aguardando avaliações do público…</Text>
       </View>
     );
   }
   return (
     <View style={[fr.card, { borderColor: featured.cor + '44' }]}>
       <View style={fr.topRow}>
-        <Text style={fr.bigIcon}>{featured.icon}</Text>
         <View style={{ flex: 1 }}>
           <Text style={fr.categoryLabel}>MAIS VOTADO</Text>
           <Text style={[fr.categoryName, { color: featured.cor }]}>{featured.label}</Text>
@@ -234,7 +233,7 @@ function OwnerCard({ currentUser, onLogout }) {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.usuarioNome}>{currentUser?.name || "Estabelecimento"}</Text>
-          <Text style={s.usuarioEmail}>{currentUser?.venueName ? `🏠 ${currentUser.venueName}` : currentUser?.email || ""}</Text>
+          <Text style={s.usuarioEmail}>{currentUser?.venueName ? currentUser.venueName : currentUser?.email || ""}</Text>
         </View>
         <TouchableOpacity style={s.editProfileBtn} onPress={openModal}>
           <Ionicons name="person-circle-outline" size={22} color={COLORS.primary} />
@@ -400,7 +399,6 @@ function EditProfileModal({
 function MetricCard({ icon, label, valor, sub, cor }) {
   return (
     <View style={s.metricCard}>
-      <Text style={s.metricIcon}>{icon}</Text>
       <Text style={[s.metricValor, { color: cor }]}>{valor}</Text>
       <Text style={s.metricLabel}>{label}</Text>
       {sub ? <Text style={s.metricSub}>{sub}</Text> : null}
@@ -453,9 +451,6 @@ function EmptyState({ currentUser, onLogout, onCreateEvent }) {
       </View>
       <OwnerCard currentUser={currentUser} onLogout={onLogout} />
       <View style={s.emptyRoot}>
-        <View style={s.emptyIconWrap}>
-          <Text style={{ fontSize: 56 }}>🎪</Text>
-        </View>
         <Text style={s.emptyTitulo}>Nenhum evento ainda</Text>
         <Text style={s.emptySub}>
           Crie seu primeiro evento para começar a gerenciar ingressos, cupons e a experiência dos seus clientes.
@@ -508,10 +503,10 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
         <View style={s.secao}>
           <Text style={s.secaoTitulo}>Histórico geral</Text>
           <View style={s.metricsGrid}>
-            <MetricCard icon="🎪" label="Eventos" valor={meusEventos.length} cor={COLORS.purpleLight} />
-            <MetricCard icon="👥" label="Participantes" valor={totalParticipantes.toLocaleString()} cor={COLORS.primaryLight} />
-            <MetricCard icon="🎟" label="Resgatados" valor={totalResgatados} sub={`/ ${totalCriadosGeral} criados`} cor={COLORS.purpleLight} />
-            <MetricCard icon="⭐" label="Avaliação média" valor={mediaAvaliacao} cor={COLORS.gold} />
+            <MetricCard icon="" label="Eventos" valor={meusEventos.length} cor={COLORS.purpleLight} />
+            <MetricCard icon="" label="Participantes" valor={totalParticipantes.toLocaleString()} cor={COLORS.primaryLight} />
+            <MetricCard icon="" label="Resgatados" valor={totalResgatados} sub={`/ ${totalCriadosGeral} criados`} cor={COLORS.purpleLight} />
+            <MetricCard icon="" label="Avaliação média" valor={mediaAvaliacao} cor={COLORS.gold} />
           </View>
         </View>
         {ultimoEvento && (
@@ -571,7 +566,7 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
           </TouchableOpacity>
         </View>
         <View style={s.impulsionarCard}>
-          <Text style={s.impulsionarTitulo}>⚡ Impulsionar Visibilidade</Text>
+          <Text style={s.impulsionarTitulo}>Impulsionar Visibilidade</Text>
           <Text style={s.impulsionarSub}>Destaque seu evento no topo do feed para +2.300 usuários próximos</Text>
           <TouchableOpacity style={s.impulsionarBtn} onPress={() => Alert.alert("Em breve", "Planos em desenvolvimento!")}>
             <Text style={s.impulsionarBtnTexto}>Ver planos →</Text>
@@ -618,7 +613,7 @@ function ActivePanel({
     const result = await updateEventFields(eventoAtivo.id, fields);
     setSalvando(false);
     if (result.error) Alert.alert("Erro", "Não foi possível salvar. Tente novamente.");
-    else { setNovoArtista(""); setNovoHorarioFim(""); Alert.alert("✅ Salvo", "Informações do evento atualizadas."); }
+    else { setNovoArtista(""); setNovoHorarioFim(""); Alert.alert("Salvo", "Informações do evento atualizadas."); }
   }
 
   async function handleCrowdStatus(status) {
@@ -656,7 +651,7 @@ function ActivePanel({
     if (error) {
       Alert.alert("Erro", "Não foi possível enviar o aviso. Tente novamente.");
     } else {
-      Alert.alert("📢 Enviado!", `"${a.msg}" foi notificado para usuários próximos.`);
+      Alert.alert("Enviado!", `"${a.msg}" foi notificado para usuários próximos.`);
     }
   }
 
@@ -853,9 +848,6 @@ function ActivePanel({
                 disabled={isDisabled}
                 activeOpacity={0.8}
               >
-                <View style={nd.notifIconBg}>
-                  <Text style={{ fontSize: 16 }}>{a.icon}</Text>
-                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={nd.notifTitle}>{a.label}</Text>
                   <Text style={nd.notifMsg} numberOfLines={2}>{a.msg}</Text>
@@ -879,7 +871,6 @@ function ActivePanel({
           </View>
           {cuponsDoAtivo.length === 0 ? (
             <TouchableOpacity style={nd.vazioCard} onPress={() => navigation.navigate("AddCoupon")}>
-              <Text style={{ fontSize: 32, marginBottom: 8 }}>🎟</Text>
               <Text style={nd.vazioTitle}>Criar primeiro cupom</Text>
               <Text style={nd.vazioSub}>Atraia mais clientes com cupons exclusivos</Text>
             </TouchableOpacity>

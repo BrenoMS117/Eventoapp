@@ -223,7 +223,6 @@ function SectionHeader({ title, onMore }) {
 function EmptyNearby({ hasCoords }) {
   return (
     <View style={s.emptyCard}>
-      <Text style={{ fontSize: 32, marginBottom: 8 }}>📍</Text>
       <Text style={s.emptyTitle}>
         {hasCoords ? 'Nenhum evento próximo' : 'Localizando você…'}
       </Text>

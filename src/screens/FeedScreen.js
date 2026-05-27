@@ -24,11 +24,11 @@ const { width } = Dimensions.get("window");
 const CARD_W = (width - 48) / 2;
 
 const TIPOS_POST = [
-  { key: "geral",          label: "Geral",    icon: "💬" },
-  { key: "lotacao",        label: "Lotação",  icon: "👥" },
-  { key: "dica",           label: "Dica",     icon: "💡" },
-  { key: "alerta",         label: "Alerta",   icon: "⚡" },
-  { key: "acessibilidade", label: "Acesso",   icon: "♿" },
+  { key: "geral",          label: "Geral"   },
+  { key: "lotacao",        label: "Lotação" },
+  { key: "dica",           label: "Dica"    },
+  { key: "alerta",         label: "Alerta"  },
+  { key: "acessibilidade", label: "Acesso"  },
 ];
 
 // ─── PostDetailModal ──────────────────────────────────────────────────────────
@@ -103,7 +103,6 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
                   style={s.modalAcaoBtn}
                   onPress={() => { onLike(post.id); onClose(); }}
                 >
-                  <Text style={{ fontSize: 22 }}>❤️</Text>
                   <Text style={s.modalAcaoCount}>{post.likes}</Text>
                   <Text style={s.modalAcaoLabel}>Curtir</Text>
                 </TouchableOpacity>
@@ -114,7 +113,6 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
                   style={s.modalAcaoBtn}
                   onPress={() => { onDislike(post.id); onClose(); }}
                 >
-                  <Text style={{ fontSize: 22 }}>👎</Text>
                   <Text style={s.modalAcaoCount}>{post.dislikes ?? 0}</Text>
                   <Text style={s.modalAcaoLabel}>Não curtir</Text>
                 </TouchableOpacity>
@@ -122,7 +120,6 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
                 <View style={s.modalAcaoDivider} />
 
                 <View style={s.modalAcaoBtn}>
-                  <Text style={{ fontSize: 22 }}>💬</Text>
                   <Text style={s.modalAcaoCount}>{post.replies}</Text>
                   <Text style={s.modalAcaoLabel}>Respostas</Text>
                 </View>
@@ -147,11 +144,7 @@ function PostCard({ post, onPress, onLike, onDislike }) {
       {temFotos ? (
         <Image source={{ uri: post.photos[0] }} style={s.postImagem} resizeMode="cover" />
       ) : (
-        <View style={[s.postAreaVazia, { backgroundColor: post.user.color + "33" }]}>
-          <Text style={{ fontSize: 30 }}>
-            {post.type === "alerta" ? "⚡" : post.type === "dica" ? "💡" : "🎵"}
-          </Text>
-        </View>
+        <View style={[s.postAreaVazia, { backgroundColor: post.user.color + "33" }]} />
       )}
 
       <View style={s.postRodape}>
@@ -177,7 +170,6 @@ function PostCard({ post, onPress, onLike, onDislike }) {
             onPress={(e) => { e.stopPropagation?.(); onLike(post.id); }}
           >
             <View style={s.acaoBolha}>
-              <Text style={{ fontSize: 13 }}>❤️</Text>
               <Text style={s.acaoCount}>{post.likes}</Text>
             </View>
           </TouchableOpacity>
@@ -186,7 +178,6 @@ function PostCard({ post, onPress, onLike, onDislike }) {
             onPress={(e) => { e.stopPropagation?.(); onDislike(post.id); }}
           >
             <View style={s.acaoBolha}>
-              <Text style={{ fontSize: 13 }}>👎</Text>
               <Text style={s.acaoCount}>{post.dislikes ?? 0}</Text>
             </View>
           </TouchableOpacity>
@@ -350,7 +341,7 @@ export default function FeedScreen() {
                 onPress={() => setTipoSelecionado(t.key)}
               >
                 <Text style={[s.tipoChipTexto, tipoSelecionado === t.key && { color: "#fff" }]}>
-                  {t.icon} {t.label}
+                  {t.label}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -411,7 +402,6 @@ export default function FeedScreen() {
         }
         ListEmptyComponent={
           <View style={s.vazioCard}>
-            <Text style={{ fontSize: 40, marginBottom: 10 }}>📍</Text>
             <Text style={s.vazioTitulo}>Nenhum post por aqui</Text>
             <Text style={s.vazioSub}>
               {canPost
@@ -424,7 +414,7 @@ export default function FeedScreen() {
           loadingMore
             ? <ActivityIndicator size="small" color={COLORS.primary} style={s.loadingMore} />
             : posts.length > 0 && !hasMore
-              ? <Text style={s.fimFeed}>Você chegou ao fim do feed 🎉</Text>
+              ? <Text style={s.fimFeed}>Você chegou ao fim do feed</Text>
               : <View style={{ height: 32 }} />
         }
         renderItem={({ item }) => (

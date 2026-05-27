@@ -21,14 +21,14 @@ import { geoService } from "../services/geo/GeoService";
 import { EventSchema, validateDate, validateEndTime, isOvernight } from "../validation/EventSchema";
 
 const CATEGORIAS = [
-  { key: "rave", label: "Rave", icon: "🎧" },
-  { key: "concert", label: "Show", icon: "🎸" },
-  { key: "festival", label: "Festival", icon: "🎪" },
-  { key: "art", label: "Arte", icon: "🎨" },
-  { key: "electro", label: "Eletrônico", icon: "⚡" },
-  { key: "bar", label: "Bar", icon: "🍺" },
-  { key: "teatro", label: "Teatro", icon: "🎭" },
-  { key: "cultura", label: "Cultura", icon: "🏛" },
+  { key: "rave",     label: "Rave"       },
+  { key: "concert",  label: "Show"       },
+  { key: "festival", label: "Festival"   },
+  { key: "art",      label: "Arte"       },
+  { key: "electro",  label: "Eletrônico" },
+  { key: "bar",      label: "Bar"        },
+  { key: "teatro",   label: "Teatro"     },
+  { key: "cultura",  label: "Cultura"    },
 ];
 
 const GRADIENTES = [
@@ -236,7 +236,7 @@ export default function NewEventScreen({ navigation }) {
             if (failed.length > 0) {
               console.warn(`[NewEventScreen] ${failed.length} foto(s) não enviada(s).`);
               Alert.alert(
-                '⚠️ Fotos não enviadas',
+                'Fotos não enviadas',
                 `${failed.length === fotos.length ? 'Nenhuma' : `${failed.length}`} foto(s) não puderam ser enviadas. O evento foi criado com sucesso — você pode tentar adicioná-las novamente pela tela do evento.`,
                 [{ text: 'Entendido' }],
               );
@@ -249,7 +249,7 @@ export default function NewEventScreen({ navigation }) {
         navigation.goBack();
       } else {
         Alert.alert(
-          "🚀 Evento publicado!",
+          "Evento publicado!",
           `"${v.nome}" está no ar! Usuários próximos já podem visualizá-lo.`,
           [{ text: "Ótimo!", onPress: () => navigation.goBack() }],
         );
@@ -343,7 +343,6 @@ export default function NewEventScreen({ navigation }) {
                         style={[s.catBtn, value === cat.key && s.catBtnAtivo]}
                         onPress={() => onChange(cat.key)}
                       >
-                        <Text style={s.catBtnIcon}>{cat.icon}</Text>
                         <Text
                           style={[
                             s.catBtnLabel,
@@ -710,7 +709,7 @@ export default function NewEventScreen({ navigation }) {
 
               <View style={s.switchCard}>
                 <View>
-                  <Text style={s.switchLabel}>♿ Acessível</Text>
+                  <Text style={s.switchLabel}>Acessível</Text>
                   <Text style={s.switchSub}>Rampa, banheiro adaptado etc.</Text>
                 </View>
                 <Controller
@@ -800,17 +799,17 @@ export default function NewEventScreen({ navigation }) {
                       ]}
                     />
                     <Text style={s.previewBannerData}>
-                      📅 {v.data} às {v.horarioInicio}
+                      {v.data} às {v.horarioInicio}
                       {v.horarioFim ? ` — ${v.horarioFim}` : ""}
                     </Text>
                     <Text style={s.previewBannerCat}>
-                      {catInfoR?.icon} {catInfoR?.label}
+                      {catInfoR?.label}
                     </Text>
                   </View>
                   <View style={s.previewCorpo}>
                     <Text style={s.previewNome}>{v.nome || "Nome do evento"}</Text>
                     <Text style={s.previewVenue}>
-                      📍 {v.venue || "Local"}
+                      {v.venue || "Local"}
                       {v.bairro ? ` · ${v.bairro}` : ""}
                     </Text>
                     {v.descricao ? (
@@ -830,23 +829,23 @@ export default function NewEventScreen({ navigation }) {
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                       <View style={s.previewPill}>
                         <Text style={s.previewPillTexto}>
-                          {v.entrada_gratis ? "🎟 Gratuito" : `🎟 R$ ${v.preco}`}
+                          {v.entrada_gratis ? "Gratuito" : `R$ ${v.preco}`}
                         </Text>
                       </View>
                       {v.acessivel && (
                         <View style={[s.previewPill, { backgroundColor: COLORS.success + "22" }]}>
                           <Text style={[s.previewPillTexto, { color: COLORS.success }]}>
-                            ♿ Acessível
+                            Acessível
                           </Text>
                         </View>
                       )}
                       <View style={s.previewPill}>
-                        <Text style={s.previewPillTexto}>🔞 {v.faixaEtaria}</Text>
+                        <Text style={s.previewPillTexto}>{v.faixaEtaria}</Text>
                       </View>
                       {v.artista ? (
                         <View style={[s.previewPill, { backgroundColor: COLORS.primary + "22" }]}>
                           <Text style={[s.previewPillTexto, { color: COLORS.primary }]}>
-                            🎤 {v.artista}
+                            {v.artista}
                           </Text>
                         </View>
                       ) : null}
@@ -860,7 +859,7 @@ export default function NewEventScreen({ navigation }) {
                     titulo: 'Básico',
                     rows: [
                       ["Evento", v.nome],
-                      ["Categoria", catInfoR ? `${catInfoR.icon} ${catInfoR.label}` : "—"],
+                      ["Categoria", catInfoR ? catInfoR.label : "—"],
                       ["Data", v.data],
                       ["Horário", `${v.horarioInicio}${v.horarioFim ? ` – ${v.horarioFim}` : ""}`],
                     ],
