@@ -11,6 +11,7 @@ import { couponRedemptionService } from "../services/coupons/CouponRedemptionSer
 import { notificationService } from "../services/notifications/NotificationService";
 import { notificationPreferencesService } from "../services/notifications/NotificationPreferencesService";
 import { announcementService } from "../services/announcements/AnnouncementService";
+import { subscriptionService } from "../services/subscriptionService";
 import { makeNotif } from "../services/notifications/notifUtils";
 import { COLORS } from "../utils/theme";
 
@@ -765,6 +766,51 @@ async function addEventPhoto(eventId, uri) {
     return result;
   }
 
+  // ── Assinatura ───────────────────────────────────────────────────────────
+  /**
+   * Persiste a assinatura escolhida no Supabase e atualiza o currentUser local.
+   * @param {object} plan - Objeto do plano (de PLANS_DATA no BusinessPanelScreen)
+   */
+  async function updateSubscription(plan) {
+    if (!currentUser?.id) return { error: 'Não autenticado.', data: null };
+
+    const result = await subscriptionService.updateSubscription(currentUser.id, plan);
+
+    if (!result.error) {
+      // Atualiza o estado local para refletir o novo plano imediatamente
+      // expiresAt é um objeto Date; armazenamos como ISO string para consistência com o Supabase
+      setCurrentUser((prev) => ({
+        ...prev,
+        subscriptionType:      plan.name,
+        planDetails:           result.data?.planDetails                      ?? null,
+        subscriptionExpiresAt: result.data?.expiresAt?.toISOString?.()       ??
+                               result.data?.expiresAt                         ?? null,
+      }));
+    }
+
+    return result;
+  }
+
+  /**
+   * Cancela a assinatura do usuário atual no Supabase e limpa o estado local.
+   */
+  async function cancelSubscription() {
+    if (!currentUser?.id) return { error: 'Não autenticado.' };
+
+    const result = await subscriptionService.cancelSubscription(currentUser.id);
+
+    if (!result.error) {
+      setCurrentUser((prev) => ({
+        ...prev,
+        subscriptionType:      null,
+        planDetails:           null,
+        subscriptionExpiresAt: null,
+      }));
+    }
+
+    return result;
+  }
+
   // ── Feed ──────────────────────────────────────────────────────────────────
   async function addFeedPost(post) {
     const perms = createPermissionStrategy(currentUser?.role);
@@ -873,6 +919,9 @@ async function addEventPhoto(eventId, uri) {
     redemptionMap,
     getRedemptionDetails: (couponId) => redemptionMap[couponId] ?? null,
     refreshData: () => currentUser && loadData(currentUser),
+    // ── Assinatura ─────────────────────────────────────────────────────────
+    updateSubscription,
+    cancelSubscription,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

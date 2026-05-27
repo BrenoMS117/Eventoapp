@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import * as Clipboard from 'expo-clipboard';
 import {
   View,
   Text,
@@ -473,7 +474,7 @@ const PLANS_DATA = [
   {
     id: 'basic',
     name: 'Básico',
-    price: 'R$ 69,90',
+    price: 'R$ 79,90',
     priceRaw: '6990',
     boost: '1x',
     boostLabel: '1x mais visibilidade',
@@ -516,36 +517,102 @@ const PLANS_DATA = [
       'Eventos ilimitados',
       'Gerente de conta dedicado',
       'Analytics completo',
-      'Badge verificado ✅',
+      'Badge verificado',
     ],
   },
 ];
 
+const PIX_GREEN = '#32BCAD';
+
 const PAY_METHODS = [
-  { id: 'pix',    label: 'PIX',    icon: '❖' },
+  { id: 'pix',    label: 'PIX',    icon: '❖', iconColor: PIX_GREEN },
   { id: 'card',   label: 'Cartão', icon: '💳' },
   { id: 'boleto', label: 'Boleto', icon: '📄' },
 ];
 
-function PlansModal({ visible, onClose }) {
-  const [step, setStep]               = useState('plans'); // 'plans' | 'payment' | 'success'
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [payMethod, setPayMethod]     = useState('pix');
-  const [processing, setProcessing]   = useState(false);
-  const [cardNumber, setCardNumber]   = useState('');
-  const [cardName, setCardName]       = useState('');
-  const [cardExpiry, setCardExpiry]   = useState('');
-  const [cardCVV, setCardCVV]         = useState('');
+function PlansModal({ visible, onClose, onSubscribe }) {
+  const [step, setStep]                   = useState('plans'); // 'plans' | 'payment' | 'success'
+  const [selectedPlan, setSelectedPlan]   = useState(null);
+  const [payMethod, setPayMethod]         = useState('pix');
+  const [processing, setProcessing]       = useState(false);
+  const [cardNumber, setCardNumber]       = useState('');
+  const [cardName, setCardName]           = useState('');
+  const [cardExpiry, setCardExpiry]       = useState('');
+  const [cardCVV, setCardCVV]             = useState('');
+  const [pixCopied, setPixCopied]         = useState(false);
+  const [cardErrors, setCardErrors]       = useState({});
+  const [expiresAt, setExpiresAt]         = useState(null); // data de expiração após assinatura
+
+  const PIX_KEY = 'livevibe@pagamentos.com';
+
+  async function handleCopyPix() {
+    await Clipboard.setStringAsync(PIX_KEY);
+    setPixCopied(true);
+    setTimeout(() => setPixCopied(false), 2500);
+  }
 
   function selectPlan(plan) {
     setSelectedPlan(plan);
     setPayMethod('pix');
+    setCardErrors({});
     setStep('payment');
   }
 
-  function handlePay() {
+  function validateCard() {
+    const errs = {};
+    if (cardNumber.replace(/\s/g, '').length < 16)
+      errs.cardNumber = 'Informe os 16 dígitos do cartão';
+    const parts = cardName.trim().split(/\s+/);
+    if (parts.length < 2 || !parts[1])
+      errs.cardName = 'Informe o nome completo (nome e sobrenome)';
+    if (cardExpiry.length < 5) {
+      errs.cardExpiry = 'Informe a validade no formato MM/AA';
+    } else {
+      const [mm, yy] = cardExpiry.split('/');
+      const month = parseInt(mm, 10);
+      const year  = 2000 + parseInt(yy, 10);
+      if (month < 1 || month > 12) {
+        errs.cardExpiry = 'Mês inválido';
+      } else {
+        const expiry = new Date(year, month, 0); // último dia do mês de vencimento
+        if (expiry < new Date()) errs.cardExpiry = 'Cartão vencido';
+      }
+    }
+    if (cardCVV.length < 3)
+      errs.cardCVV = 'CVV deve ter 3 dígitos';
+    return errs;
+  }
+
+  async function handlePay() {
+    if (payMethod === 'card') {
+      const errs = validateCard();
+      if (Object.keys(errs).length > 0) { setCardErrors(errs); return; }
+    }
+    setCardErrors({});
     setProcessing(true);
-    setTimeout(() => { setProcessing(false); setStep('success'); }, 2200);
+
+    // ── Roda em paralelo: simulação de gateway (2.2s) + gravação no Supabase ──
+    const [, subscribeResult] = await Promise.all([
+      new Promise(resolve => setTimeout(resolve, 2200)),
+      onSubscribe
+        ? onSubscribe(selectedPlan)
+        : Promise.resolve({ error: null, data: null }),
+    ]);
+
+    setProcessing(false);
+
+    // Guarda a data de expiração para exibir na tela de sucesso
+    if (subscribeResult?.data?.expiresAt) {
+      setExpiresAt(subscribeResult.data.expiresAt);
+    }
+
+    // Avança para sucesso mesmo se a gravação falhar (pagamento simulado)
+    // Erro de rede será logado; o usuário pode tentar renovar o plano depois
+    if (subscribeResult?.error) {
+      console.warn('[PlansModal] handlePay — falha ao gravar assinatura:', subscribeResult.error);
+    }
+
+    setStep('success');
   }
 
   function handleClose() {
@@ -553,6 +620,7 @@ function PlansModal({ visible, onClose }) {
     setTimeout(() => {
       setStep('plans'); setSelectedPlan(null); setPayMethod('pix');
       setCardNumber(''); setCardName(''); setCardExpiry(''); setCardCVV('');
+      setCardErrors({}); setExpiresAt(null);
     }, 350);
   }
 
@@ -575,8 +643,8 @@ function PlansModal({ visible, onClose }) {
           <View style={pm.sheet}>
             <View style={pm.handle} />
             <View style={pm.sheetHeader}>
-              <View>
-                <Text style={pm.sheetTitle}>⚡ Impulsionar Visibilidade</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={pm.sheetTitle}>Impulsionar Visibilidade</Text>
                 <Text style={pm.sheetSub}>Alcance mais pessoas com seu evento</Text>
               </View>
               <TouchableOpacity onPress={handleClose} style={pm.closeBtn}>
@@ -592,7 +660,7 @@ function PlansModal({ visible, onClose }) {
                 >
                   {plan.popular && (
                     <View style={[pm.popularBadge, { backgroundColor: plan.color }]}>
-                      <Text style={pm.popularBadgeText}>⭐ Mais Popular</Text>
+                      <Text style={pm.popularBadgeText}> Mais Popular</Text>
                     </View>
                   )}
 
@@ -645,7 +713,7 @@ function PlansModal({ visible, onClose }) {
               <View style={pm.handle} />
               {/* Header */}
               <View style={pm.sheetHeader}>
-                <TouchableOpacity onPress={() => setStep('plans')} style={pm.backBtn}>
+                <TouchableOpacity onPress={() => { setStep('plans'); setCardErrors({}); }} style={pm.backBtn}>
                   <Ionicons name="arrow-back" size={20} color={COLORS.text} />
                 </TouchableOpacity>
                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -667,10 +735,10 @@ function PlansModal({ visible, onClose }) {
                     <TouchableOpacity
                       key={m.id}
                       style={[pm.methodBtn, active && { borderColor: col, backgroundColor: col + '22' }]}
-                      onPress={() => setPayMethod(m.id)}
+                      onPress={() => { setPayMethod(m.id); setCardErrors({}); }}
                       activeOpacity={0.8}
                     >
-                      <Text style={pm.methodIcon}>{m.icon}</Text>
+                      <Text style={[pm.methodIcon, m.iconColor && { color: m.iconColor }]}>{m.icon}</Text>
                       <Text style={[pm.methodLabel, active && { color: col, fontWeight: '700' }]}>{m.label}</Text>
                     </TouchableOpacity>
                   );
@@ -683,13 +751,30 @@ function PlansModal({ visible, onClose }) {
                 {payMethod === 'pix' && (
                   <View style={pm.payContent}>
                     <View style={pm.pixQR}>
-                      <Text style={{ fontSize: 56 }}>📱</Text>
+                      <Ionicons name="qr-code-outline" size={100} color={COLORS.white} />                   
                       <Text style={pm.pixQRLabel}>QR Code PIX</Text>
-                      <Text style={pm.pixQRSub}>(simulado)</Text>
                     </View>
                     <View style={pm.pixKeyBox}>
                       <Text style={pm.pixKeyLabel}>Chave PIX</Text>
-                      <Text style={pm.pixKeyValue}>livevibe@pagamentos.pix</Text>
+                      <View style={pm.pixKeyRow}>
+                        <Text style={pm.pixKeyValue} numberOfLines={1} ellipsizeMode="middle">
+                          {PIX_KEY}
+                        </Text>
+                        <TouchableOpacity
+                          style={[pm.pixCopyBtn, pixCopied && pm.pixCopyBtnDone]}
+                          onPress={handleCopyPix}
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons
+                            name={pixCopied ? 'checkmark' : 'copy-outline'}
+                            size={15}
+                            color={pixCopied ? '#fff' : PIX_GREEN}
+                          />
+                          <Text style={[pm.pixCopyLabel, pixCopied && { color: '#fff' }]}>
+                            {pixCopied ? 'Copiado!' : 'Copiar'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                       <Text style={pm.pixKeyHint}>Escaneie o QR Code ou copie a chave acima</Text>
                     </View>
                     <View style={pm.totalRow}>
@@ -711,44 +796,75 @@ function PlansModal({ visible, onClose }) {
                         <Text style={pm.cardPreviewExp}>{cardExpiry || 'MM/AA'}</Text>
                       </View>
                     </View>
-                    <TextInput
-                      style={pm.payInput}
-                      placeholder="Número do cartão"
-                      placeholderTextColor={COLORS.textMuted}
-                      value={cardNumber}
-                      onChangeText={(t) => setCardNumber(fmtCard(t))}
-                      keyboardType="number-pad"
-                      maxLength={19}
-                    />
-                    <TextInput
-                      style={pm.payInput}
-                      placeholder="Nome no cartão"
-                      placeholderTextColor={COLORS.textMuted}
-                      value={cardName}
-                      onChangeText={(t) => setCardName(t.toUpperCase())}
-                      autoCapitalize="characters"
-                    />
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
+
+                    {/* Número do cartão */}
+                    <View>
                       <TextInput
-                        style={[pm.payInput, { flex: 1 }]}
-                        placeholder="Validade (MM/AA)"
+                        style={[pm.payInput, cardErrors.cardNumber && pm.payInputErr]}
+                        placeholder="Número do cartão (16 dígitos)"
                         placeholderTextColor={COLORS.textMuted}
-                        value={cardExpiry}
-                        onChangeText={(t) => setCardExpiry(fmtExpiry(t))}
+                        value={cardNumber}
+                        onChangeText={(t) => {
+                          setCardNumber(fmtCard(t));
+                          if (cardErrors.cardNumber) setCardErrors(e => ({ ...e, cardNumber: null }));
+                        }}
                         keyboardType="number-pad"
-                        maxLength={5}
+                        maxLength={19}
                       />
-                      <TextInput
-                        style={[pm.payInput, { flex: 1 }]}
-                        placeholder="CVV"
-                        placeholderTextColor={COLORS.textMuted}
-                        value={cardCVV}
-                        onChangeText={(t) => setCardCVV(t.replace(/\D/g, '').slice(0, 3))}
-                        keyboardType="number-pad"
-                        maxLength={3}
-                        secureTextEntry
-                      />
+                      {cardErrors.cardNumber && <Text style={pm.fieldError}>{cardErrors.cardNumber}</Text>}
                     </View>
+
+                    {/* Nome no cartão */}
+                    <View>
+                      <TextInput
+                        style={[pm.payInput, cardErrors.cardName && pm.payInputErr]}
+                        placeholder="Nome completo (como no cartão)"
+                        placeholderTextColor={COLORS.textMuted}
+                        value={cardName}
+                        onChangeText={(t) => {
+                          setCardName(t.toUpperCase());
+                          if (cardErrors.cardName) setCardErrors(e => ({ ...e, cardName: null }));
+                        }}
+                        autoCapitalize="characters"
+                      />
+                      {cardErrors.cardName && <Text style={pm.fieldError}>{cardErrors.cardName}</Text>}
+                    </View>
+
+                    {/* Validade e CVV */}
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <View style={{ flex: 1 }}>
+                        <TextInput
+                          style={[pm.payInput, cardErrors.cardExpiry && pm.payInputErr]}
+                          placeholder="Validade (MM/AA)"
+                          placeholderTextColor={COLORS.textMuted}
+                          value={cardExpiry}
+                          onChangeText={(t) => {
+                            setCardExpiry(fmtExpiry(t));
+                            if (cardErrors.cardExpiry) setCardErrors(e => ({ ...e, cardExpiry: null }));
+                          }}
+                          keyboardType="number-pad"
+                          maxLength={5}
+                        />
+                        {cardErrors.cardExpiry && <Text style={pm.fieldError}>{cardErrors.cardExpiry}</Text>}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <TextInput
+                          style={[pm.payInput, cardErrors.cardCVV && pm.payInputErr]}
+                          placeholder="CVV (3 dígitos)"
+                          placeholderTextColor={COLORS.textMuted}
+                          value={cardCVV}
+                          onChangeText={(t) => {
+                            setCardCVV(t.replace(/\D/g, '').slice(0, 3));
+                            if (cardErrors.cardCVV) setCardErrors(e => ({ ...e, cardCVV: null }));
+                          }}
+                          keyboardType="number-pad"
+                          maxLength={3}
+                          secureTextEntry
+                        />
+                        {cardErrors.cardCVV && <Text style={pm.fieldError}>{cardErrors.cardCVV}</Text>}
+                      </View>
+                    </View>
+
                     <View style={pm.totalRow}>
                       <Text style={pm.totalLabel}>Total:</Text>
                       <Text style={[pm.totalValue, { color: col }]}>{selectedPlan.price}</Text>
@@ -785,9 +901,9 @@ function PlansModal({ visible, onClose }) {
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <Text style={pm.payBtnText}>
-                      {payMethod === 'pix'    ? '⚡ Confirmar Pagamento PIX'
-                      : payMethod === 'card'  ? '💳 Confirmar Pagamento'
-                      :                        '📄 Gerar Boleto'}
+                      {payMethod === 'pix'   ? 'Confirmar Pagamento PIX'
+                      : payMethod === 'card' ? 'Confirmar Pagamento'
+                      :                       'Gerar Boleto'}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -810,14 +926,39 @@ function PlansModal({ visible, onClose }) {
               <Text style={pm.successMsg}>
                 Seu evento agora tem{' '}
                 <Text style={{ color: col, fontWeight: '800' }}>{selectedPlan.boostLabel}</Text>
-                {' '}no feed. Mais pessoas vão descobrir você! 🚀
+                {' '}no feed. Mais pessoas vão descobrir você!
               </Text>
+
+              {/* Detalhes da assinatura */}
+              <View style={[pm.successDetails, { borderColor: col + '44' }]}>
+                <View style={pm.successDetailRow}>
+                  <Ionicons name="pricetag-outline" size={14} color={col} />
+                  <Text style={pm.successDetailText}>
+                    <Text style={{ fontWeight: '700', color: col }}>{selectedPlan.price}</Text>
+                    {' '}/ mês
+                  </Text>
+                </View>
+                <View style={pm.successDetailRow}>
+                  <Ionicons name="rocket-outline" size={14} color={col} />
+                  <Text style={pm.successDetailText}>{selectedPlan.boostLabel} nos resultados</Text>
+                </View>
+                {expiresAt && (
+                  <View style={pm.successDetailRow}>
+                    <Ionicons name="calendar-outline" size={14} color={COLORS.textMuted} />
+                    <Text style={[pm.successDetailText, { color: COLORS.textMuted }]}>
+                      {'Válido até '}
+                      {expiresAt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
               <TouchableOpacity
                 style={[pm.successBtn, { backgroundColor: col }]}
                 onPress={handleClose}
                 activeOpacity={0.85}
               >
-                <Text style={pm.successBtnText}>Perfeito! ✨</Text>
+                <Text style={pm.successBtnText}>Perfeito!</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -831,7 +972,27 @@ function PlansModal({ visible, onClose }) {
 // ─── InactivePanel ───────────────────────────────────────────────────────────
 
 function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreateEvent, navigation }) {
+  const { updateSubscription, cancelSubscription } = useApp();
   const [plansVisible, setPlansVisible] = useState(false);
+
+  // ── Dados da assinatura ────────────────────────────────────────────────────
+  const subPlan       = PLANS_DATA.find(p => p.name === currentUser?.subscriptionType) ?? null;
+  const subExpiresAt  = currentUser?.subscriptionExpiresAt ? new Date(currentUser.subscriptionExpiresAt) : null;
+  const subIsActive   = !!subPlan && (!subExpiresAt || subExpiresAt > new Date());
+
+  async function handleCancelarPlano() {
+    Alert.alert(
+      'Cancelar Plano',
+      `Cancelar o plano ${subPlan?.name}?\nVocê perderá ${subPlan?.boostLabel ?? 'os benefícios'} de impulsionamento.`,
+      [
+        { text: 'Manter', style: 'cancel' },
+        { text: 'Cancelar plano', style: 'destructive', onPress: async () => {
+          const { error } = await cancelSubscription();
+          if (error) Alert.alert('Erro', error);
+        }},
+      ],
+    );
+  }
   const ultimoEvento = meusEventos[0];
   const totalCriadosGeral  = meusCupons.length;
   const totalResgatados    = meusCupons.reduce((acc, c) => acc + (c.totalQty - c.remainingQty), 0);
@@ -844,7 +1005,11 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
 
   return (
     <>
-      <PlansModal visible={plansVisible} onClose={() => setPlansVisible(false)} />
+      <PlansModal
+        visible={plansVisible}
+        onClose={() => setPlansVisible(false)}
+        onSubscribe={updateSubscription}
+      />
       <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -929,13 +1094,48 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
             <Text style={s.emptyBtnTexto}>Criar Novo Evento</Text>
           </TouchableOpacity>
         </View>
-        <View style={s.impulsionarCard}>
-          <Text style={s.impulsionarTitulo}>Impulsionar Visibilidade</Text>
-          <Text style={s.impulsionarSub}>Destaque seu evento no topo do feed para +2.300 usuários próximos</Text>
-          <TouchableOpacity style={s.impulsionarBtn} onPress={() => setPlansVisible(true)}>
-            <Text style={s.impulsionarBtnTexto}>Ver planos →</Text>
-          </TouchableOpacity>
-        </View>
+        {subIsActive ? (
+          /* ─── Plano ativo ──────────────────────────────────────────── */
+          <View style={[s.impulsionarCard, { borderColor: subPlan.color + '66' }]}>
+            <View style={s.impulsionarActiveRow}>
+              <Text style={[s.impulsionarTitulo, { color: subPlan.color, marginBottom: 0 }]}>
+                Plano {subPlan.name}
+              </Text>
+              <View style={[s.planBadgeAtivo, { backgroundColor: subPlan.color + '22', borderColor: subPlan.color + '55' }]}>
+                <Ionicons name="checkmark-circle" size={12} color={subPlan.color} />
+                <Text style={[s.planBadgeAtivoText, { color: subPlan.color }]}>Ativo</Text>
+              </View>
+            </View>
+            <Text style={[s.impulsionarSub, { marginTop: 6 }]}>
+              {subPlan.boostLabel}
+              {subExpiresAt
+                ? ` · válido até ${subExpiresAt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
+                : ''}
+            </Text>
+            <View style={s.impulsionarBtnRow}>
+              <TouchableOpacity
+                style={[s.impulsionarBtn, { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: subPlan.color }]}
+                onPress={() => setPlansVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.impulsionarBtnTexto, { color: subPlan.color }]}>Mudar plano</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.cancelarPlanBtn} onPress={handleCancelarPlano} activeOpacity={0.8}>
+                <Ionicons name="close-circle-outline" size={14} color={COLORS.danger} />
+                <Text style={s.cancelarPlanBtnTexto}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          /* ─── Sem plano ────────────────────────────────────────────── */
+          <View style={s.impulsionarCard}>
+            <Text style={s.impulsionarTitulo}>Impulsionar Visibilidade</Text>
+            <Text style={s.impulsionarSub}>Destaque seu evento no topo do feed para +2.300 usuários próximos</Text>
+            <TouchableOpacity style={s.impulsionarBtn} onPress={() => setPlansVisible(true)}>
+              <Text style={s.impulsionarBtnTexto}>Ver planos →</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
@@ -951,9 +1151,28 @@ function ActivePanel({
   addEventPhoto, removeEventPhoto, updateEventFields, closeEvent,
 }) {
   const perms = usePermissions();
-  const { subscribeToEventRatings, getEventRatings, sendAnnouncement } = useApp();
+  const { subscribeToEventRatings, getEventRatings, sendAnnouncement, updateSubscription, cancelSubscription } = useApp();
   const [secaoFotos, setSecaoFotos]       = useState(false);
   const [plansVisible, setPlansVisible]   = useState(false);
+
+  // ── Dados da assinatura ────────────────────────────────────────────────────
+  const subPlan      = PLANS_DATA.find(p => p.name === currentUser?.subscriptionType) ?? null;
+  const subExpiresAt = currentUser?.subscriptionExpiresAt ? new Date(currentUser.subscriptionExpiresAt) : null;
+  const subIsActive  = !!subPlan && (!subExpiresAt || subExpiresAt > new Date());
+
+  async function handleCancelarPlano() {
+    Alert.alert(
+      'Cancelar Plano',
+      `Cancelar o plano ${subPlan?.name}?\nVocê perderá ${subPlan?.boostLabel ?? 'os benefícios'} de impulsionamento.`,
+      [
+        { text: 'Manter', style: 'cancel' },
+        { text: 'Cancelar plano', style: 'destructive', onPress: async () => {
+          const { error } = await cancelSubscription();
+          if (error) Alert.alert('Erro', error);
+        }},
+      ],
+    );
+  }
 
   useEffect(() => {
     if (eventoAtivo?.id) subscribeToEventRatings(eventoAtivo.id);
@@ -1266,22 +1485,60 @@ function ActivePanel({
           </View>
         )}
 
-        {/* ── Card Promocional ── */}
-        <View style={nd.promoCard}>
+        {/* ── Card Promocional / Assinatura ── */}
+        <View style={[nd.promoCard, subIsActive && { borderColor: subPlan.color + '66' }]}>
           <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#1a0a10', borderRadius: 16 }]} />
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: D.primary, opacity: 0.18, borderRadius: 16 }]} />
-          <View style={nd.promoContent}>
-            <Text style={nd.promoTitle}>{"Alcance mais\npessoas"}</Text>
-            <Text style={nd.promoSub}>Aumente a visibilidade do seu local em 50% com nossos planos</Text>
-            <TouchableOpacity style={nd.promoBtn} onPress={() => setPlansVisible(true)}>
-              <Text style={nd.promoBtnText}>Ver planos</Text>
-            </TouchableOpacity>
-          </View>
+          <View style={[StyleSheet.absoluteFillObject, {
+            backgroundColor: subIsActive ? subPlan.color : D.primary,
+            opacity: 0.18, borderRadius: 16,
+          }]} />
+          {subIsActive ? (
+            /* ─── Plano ativo ──────────────────────────────────────── */
+            <View style={nd.promoContent}>
+              <View style={nd.promoActiveTitleRow}>
+                <Text style={[nd.promoTitle, { fontSize: 22, lineHeight: 28 }]}>
+                  Plano {subPlan.name}
+                </Text>
+                <View style={[s.planBadgeAtivo, { backgroundColor: subPlan.color + '33', borderColor: subPlan.color + '77' }]}>
+                  <Ionicons name="checkmark-circle" size={12} color={subPlan.color} />
+                  <Text style={[s.planBadgeAtivoText, { color: subPlan.color }]}>Ativo</Text>
+                </View>
+              </View>
+              <Text style={nd.promoSub}>
+                {subPlan.boostLabel}
+                {subExpiresAt
+                  ? ` · válido até ${subExpiresAt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
+                  : ''}
+              </Text>
+              <View style={nd.promoBtnRow}>
+                <TouchableOpacity style={nd.promoBtn} onPress={() => setPlansVisible(true)} activeOpacity={0.85}>
+                  <Text style={nd.promoBtnText}>Mudar plano</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={nd.promoCancelBtn} onPress={handleCancelarPlano} activeOpacity={0.8}>
+                  <Ionicons name="close-circle-outline" size={14} color="rgba(255,255,255,0.7)" />
+                  <Text style={nd.promoCancelBtnText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            /* ─── Sem plano ────────────────────────────────────────── */
+            <View style={nd.promoContent}>
+              <Text style={nd.promoTitle}>{"Alcance mais\npessoas"}</Text>
+              <Text style={nd.promoSub}>Aumente a visibilidade do seu local em 50% com nossos planos</Text>
+              <TouchableOpacity style={nd.promoBtn} onPress={() => setPlansVisible(true)}>
+                <Text style={nd.promoBtnText}>Ver planos</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
-      <PlansModal visible={plansVisible} onClose={() => setPlansVisible(false)} />
+      <PlansModal
+        visible={plansVisible}
+        onClose={() => setPlansVisible(false)}
+        onSubscribe={updateSubscription}
+      />
     </SafeAreaView>
   );
 }
@@ -1395,6 +1652,13 @@ const s = StyleSheet.create({
   impulsionarSub: { fontSize: 13, color: COLORS.textSub, lineHeight: 19, marginBottom: 14 },
   impulsionarBtn: { backgroundColor: COLORS.primary, alignSelf: "flex-start", paddingHorizontal: 18, paddingVertical: 9, borderRadius: RADIUS.full },
   impulsionarBtnTexto: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  // ── Assinatura ativa ──
+  impulsionarActiveRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
+  impulsionarBtnRow:    { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
+  planBadgeAtivo:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, borderWidth: 1 },
+  planBadgeAtivoText:   { fontSize: 10, fontWeight: "800" },
+  cancelarPlanBtn:      { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: COLORS.danger + "18", borderWidth: 1, borderColor: COLORS.danger + "44", paddingHorizontal: 14, paddingVertical: 7, borderRadius: RADIUS.full },
+  cancelarPlanBtnTexto: { color: COLORS.danger, fontWeight: "700", fontSize: 12 },
 });
 
 // ── Estilos do painel ativo ───────────────────────────────────────────────────
@@ -1491,12 +1755,17 @@ const nd = StyleSheet.create({
   reviewText: { fontSize: 14, color: D.textSub, lineHeight: 20, fontStyle: 'italic' },
 
   // ── Card promocional ──
-  promoCard: { marginHorizontal: 16, marginBottom: 8, borderRadius: 16, overflow: 'hidden', minHeight: 180, borderWidth: 0.5, borderColor: D.primary + '44' },
-  promoContent: { padding: 28, gap: 12 },
-  promoTitle: { fontSize: 28, fontWeight: '700', color: '#fff', lineHeight: 34 },
-  promoSub: { fontSize: 15, color: 'rgba(255,255,255,0.75)', lineHeight: 22 },
-  promoBtn: { backgroundColor: '#fff', alignSelf: 'flex-start', paddingHorizontal: 28, paddingVertical: 12, borderRadius: RADIUS.full, marginTop: 6 },
-  promoBtnText: { fontSize: 14, fontWeight: '700', color: D.primary },
+  promoCard:            { marginHorizontal: 16, marginBottom: 8, borderRadius: 16, overflow: 'hidden', minHeight: 180, borderWidth: 0.5, borderColor: D.primary + '44' },
+  promoContent:         { padding: 28, gap: 12 },
+  promoTitle:           { fontSize: 28, fontWeight: '700', color: '#fff', lineHeight: 34 },
+  promoSub:             { fontSize: 15, color: 'rgba(255,255,255,0.75)', lineHeight: 22 },
+  promoBtn:             { backgroundColor: '#fff', alignSelf: 'flex-start', paddingHorizontal: 28, paddingVertical: 12, borderRadius: RADIUS.full, marginTop: 6 },
+  promoBtnText:         { fontSize: 14, fontWeight: '700', color: D.primary },
+  // ── Assinatura ativa ──
+  promoActiveTitleRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  promoBtnRow:          { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  promoCancelBtn:       { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', paddingHorizontal: 16, paddingVertical: 10, borderRadius: RADIUS.full, marginTop: 6 },
+  promoCancelBtnText:   { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
 });
 
 // ── Estilos do modal de planos ────────────────────────────────────────────────
@@ -1507,7 +1776,7 @@ const pm = StyleSheet.create({
   handle:      { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border, marginBottom: 16 },
 
   // cabeçalho
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   sheetTitle:  { fontSize: 18, fontWeight: '800', color: COLORS.text },
   sheetSub:    { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   closeBtn:    { padding: 4, marginLeft: 8 },
@@ -1548,7 +1817,11 @@ const pm = StyleSheet.create({
   pixQRSub:     { fontSize: 11, color: COLORS.textMuted },
   pixKeyBox:    { backgroundColor: COLORS.bg, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, gap: 4 },
   pixKeyLabel:  { fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 },
-  pixKeyValue:  { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  pixKeyRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 2 },
+  pixKeyValue:  { flex: 1, fontSize: 15, fontWeight: '700', color: COLORS.text },
+  pixCopyBtn:   { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: PIX_GREEN, backgroundColor: PIX_GREEN + '18' },
+  pixCopyBtnDone: { backgroundColor: PIX_GREEN, borderColor: PIX_GREEN },
+  pixCopyLabel: { fontSize: 12, fontWeight: '700', color: PIX_GREEN },
   pixKeyHint:   { fontSize: 11, color: COLORS.textMuted },
 
   // Cartão
@@ -1558,6 +1831,8 @@ const pm = StyleSheet.create({
   cardPreviewName: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
   cardPreviewExp:  { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
   payInput:     { backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text },
+  payInputErr:  { borderColor: COLORS.danger, borderWidth: 1.5 },
+  fieldError:   { fontSize: 11, color: COLORS.danger, marginTop: 3, marginLeft: 2, marginBottom: 2, fontWeight: '600' },
 
   // Boleto
   boletoBox:    { backgroundColor: COLORS.bgElevated, borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, gap: 6 },
@@ -1580,6 +1855,9 @@ const pm = StyleSheet.create({
   successTitle:      { fontSize: 24, fontWeight: '900', color: COLORS.text, textAlign: 'center' },
   successPlan:       { fontSize: 16, fontWeight: '700', textAlign: 'center' },
   successMsg:        { fontSize: 14, color: COLORS.textSub, textAlign: 'center', lineHeight: 21, marginBottom: 8 },
+  successDetails:    { width: '100%', backgroundColor: COLORS.bgElevated, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10, marginVertical: 4 },
+  successDetailRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  successDetailText: { fontSize: 13, color: COLORS.textSub, flex: 1 },
   successBtn:        { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40, marginTop: 4 },
   successBtnText:    { fontSize: 16, fontWeight: '800', color: '#fff' },
 });

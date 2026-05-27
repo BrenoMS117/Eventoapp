@@ -43,12 +43,15 @@ export const authService = {
       .single();
     if (!data) return {};
     return {
-      name: data.name,
-      role: data.role,
-      avatar: data.avatar,
-      venueName: data.venue_name,
-      venueId: data.venue_id,
-      planType: data.plan_type ?? null,
+      name:                   data.name,
+      role:                   data.role,
+      avatar:                 data.avatar,
+      venueName:              data.venue_name,
+      venueId:                data.venue_id,
+      planType:               data.plan_type               ?? null,
+      subscriptionType:       data.subscription_type       ?? null,
+      planDetails:            data.plan_details             ?? null,
+      subscriptionExpiresAt:  data.subscription_expires_at ?? null,
     };
   },
 
