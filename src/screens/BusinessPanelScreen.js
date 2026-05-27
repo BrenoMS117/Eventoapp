@@ -472,9 +472,371 @@ function EmptyState({ currentUser, onLogout, onCreateEvent }) {
   );
 }
 
+// ─── PlansModal ──────────────────────────────────────────────────────────────
+
+const PLANS_DATA = [
+  {
+    id: 'basic',
+    name: 'Básico',
+    price: 'R$ 69,90',
+    priceRaw: '6990',
+    boost: '1x',
+    boostLabel: '1x mais visibilidade',
+    color: '#8B9CC8',
+    features: [
+      'Destaque básico no feed',
+      'Alcance local padrão',
+      '1 evento impulsionado/mês',
+      'Suporte por e-mail',
+    ],
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: 'R$ 99,90',
+    priceRaw: '9990',
+    boost: '5x',
+    boostLabel: '5x mais visibilidade',
+    color: COLORS.primary,
+    popular: true,
+    features: [
+      'Destaque premium no feed',
+      'Alcance regional ampliado',
+      '3 eventos impulsionados/mês',
+      'Suporte prioritário',
+      'Analytics avançado',
+    ],
+  },
+  {
+    id: 'premium',
+    name: 'Premium',
+    price: 'R$ 149,90',
+    priceRaw: '14990',
+    boost: '15x',
+    boostLabel: '15x mais visibilidade',
+    color: '#F59E0B',
+    features: [
+      'Destaque máximo no feed',
+      'Alcance nacional',
+      'Eventos ilimitados',
+      'Gerente de conta dedicado',
+      'Analytics completo',
+      'Badge verificado ✅',
+    ],
+  },
+];
+
+const PAY_METHODS = [
+  { id: 'pix',    label: 'PIX',    icon: '❖' },
+  { id: 'card',   label: 'Cartão', icon: '💳' },
+  { id: 'boleto', label: 'Boleto', icon: '📄' },
+];
+
+function PlansModal({ visible, onClose }) {
+  const [step, setStep]               = useState('plans'); // 'plans' | 'payment' | 'success'
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [payMethod, setPayMethod]     = useState('pix');
+  const [processing, setProcessing]   = useState(false);
+  const [cardNumber, setCardNumber]   = useState('');
+  const [cardName, setCardName]       = useState('');
+  const [cardExpiry, setCardExpiry]   = useState('');
+  const [cardCVV, setCardCVV]         = useState('');
+
+  function selectPlan(plan) {
+    setSelectedPlan(plan);
+    setPayMethod('pix');
+    setStep('payment');
+  }
+
+  function handlePay() {
+    setProcessing(true);
+    setTimeout(() => { setProcessing(false); setStep('success'); }, 2200);
+  }
+
+  function handleClose() {
+    onClose();
+    setTimeout(() => {
+      setStep('plans'); setSelectedPlan(null); setPayMethod('pix');
+      setCardNumber(''); setCardName(''); setCardExpiry(''); setCardCVV('');
+    }, 350);
+  }
+
+  function fmtCard(t) {
+    return t.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+  }
+  function fmtExpiry(t) {
+    const c = t.replace(/\D/g, '').slice(0, 4);
+    return c.length >= 2 ? c.slice(0, 2) + '/' + c.slice(2) : c;
+  }
+
+  const col = selectedPlan?.color ?? COLORS.primary;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <View style={pm.overlay}>
+
+        {/* ══ STEP 1 — PLANOS ══════════════════════════════════════════════ */}
+        {step === 'plans' && (
+          <View style={pm.sheet}>
+            <View style={pm.handle} />
+            <View style={pm.sheetHeader}>
+              <View>
+                <Text style={pm.sheetTitle}>⚡ Impulsionar Visibilidade</Text>
+                <Text style={pm.sheetSub}>Alcance mais pessoas com seu evento</Text>
+              </View>
+              <TouchableOpacity onPress={handleClose} style={pm.closeBtn}>
+                <Ionicons name="close" size={22} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
+              {PLANS_DATA.map((plan) => (
+                <View
+                  key={plan.id}
+                  style={[pm.planCard, { borderColor: plan.color + (plan.popular ? 'BB' : '44') }]}
+                >
+                  {plan.popular && (
+                    <View style={[pm.popularBadge, { backgroundColor: plan.color }]}>
+                      <Text style={pm.popularBadgeText}>⭐ Mais Popular</Text>
+                    </View>
+                  )}
+
+                  {/* Cabeçalho do plano */}
+                  <View style={pm.planCardHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[pm.planName, { color: plan.color }]}>{plan.name}</Text>
+                      <View style={pm.boostRow}>
+                        <Text style={[pm.boostMult, { color: plan.color }]}>{plan.boost}</Text>
+                        <Text style={pm.boostSuffix}> mais visibilidade</Text>
+                      </View>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[pm.planPrice, { color: plan.color }]}>{plan.price}</Text>
+                      <Text style={pm.planPeriod}>/mês</Text>
+                    </View>
+                  </View>
+
+                  {/* Features */}
+                  <View style={pm.featuresList}>
+                    {plan.features.map((f, i) => (
+                      <View key={i} style={pm.featureRow}>
+                        <Ionicons name="checkmark-circle" size={14} color={plan.color} />
+                        <Text style={pm.featureText}>{f}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Botão Assinar */}
+                  <TouchableOpacity
+                    style={[pm.planBtn, { backgroundColor: plan.color }]}
+                    onPress={() => selectPlan(plan)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={pm.planBtnText}>Assinar {plan.name}</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ══ STEP 2 — PAGAMENTO ═══════════════════════════════════════════ */}
+        {step === 'payment' && selectedPlan && (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1, justifyContent: 'flex-end' }}
+          >
+            <View style={pm.sheet}>
+              <View style={pm.handle} />
+              {/* Header */}
+              <View style={pm.sheetHeader}>
+                <TouchableOpacity onPress={() => setStep('plans')} style={pm.backBtn}>
+                  <Ionicons name="arrow-back" size={20} color={COLORS.text} />
+                </TouchableOpacity>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={pm.sheetTitle}>Pagamento</Text>
+                  <Text style={[pm.sheetSub, { color: col }]}>
+                    Plano {selectedPlan.name} · {selectedPlan.price}/mês
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={handleClose} style={pm.closeBtn}>
+                  <Ionicons name="close" size={22} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Seletor de método */}
+              <View style={pm.methodRow}>
+                {PAY_METHODS.map((m) => {
+                  const active = payMethod === m.id;
+                  return (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[pm.methodBtn, active && { borderColor: col, backgroundColor: col + '22' }]}
+                      onPress={() => setPayMethod(m.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={pm.methodIcon}>{m.icon}</Text>
+                      <Text style={[pm.methodLabel, active && { color: col, fontWeight: '700' }]}>{m.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+                {/* PIX ─────────────────────────────────── */}
+                {payMethod === 'pix' && (
+                  <View style={pm.payContent}>
+                    <View style={pm.pixQR}>
+                      <Text style={{ fontSize: 56 }}>📱</Text>
+                      <Text style={pm.pixQRLabel}>QR Code PIX</Text>
+                      <Text style={pm.pixQRSub}>(simulado)</Text>
+                    </View>
+                    <View style={pm.pixKeyBox}>
+                      <Text style={pm.pixKeyLabel}>Chave PIX</Text>
+                      <Text style={pm.pixKeyValue}>livevibe@pagamentos.pix</Text>
+                      <Text style={pm.pixKeyHint}>Escaneie o QR Code ou copie a chave acima</Text>
+                    </View>
+                    <View style={pm.totalRow}>
+                      <Text style={pm.totalLabel}>Total:</Text>
+                      <Text style={[pm.totalValue, { color: col }]}>{selectedPlan.price}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* CARTÃO ──────────────────────────────── */}
+                {payMethod === 'card' && (
+                  <View style={pm.payContent}>
+                    {/* Preview do cartão */}
+                    <View style={[pm.cardPreview, { borderColor: col + '66' }]}>
+                      <Text style={pm.cardPreviewChip}>💳</Text>
+                      <Text style={pm.cardPreviewNum}>{cardNumber || '•••• •••• •••• ••••'}</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+                        <Text style={pm.cardPreviewName}>{cardName || 'NOME DO TITULAR'}</Text>
+                        <Text style={pm.cardPreviewExp}>{cardExpiry || 'MM/AA'}</Text>
+                      </View>
+                    </View>
+                    <TextInput
+                      style={pm.payInput}
+                      placeholder="Número do cartão"
+                      placeholderTextColor={COLORS.textMuted}
+                      value={cardNumber}
+                      onChangeText={(t) => setCardNumber(fmtCard(t))}
+                      keyboardType="number-pad"
+                      maxLength={19}
+                    />
+                    <TextInput
+                      style={pm.payInput}
+                      placeholder="Nome no cartão"
+                      placeholderTextColor={COLORS.textMuted}
+                      value={cardName}
+                      onChangeText={(t) => setCardName(t.toUpperCase())}
+                      autoCapitalize="characters"
+                    />
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TextInput
+                        style={[pm.payInput, { flex: 1 }]}
+                        placeholder="Validade (MM/AA)"
+                        placeholderTextColor={COLORS.textMuted}
+                        value={cardExpiry}
+                        onChangeText={(t) => setCardExpiry(fmtExpiry(t))}
+                        keyboardType="number-pad"
+                        maxLength={5}
+                      />
+                      <TextInput
+                        style={[pm.payInput, { flex: 1 }]}
+                        placeholder="CVV"
+                        placeholderTextColor={COLORS.textMuted}
+                        value={cardCVV}
+                        onChangeText={(t) => setCardCVV(t.replace(/\D/g, '').slice(0, 3))}
+                        keyboardType="number-pad"
+                        maxLength={3}
+                        secureTextEntry
+                      />
+                    </View>
+                    <View style={pm.totalRow}>
+                      <Text style={pm.totalLabel}>Total:</Text>
+                      <Text style={[pm.totalValue, { color: col }]}>{selectedPlan.price}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* BOLETO ──────────────────────────────── */}
+                {payMethod === 'boleto' && (
+                  <View style={pm.payContent}>
+                    <View style={pm.boletoBox}>
+                      <Text style={{ fontSize: 44, marginBottom: 10 }}>📄</Text>
+                      <Text style={pm.boletoTitle}>Boleto Bancário</Text>
+                      <Text style={pm.boletoBarcode}>
+                        {'34191.09008 64513.760957\n38066.480008 4 000' + selectedPlan.priceRaw}
+                      </Text>
+                      <Text style={pm.boletoHint}>⏰ Vencimento: em 3 dias úteis</Text>
+                    </View>
+                    <View style={pm.totalRow}>
+                      <Text style={pm.totalLabel}>Total:</Text>
+                      <Text style={[pm.totalValue, { color: col }]}>{selectedPlan.price}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Botão pagar */}
+                <TouchableOpacity
+                  style={[pm.payBtn, { backgroundColor: col }, processing && { opacity: 0.65 }]}
+                  onPress={handlePay}
+                  disabled={processing}
+                  activeOpacity={0.85}
+                >
+                  {processing ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={pm.payBtnText}>
+                      {payMethod === 'pix'    ? '⚡ Confirmar Pagamento PIX'
+                      : payMethod === 'card'  ? '💳 Confirmar Pagamento'
+                      :                        '📄 Gerar Boleto'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                <View style={{ height: 28 }} />
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        )}
+
+        {/* ══ STEP 3 — SUCESSO ═════════════════════════════════════════════ */}
+        {step === 'success' && selectedPlan && (
+          <View style={pm.sheet}>
+            <View style={pm.handle} />
+            <View style={pm.successContent}>
+              <View style={[pm.successIconCircle, { backgroundColor: col + '22', borderColor: col + '88' }]}>
+                <Text style={{ fontSize: 52 }}>🎉</Text>
+              </View>
+              <Text style={pm.successTitle}>Assinatura Confirmada!</Text>
+              <Text style={[pm.successPlan, { color: col }]}>Plano {selectedPlan.name} ativado</Text>
+              <Text style={pm.successMsg}>
+                Seu evento agora tem{' '}
+                <Text style={{ color: col, fontWeight: '800' }}>{selectedPlan.boostLabel}</Text>
+                {' '}no feed. Mais pessoas vão descobrir você! 🚀
+              </Text>
+              <TouchableOpacity
+                style={[pm.successBtn, { backgroundColor: col }]}
+                onPress={handleClose}
+                activeOpacity={0.85}
+              >
+                <Text style={pm.successBtnText}>Perfeito! ✨</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+      </View>
+    </Modal>
+  );
+}
+
 // ─── InactivePanel ───────────────────────────────────────────────────────────
 
 function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreateEvent, navigation }) {
+  const [plansVisible, setPlansVisible] = useState(false);
   const ultimoEvento = meusEventos[0];
   const totalCriadosGeral  = meusCupons.length;
   const totalResgatados    = meusCupons.reduce((acc, c) => acc + (c.totalQty - c.remainingQty), 0);
@@ -486,7 +848,9 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
   })();
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <>
+      <PlansModal visible={plansVisible} onClose={() => setPlansVisible(false)} />
+      <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.header}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Ionicons name="pulse" size={18} color={COLORS.primary} />
@@ -573,13 +937,14 @@ function InactivePanel({ currentUser, meusEventos, meusCupons, onLogout, onCreat
         <View style={s.impulsionarCard}>
           <Text style={s.impulsionarTitulo}>⚡ Impulsionar Visibilidade</Text>
           <Text style={s.impulsionarSub}>Destaque seu evento no topo do feed para +2.300 usuários próximos</Text>
-          <TouchableOpacity style={s.impulsionarBtn} onPress={() => Alert.alert("Em breve", "Planos em desenvolvimento!")}>
+          <TouchableOpacity style={s.impulsionarBtn} onPress={() => setPlansVisible(true)}>
             <Text style={s.impulsionarBtnTexto}>Ver planos →</Text>
           </TouchableOpacity>
         </View>
         <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
+    </>
   );
 }
 
@@ -593,6 +958,7 @@ function ActivePanel({
   const perms = usePermissions();
   const { subscribeToEventRatings, getEventRatings, sendAnnouncement } = useApp();
   const [secaoFotos, setSecaoFotos]       = useState(false);
+  const [plansVisible, setPlansVisible]   = useState(false);
 
   useEffect(() => {
     if (eventoAtivo?.id) subscribeToEventRatings(eventoAtivo.id);
@@ -916,7 +1282,7 @@ function ActivePanel({
           <View style={nd.promoContent}>
             <Text style={nd.promoTitle}>{"Alcance mais\npessoas"}</Text>
             <Text style={nd.promoSub}>Aumente a visibilidade do seu local em 50% com nossos planos</Text>
-            <TouchableOpacity style={nd.promoBtn} onPress={() => Alert.alert("Em breve", "Planos em desenvolvimento!")}>
+            <TouchableOpacity style={nd.promoBtn} onPress={() => setPlansVisible(true)}>
               <Text style={nd.promoBtnText}>Ver planos</Text>
             </TouchableOpacity>
           </View>
@@ -924,6 +1290,7 @@ function ActivePanel({
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      <PlansModal visible={plansVisible} onClose={() => setPlansVisible(false)} />
     </SafeAreaView>
   );
 }
@@ -1139,6 +1506,91 @@ const nd = StyleSheet.create({
   promoSub: { fontSize: 15, color: 'rgba(255,255,255,0.75)', lineHeight: 22 },
   promoBtn: { backgroundColor: '#fff', alignSelf: 'flex-start', paddingHorizontal: 28, paddingVertical: 12, borderRadius: RADIUS.full, marginTop: 6 },
   promoBtnText: { fontSize: 14, fontWeight: '700', color: D.primary },
+});
+
+// ── Estilos do modal de planos ────────────────────────────────────────────────
+const pm = StyleSheet.create({
+  // overlay e sheet base
+  overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.62)', justifyContent: 'flex-end' },
+  sheet:       { backgroundColor: COLORS.bgCard, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 8, maxHeight: '92%' },
+  handle:      { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border, marginBottom: 16 },
+
+  // cabeçalho
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  sheetTitle:  { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  sheetSub:    { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  closeBtn:    { padding: 4, marginLeft: 8 },
+  backBtn:     { padding: 4 },
+
+  // ── Cards de plano ──
+  planCard: {
+    backgroundColor: COLORS.bgElevated, borderRadius: 16, padding: 18,
+    marginBottom: 14, borderWidth: 1.5, borderColor: COLORS.border,
+  },
+  planCardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
+  popularBadge:   { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full, marginBottom: 10 },
+  popularBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
+  planName:     { fontSize: 20, fontWeight: '900', marginBottom: 4 },
+  boostRow:     { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+  boostMult:    { fontSize: 32, fontWeight: '900', lineHeight: 36 },
+  boostSuffix:  { fontSize: 13, color: COLORS.textSub, fontWeight: '600' },
+  planPrice:    { fontSize: 26, fontWeight: '900', lineHeight: 28 },
+  planPeriod:   { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  featuresList: { gap: 8, marginBottom: 16 },
+  featureRow:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  featureText:  { fontSize: 13, color: COLORS.textSub, flex: 1 },
+  planBtn:      { borderRadius: 12, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
+  planBtnText:  { fontSize: 15, fontWeight: '800', color: '#fff' },
+
+  // ── Seletor de método ──
+  methodRow:    { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  methodBtn:    { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.bgElevated, gap: 3 },
+  methodIcon:   { fontSize: 20 },
+  methodLabel:  { fontSize: 12, fontWeight: '600', color: COLORS.textSub },
+
+  // ── Conteúdo de pagamento ──
+  payContent:   { gap: 12, marginBottom: 16 },
+
+  // PIX
+  pixQR:        { backgroundColor: COLORS.bgElevated, borderRadius: 16, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, gap: 6 },
+  pixQRLabel:   { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  pixQRSub:     { fontSize: 11, color: COLORS.textMuted },
+  pixKeyBox:    { backgroundColor: COLORS.bg, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, gap: 4 },
+  pixKeyLabel:  { fontSize: 10, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 },
+  pixKeyValue:  { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  pixKeyHint:   { fontSize: 11, color: COLORS.textMuted },
+
+  // Cartão
+  cardPreview:  { backgroundColor: '#1c1028', borderRadius: 14, padding: 18, borderWidth: 1, gap: 10 },
+  cardPreviewChip: { fontSize: 20 },
+  cardPreviewNum:  { fontSize: 18, fontWeight: '700', color: '#fff', letterSpacing: 2 },
+  cardPreviewName: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
+  cardPreviewExp:  { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
+  payInput:     { backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text },
+
+  // Boleto
+  boletoBox:    { backgroundColor: COLORS.bgElevated, borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, gap: 6 },
+  boletoTitle:  { fontSize: 16, fontWeight: '800', color: COLORS.text },
+  boletoBarcode:{ fontSize: 11, color: COLORS.textSub, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', lineHeight: 18, marginVertical: 6 },
+  boletoHint:   { fontSize: 12, color: COLORS.warning ?? '#F59E0B' },
+
+  // Total
+  totalRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderTopWidth: 0.5, borderTopColor: COLORS.border },
+  totalLabel:   { fontSize: 14, fontWeight: '600', color: COLORS.textSub },
+  totalValue:   { fontSize: 22, fontWeight: '900' },
+
+  // Botão pagar
+  payBtn:       { borderRadius: 14, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  payBtnText:   { fontSize: 15, fontWeight: '800', color: '#fff' },
+
+  // ── Tela de sucesso ──
+  successContent:    { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 16, gap: 12 },
+  successIconCircle: { width: 96, height: 96, borderRadius: 48, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginBottom: 8 },
+  successTitle:      { fontSize: 24, fontWeight: '900', color: COLORS.text, textAlign: 'center' },
+  successPlan:       { fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  successMsg:        { fontSize: 14, color: COLORS.textSub, textAlign: 'center', lineHeight: 21, marginBottom: 8 },
+  successBtn:        { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40, marginTop: 4 },
+  successBtnText:    { fontSize: 16, fontWeight: '800', color: '#fff' },
 });
 
 // ── Estilos do modal de perfil ────────────────────────────────────────────────

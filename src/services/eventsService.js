@@ -117,7 +117,6 @@ export const eventsService = {
   async uploadPhoto(eventId, uri) {
     const ext = (uri.split('.').pop() || 'jpg').toLowerCase().split('?')[0];
     const path = `${eventId}/${Date.now()}.${ext}`;
-    console.log('uploadPhoto - path:', path);
 
     const formData = new FormData();
     formData.append('file', {
@@ -125,13 +124,11 @@ export const eventsService = {
       name: `photo.${ext}`,
       type: `image/${ext}`,
     });
-    console.log('uploadPhoto - formData montado');
 
     const { data, error } = await supabase.storage
       .from('event-photos')
       .upload(path, formData, { contentType: `image/${ext}` });
 
-    console.log('uploadPhoto - upload retornou - data:', data, 'error:', JSON.stringify(error));
 
     if (error) return { url: null, path: null, error };
 
@@ -139,7 +136,6 @@ export const eventsService = {
       .from('event-photos')
       .getPublicUrl(path);
 
-    console.log('uploadPhoto - publicUrl:', publicUrl);
     return { url: publicUrl, path, error: null };
   },
 
