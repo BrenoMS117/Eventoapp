@@ -25,14 +25,14 @@ const CARD_W = (width - 48) / 2;
 
 const TIPOS_POST = [
   { key: "geral",          label: "Geral"   },
-  { key: "lotacao",        label: "Lotação" },
+  { key: "lotacao",        label: "Fila"    },
   { key: "dica",           label: "Dica"    },
   { key: "alerta",         label: "Alerta"  },
   { key: "acessibilidade", label: "Acesso"  },
 ];
 
 // ─── PostDetailModal ──────────────────────────────────────────────────────────
-function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLeft }) {
+function PostDetailModal({ post, visible, onClose, onReact, userReaction, isOwnPost, getTimeLeft }) {
   if (!post) return null;
   const timeLeft = getTimeLeft(post);
 
@@ -101,28 +101,38 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
               <View style={s.modalAcoes}>
                 <TouchableOpacity
                   style={s.modalAcaoBtn}
-                  onPress={() => { onLike(post.id); onClose(); }}
+                  onPress={() => { onReact(post.id, 'like'); onClose(); }}
+                  disabled={isOwnPost}
                 >
-                  <Text style={s.modalAcaoCount}>{post.likes}</Text>
-                  <Text style={s.modalAcaoLabel}>Curtir</Text>
+                  <Ionicons
+                    name="thumbs-up"
+                    size={18}
+                    color={userReaction === 'like' ? COLORS.primary : COLORS.textMuted}
+                  />
+                  <Text style={[s.modalAcaoCount, userReaction === 'like' && { color: COLORS.primary }]}>
+                    {post.likes}
+                  </Text>
+                  <Text style={s.modalAcaoLabel}>{isOwnPost ? "Seu post" : "Curtir"}</Text>
                 </TouchableOpacity>
 
                 <View style={s.modalAcaoDivider} />
 
                 <TouchableOpacity
                   style={s.modalAcaoBtn}
-                  onPress={() => { onDislike(post.id); onClose(); }}
+                  onPress={() => { onReact(post.id, 'dislike'); onClose(); }}
+                  disabled={isOwnPost}
                 >
-                  <Text style={s.modalAcaoCount}>{post.dislikes ?? 0}</Text>
-                  <Text style={s.modalAcaoLabel}>Não curtir</Text>
+                  <Ionicons
+                    name="thumbs-down"
+                    size={18}
+                    color={userReaction === 'dislike' ? COLORS.danger : COLORS.textMuted}
+                  />
+                  <Text style={[s.modalAcaoCount, userReaction === 'dislike' && { color: COLORS.danger }]}>
+                    {post.dislikes ?? 0}
+                  </Text>
+                  <Text style={s.modalAcaoLabel}>{isOwnPost ? "—" : "Não curtir"}</Text>
                 </TouchableOpacity>
 
-                <View style={s.modalAcaoDivider} />
-
-                <View style={s.modalAcaoBtn}>
-                  <Text style={s.modalAcaoCount}>{post.replies}</Text>
-                  <Text style={s.modalAcaoLabel}>Respostas</Text>
-                </View>
               </View>
             </View>
           </ScrollView>
@@ -133,7 +143,7 @@ function PostDetailModal({ post, visible, onClose, onLike, onDislike, getTimeLef
 }
 
 // ─── PostCard ─────────────────────────────────────────────────────────────────
-function PostCard({ post, onPress, onLike, onDislike }) {
+function PostCard({ post, onPress, onReact, userReaction, isOwnPost }) {
   const temFotos = post.photos?.length > 0;
   return (
     <TouchableOpacity
@@ -167,18 +177,22 @@ function PostCard({ post, onPress, onLike, onDislike }) {
         <View style={s.postAcoes}>
           <TouchableOpacity
             style={s.acaoBtn}
-            onPress={(e) => { e.stopPropagation?.(); onLike(post.id); }}
+            onPress={(e) => { e.stopPropagation?.(); onReact(post.id, 'like'); }}
+            disabled={isOwnPost}
           >
-            <View style={s.acaoBolha}>
-              <Text style={s.acaoCount}>{post.likes}</Text>
+            <View style={[s.acaoBolha, userReaction === 'like' && { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary + '44', borderWidth: 0.5 }]}>
+              <Ionicons name="thumbs-up" size={11} color={userReaction === 'like' ? COLORS.primary : COLORS.textMuted} />
+              <Text style={[s.acaoCount, userReaction === 'like' && { color: COLORS.primary }]}>{post.likes}</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity
             style={s.acaoBtn}
-            onPress={(e) => { e.stopPropagation?.(); onDislike(post.id); }}
+            onPress={(e) => { e.stopPropagation?.(); onReact(post.id, 'dislike'); }}
+            disabled={isOwnPost}
           >
-            <View style={s.acaoBolha}>
-              <Text style={s.acaoCount}>{post.dislikes ?? 0}</Text>
+            <View style={[s.acaoBolha, userReaction === 'dislike' && { backgroundColor: COLORS.danger + '22', borderColor: COLORS.danger + '44', borderWidth: 0.5 }]}>
+              <Ionicons name="thumbs-down" size={11} color={userReaction === 'dislike' ? COLORS.danger : COLORS.textMuted} />
+              <Text style={[s.acaoCount, userReaction === 'dislike' && { color: COLORS.danger }]}>{post.dislikes ?? 0}</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -203,10 +217,11 @@ function AtEventBanner({ event }) {
 
 // ─── FeedScreen ───────────────────────────────────────────────────────────────
 export default function FeedScreen() {
-  const { events, nearbyEventIds, logout } = useApp();
+  const { events, nearbyEventIds, logout, currentUser } = useApp();
   const { posts, currentEvent, contextLabel, canPost, submitPost, likePost, dislikePost, getTimeLeft, loadMore, hasMore, loadingMore } = useFeed();
 
-  const [compondo, setCompondo]             = useState(false);
+  const [reactions, setReactions] = useState({});
+  const [compondo, setCompondo]   = useState(false);
   const [novoTexto, setNovoTexto]           = useState("");
   const [fotosPost, setFotosPost]           = useState([]);
   const [erroTexto, setErroTexto]           = useState("");
@@ -256,6 +271,26 @@ export default function FeedScreen() {
     setErroTexto("");
     setErroEvento("");
     setErroGeo("");
+  }
+
+  function handleReact(postId, type) {
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+    if (post.authorId && post.authorId === currentUser?.id) return;
+
+    const current = reactions[postId] ?? null;
+
+    if (current === type) {
+      setReactions((prev) => ({ ...prev, [postId]: null }));
+      if (type === 'like') likePost(postId, -1);
+      else dislikePost(postId, -1);
+    } else {
+      if (current === 'like') likePost(postId, -1);
+      if (current === 'dislike') dislikePost(postId, -1);
+      setReactions((prev) => ({ ...prev, [postId]: type }));
+      if (type === 'like') likePost(postId, 1);
+      else dislikePost(postId, 1);
+    }
   }
 
   function cancelar() {
@@ -422,8 +457,9 @@ export default function FeedScreen() {
             <PostCard
               post={item}
               onPress={() => setSelectedPost(item)}
-              onLike={likePost}
-              onDislike={dislikePost}
+              onReact={handleReact}
+              userReaction={reactions[item.id] ?? null}
+              isOwnPost={!!item.authorId && item.authorId === currentUser?.id}
             />
           </View>
         )}
@@ -434,8 +470,9 @@ export default function FeedScreen() {
         post={selectedPost}
         visible={!!selectedPost}
         onClose={() => setSelectedPost(null)}
-        onLike={likePost}
-        onDislike={dislikePost}
+        onReact={handleReact}
+        userReaction={selectedPost ? (reactions[selectedPost.id] ?? null) : null}
+        isOwnPost={!!selectedPost?.authorId && selectedPost.authorId === currentUser?.id}
         getTimeLeft={getTimeLeft}
       />
     </SafeAreaView>
@@ -579,7 +616,7 @@ const s = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: COLORS.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    maxHeight: "85%", paddingBottom: 32,
+    maxHeight: "85%", paddingBottom: 48,
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border,
@@ -599,7 +636,7 @@ const s = StyleSheet.create({
   modalEvento: { fontSize: 12, color: COLORS.textMuted },
   modalCloseBtn: { padding: 6 },
   modalImagem: { width: "100%", aspectRatio: 4 / 3, backgroundColor: '#000' },
-  modalCorpo: { padding: 16 },
+  modalCorpo: { padding: 16, paddingBottom: 24 },
   modalTagChip: {
     alignSelf: "flex-start", backgroundColor: COLORS.primary + "22",
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full, marginBottom: 10,

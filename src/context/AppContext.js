@@ -842,26 +842,30 @@ async function addEventPhoto(eventId, uri) {
     setFeedPosts((prev) => [newPost, ...prev]);
   }
 
-  async function likePost(postId) {
+  async function likePost(postId, delta = 1) {
     setFeedPosts((prev) =>
-      prev.map((p) => (p.id === postId ? { ...p, likes: p.likes + 1 } : p)),
+      prev.map((p) => (p.id === postId ? { ...p, likes: Math.max(0, p.likes + delta) } : p)),
     );
-    const { error } = await feedService.like(postId);
+    const { error } = delta > 0
+      ? await feedService.like(postId)
+      : await feedService.undoLike(postId);
     if (error) {
       setFeedPosts((prev) =>
-        prev.map((p) => (p.id === postId ? { ...p, likes: p.likes - 1 } : p)),
+        prev.map((p) => (p.id === postId ? { ...p, likes: Math.max(0, p.likes - delta) } : p)),
       );
     }
   }
 
-  async function dislikePost(postId) {
+  async function dislikePost(postId, delta = 1) {
     setFeedPosts((prev) =>
-      prev.map((p) => (p.id === postId ? { ...p, dislikes: (p.dislikes ?? 0) + 1 } : p)),
+      prev.map((p) => (p.id === postId ? { ...p, dislikes: Math.max(0, (p.dislikes ?? 0) + delta) } : p)),
     );
-    const { error } = await feedService.dislike(postId);
+    const { error } = delta > 0
+      ? await feedService.dislike(postId)
+      : await feedService.undoDislike(postId);
     if (error) {
       setFeedPosts((prev) =>
-        prev.map((p) => (p.id === postId ? { ...p, dislikes: (p.dislikes ?? 0) - 1 } : p)),
+        prev.map((p) => (p.id === postId ? { ...p, dislikes: Math.max(0, (p.dislikes ?? 0) - delta) } : p)),
       );
     }
   }

@@ -82,6 +82,20 @@ export const feedService = {
     return { error };
   },
 
+  async undoLike(postId) {
+    const { data: post } = await supabase.from('feed_posts').select('likes').eq('id', postId).single();
+    if (!post) return { error: 'Post não encontrado.' };
+    const { error } = await supabase.from('feed_posts').update({ likes: Math.max(0, (post.likes ?? 1) - 1) }).eq('id', postId);
+    return { error };
+  },
+
+  async undoDislike(postId) {
+    const { data: post } = await supabase.from('feed_posts').select('dislikes').eq('id', postId).single();
+    if (!post) return { error: 'Post não encontrado.' };
+    const { error } = await supabase.from('feed_posts').update({ dislikes: Math.max(0, (post.dislikes ?? 1) - 1) }).eq('id', postId);
+    return { error };
+  },
+
   async closeByEvent(eventId) {
     const now = new Date().toISOString();
     const { error } = await supabase

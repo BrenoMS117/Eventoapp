@@ -17,12 +17,6 @@ import { PhotoCarousel } from "../components/ImageCarousel";
 import { RATING_OPTIONS, RATING_MAP } from "../services/ratings/ratingDefinitions";
 
 const { width } = Dimensions.get("window");
-const COR_HEAT = {
-  BLAZING: "#FF4500",
-  HOT: "#E83B5C",
-  WARM: "#F59E0B",
-  COOL: "#3B82F6",
-};
 
 
 // ─── RatingSection ───────────────────────────────────────────────────────────
@@ -235,40 +229,13 @@ const rs = StyleSheet.create({
 
 // ─── CrowdPanel ──────────────────────────────────────────────────────────────
 
-function CrowdPanel({ evento, isProximo, onCheckIn, onCheckOut, isCheckedIn }) {
-  const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState(null);
-
+function CrowdPanel({ evento }) {
   const level = evento.crowdLevel ?? 0;
   const barColor =
     level >= 85 ? COLORS.danger
     : level >= 60 ? COLORS.warning
     : level >= 30 ? COLORS.primary
     : COLORS.success;
-
-  const capacityText = evento.maxCapacity
-    ? `${evento.checkedInCount} / ${evento.maxCapacity} pessoas`
-    : `${evento.checkedInCount} ${evento.checkedInCount === 1 ? 'pessoa' : 'pessoas'} aqui`;
-
-  async function handleCheckIn() {
-    setLoading(true);
-    const result = await onCheckIn(evento.id);
-    setLoading(false);
-    if (result?.error) {
-      Alert.alert('Check-in', result.error);
-    } else if (!result?.alreadyIn) {
-      setFeedback('in');
-      setTimeout(() => setFeedback(null), 3000);
-    }
-  }
-
-  async function handleCheckOut() {
-    setLoading(true);
-    await onCheckOut(evento.id);
-    setLoading(false);
-    setFeedback('out');
-    setTimeout(() => setFeedback(null), 2000);
-  }
 
   return (
     <View style={cs.panel}>
@@ -283,62 +250,13 @@ function CrowdPanel({ evento, isProximo, onCheckIn, onCheckOut, isCheckedIn }) {
           <Text style={[cs.levelPct, { color: barColor }]}>{level}%</Text>
           <Text style={cs.levelLabel}>{evento.crowdLabel ?? 'Aguardando'}</Text>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={cs.capacityNum}>{capacityText}</Text>
-          {evento.maxCapacity && (
-            <Text style={cs.capacitySub}>capacidade total</Text>
-          )}
-        </View>
+        {evento.maxCapacity ? (
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={cs.capacityNum}>{evento.maxCapacity} pessoas</Text>
+            <Text style={cs.capacitySub}>capacidade máxima</Text>
+          </View>
+        ) : null}
       </View>
-
-      {evento.isLive && (
-        <View style={cs.checkInRow}>
-          {feedback === 'in' && (
-            <View style={cs.feedbackChip}>
-              <Text style={cs.feedbackText}>Check-in feito!</Text>
-            </View>
-          )}
-          {feedback === 'out' && (
-            <View style={[cs.feedbackChip, { backgroundColor: COLORS.bgOverlay }]}>
-              <Text style={[cs.feedbackText, { color: COLORS.textSub }]}>Saída registrada</Text>
-            </View>
-          )}
-          {!feedback && (
-            isCheckedIn ? (
-              <View style={cs.checkInActions}>
-                <View style={cs.presenteChip}>
-                  <View style={cs.presenteDot} />
-                  <Text style={cs.presenteText}>Você está aqui</Text>
-                </View>
-                <TouchableOpacity
-                  style={cs.sairBtn}
-                  onPress={handleCheckOut}
-                  disabled={loading}
-                >
-                  {loading
-                    ? <ActivityIndicator size="small" color={COLORS.textMuted} />
-                    : <Text style={cs.sairBtnText}>Sair →</Text>
-                  }
-                </TouchableOpacity>
-              </View>
-            ) : isProximo ? (
-              <TouchableOpacity
-                style={[cs.checkInBtn, { backgroundColor: barColor }]}
-                onPress={handleCheckIn}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                {loading
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={cs.checkInBtnText}>Fazer check-in</Text>
-                }
-              </TouchableOpacity>
-            ) : (
-              <Text style={cs.nearbyHint}>Chegue ao local para fazer check-in</Text>
-            )
-          )}
-        </View>
-      )}
     </View>
   );
 }
@@ -369,67 +287,8 @@ const cs = StyleSheet.create({
   levelLabel: { fontSize: 12, color: COLORS.textSub, marginTop: 2 },
   capacityNum: { fontSize: 13, fontWeight: '700', color: COLORS.text },
   capacitySub: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  checkInRow: { marginTop: 14 },
-  checkInBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, borderRadius: 12, paddingVertical: 12,
-  },
-  checkInBtnIcon: { fontSize: 16 },
-  checkInBtnText: { fontSize: 14, fontWeight: '800', color: '#fff' },
-  nearbyHint: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center' },
-  checkInActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  presenteChip: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: COLORS.success + '22', borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderWidth: 0.5, borderColor: COLORS.success + '55',
-  },
-  presenteDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.success },
-  presenteText: { fontSize: 12, fontWeight: '700', color: COLORS.success },
-  sairBtn: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: COLORS.bgOverlay,
-    borderWidth: 0.5, borderColor: COLORS.border,
-  },
-  sairBtnText: { fontSize: 12, fontWeight: '600', color: COLORS.textSub },
-  feedbackChip: {
-    backgroundColor: COLORS.success + '22', borderRadius: 12,
-    paddingVertical: 10, alignItems: 'center',
-    borderWidth: 0.5, borderColor: COLORS.success + '44',
-  },
-  feedbackText: { fontSize: 13, fontWeight: '700', color: COLORS.success },
 });
 
-function VibeMeter({ value }) {
-  const cor =
-    value > 70 ? COLORS.primary : value > 40 ? COLORS.purple : "#3B82F6";
-  return (
-    <View>
-      <View
-        style={{
-          height: 10,
-          backgroundColor: COLORS.bgOverlay,
-          borderRadius: 5,
-          overflow: "hidden",
-          marginBottom: 4,
-        }}
-      >
-        <View
-          style={{
-            height: "100%",
-            width: `${Math.max(2, value)}%`,
-            backgroundColor: cor,
-            borderRadius: 5,
-          }}
-        />
-      </View>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Tranquilo</Text>
-        <Text style={{ fontSize: 10, color: COLORS.textMuted }}>Intenso</Text>
-      </View>
-    </View>
-  );
-}
 
 export default function EventDetailScreen({ route, navigation }) {
   const { eventId } = route.params;
@@ -440,9 +299,6 @@ export default function EventDetailScreen({ route, navigation }) {
     redeemCoupon,
     isCouponRedeemed,
     nearbyEventIds,
-    checkIn,
-    checkOut,
-    isCheckedIn,
     currentUser,
     subscribeToEventRatings,
     getEventRatings,
@@ -459,15 +315,11 @@ export default function EventDetailScreen({ route, navigation }) {
   if (!evento) return null;
 
   const cupons = getCouponsForEvent(eventId);
-  const posts = feedPosts.filter((p) => p.eventId === eventId).slice(0, 3);
+  const eventoPosts = feedPosts.filter((p) => p.eventId === eventId);
+  const posts = eventoPosts.slice(0, 3);
+  const filaCount = eventoPosts.filter((p) => p.type === 'lotacao').length;
+  const totalPosts = eventoPosts.length;
   const isProximo = nearbyEventIds.includes(eventId);
-  const corHeat = COR_HEAT[evento.heatLevel] || COLORS.primary;
-  const corLotacao =
-    evento.crowdLevel >= 85
-      ? COLORS.danger
-      : evento.crowdLevel >= 60
-        ? COLORS.warning
-        : COLORS.success;
 
   async function handleResgatar(cupom) {
     if (isCouponRedeemed(cupom.id)) {
@@ -523,38 +375,16 @@ export default function EventDetailScreen({ route, navigation }) {
               <Text style={s.proximoTexto}>Você está aqui</Text>
             </View>
           )}
-          <TouchableOpacity style={s.voltarBtn}>
-            <Ionicons name="share-outline" size={20} color="#fff" />
-          </TouchableOpacity>
         </View>
         <View style={s.heroContent}>
           {evento.isLive && (
             <View style={s.liveBadge}>
               <View style={s.liveDot} />
               <Text style={s.liveTexto}>AO VIVO</Text>
-              <Text style={s.liveContagem}>
-                {" "}
-                · {evento.checkedInCount.toLocaleString()} aqui
-              </Text>
             </View>
           )}
           <Text style={s.heroNome}>{evento.name}</Text>
           <Text style={s.heroVenue}>{evento.venue}</Text>
-          {evento.heatLevel && (
-            <View
-              style={[
-                s.heatChip,
-                {
-                  backgroundColor: corHeat + "33",
-                  borderColor: corHeat + "66",
-                },
-              ]}
-            >
-              <Text style={[s.heatChipTexto, { color: corHeat }]}>
-                NÍVEL: {evento.heatLevel}
-              </Text>
-            </View>
-          )}
         </View>
       </View>
 
@@ -566,44 +396,23 @@ export default function EventDetailScreen({ route, navigation }) {
 
         {/* ── Painel de público ── */}
         {evento.isLive && (
-          <CrowdPanel
-            evento={evento}
-            isProximo={isProximo}
-            onCheckIn={checkIn}
-            onCheckOut={checkOut}
-            isCheckedIn={isCheckedIn(eventId)}
-          />
+          <CrowdPanel evento={evento} />
         )}
-
-        {/* ── Termômetro ── */}
-        <View style={s.vibeSecao}>
-          <Text style={s.vibeSecaoLabel}>TERMÔMETRO DO EVENTO</Text>
-          <VibeMeter value={evento.vibeMeter} />
-        </View>
 
         {/* ── Estatísticas ── */}
         <View style={s.statsGrid}>
           {[
             {
-              label: "Lotação",
-              valor: `${evento.crowdLevel}%`,
-              sub: evento.crowdLabel,
-              cor: corLotacao,
-            },
-            {
               label: "Fila",
-              valor:
-                evento.queueMinutes > 0
-                  ? `~${evento.queueMinutes}min`
-                  : "Sem fila",
-              sub: evento.queueMinutes > 0 ? "de espera" : "Entre já!",
-              cor: evento.queueMinutes > 10 ? COLORS.warning : COLORS.success,
+              valor: filaCount === 0 ? "Sem fila" : filaCount <= 2 ? "Moderado" : "Cheio",
+              sub:   filaCount === 0 ? "Entre já!" : filaCount <= 2 ? "Pode esperar" : "Fila grande",
+              cor:   filaCount === 0 ? COLORS.success : filaCount <= 2 ? COLORS.warning : COLORS.danger,
             },
             {
               label: "Avaliação",
-              valor: evento.rating || "—",
-              sub: `${evento.reviewCount} avaliações`,
-              cor: COLORS.gold,
+              valor: totalPosts > 0 ? String(totalPosts) : "—",
+              sub:   totalPosts === 1 ? "avaliação" : "avaliações",
+              cor:   COLORS.gold,
             },
             {
               label: "Acessível",
@@ -853,11 +662,6 @@ const s = StyleSheet.create({
     color: "#fff",
     letterSpacing: 1,
   },
-  liveContagem: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.8)",
-    fontWeight: "500",
-  },
   heroNome: {
     fontSize: 22,
     fontWeight: "900",
@@ -867,39 +671,16 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   heroVenue: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 8 },
-  heatChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: RADIUS.full,
-    borderWidth: 1,
-    alignSelf: "flex-start",
-  },
-  heatChipTexto: { fontSize: 12, fontWeight: "800", letterSpacing: 0.3 },
-  vibeSecao: {
-    backgroundColor: COLORS.bgCard,
-    margin: 12,
-    borderRadius: RADIUS.lg,
-    padding: 14,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-  },
-  vibeSecaoLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     paddingHorizontal: 12,
     gap: 8,
+    marginTop: 10,
   },
   statCard: {
     flex: 1,
-    minWidth: "45%",
+    minWidth: "30%",
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.lg,
     padding: 14,
