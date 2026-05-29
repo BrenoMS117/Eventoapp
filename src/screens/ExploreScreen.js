@@ -21,48 +21,38 @@ import NotificationsModal from "./NotificationsModal";
 
 const { width } = Dimensions.get("window");
 const CARD_W = width * 0.68;
-const COR_HEAT = {
-  BLAZING: "#FF4500",
-  HOT: "#E83B5C",
-  WARM: "#F59E0B",
-  COOL: "#3B82F6",
-};
+
+function fmtData(iso) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", weekday: "short" });
+}
+function fmtHora(iso) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+function isGratuito(price) {
+  if (price === null || price === undefined || price === "" || price === "Gratuito") return true;
+  const n = parseFloat(String(price).replace(",", "."));
+  return isNaN(n) || n === 0;
+}
+function fmtPreco(price) {
+  if (isGratuito(price)) return "Gratuito";
+  const n = parseFloat(String(price).replace(",", "."));
+  return `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 const CATEGORIAS = [
-  { key: "todos", label: "Todos" },
-  { key: "rave", label: "Rave" },
-  { key: "concert", label: "Show" },
-  { key: "art", label: "Arte" },
-  { key: "electro", label: "Eletrônico" },
-  { key: "festival", label: "Festival" },
+  { key: "todos",    label: "Todos"       },
+  { key: "art",      label: "Arte"        },
+  { key: "bar",      label: "Bar"         },
+  { key: "cultura",  label: "Cultura"     },
+  { key: "electro",  label: "Eletrônico"  },
+  { key: "festival", label: "Festival"    },
+  { key: "rave",     label: "Rave"        },
+  { key: "concert",  label: "Show"        },
+  { key: "teatro",   label: "Teatro"      },
 ];
 
-function VibeMeter({ value }) {
-  const cor =
-    value > 70 ? COLORS.primary : value > 40 ? COLORS.purple : "#3B82F6";
-  return (
-    <View>
-      <View style={s.vmBg}>
-        <View
-          style={[
-            s.vmFill,
-            { width: `${Math.max(2, value)}%`, backgroundColor: cor },
-          ]}
-        />
-      </View>
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          marginTop: 2,
-        }}
-      >
-        <Text style={s.vmLabel}>Tranquilo</Text>
-        <Text style={s.vmLabel}>Intenso</Text>
-      </View>
-    </View>
-  );
-}
 
 export default function ExploreScreen({ navigation }) {
   const { logout } = useApp();
@@ -216,15 +206,7 @@ export default function ExploreScreen({ navigation }) {
                   >
                     {heroEvento.capacityPct}% LOTAÇÃO
                   </Text>
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "700",
-                      color: COR_HEAT[heroEvento.heatLevel] || "#fff",
-                    }}
-                  >
-                    | {heroEvento.vibeLabel?.toUpperCase()}
-                  </Text>
+
                 </View>
                 <TouchableOpacity style={s.ingressoBtn}>
                   <Text style={s.ingressoBtnTexto}>VER DETALHES</Text>
@@ -254,7 +236,6 @@ export default function ExploreScreen({ navigation }) {
             contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
           >
             {filtrados.map((e) => {
-              const hc = COR_HEAT[e.heatLevel] || COLORS.primary;
               return (
                 <TouchableOpacity
                   key={e.id}
@@ -316,47 +297,37 @@ export default function ExploreScreen({ navigation }) {
                     <Text style={s.eventoCardSub} numberOfLines={1}>
                       {e.venue}
                     </Text>
-                    <Text style={s.vmLabelTexto}>Termômetro</Text>
-                    <VibeMeter value={e.vibeMeter} />
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginTop: 8,
-                      }}
-                    >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <Ionicons
-                          name="people-outline"
-                          size={11}
-                          color={COLORS.textSub}
-                        />
-                        <Text style={s.presencaTexto}>
-                          {e.checkedInCount.toLocaleString()} presentes
+
+                    <View style={s.cardDivider} />
+
+                    {/* Data e horário */}
+                    {e.startsAt && (
+                      <View style={s.cardInfoRow}>
+                        <Ionicons name="time-outline" size={13} color={COLORS.primary} />
+                        <Text style={s.cardInfoTexto}>
+                          {fmtData(e.startsAt)} · {fmtHora(e.startsAt)}
+                          {e.endsAt ? ` – ${fmtHora(e.endsAt)}` : ""}
                         </Text>
                       </View>
-                      {e.heatLevel && (
-                        <View
-                          style={[
-                            s.heatBadge,
-                            {
-                              borderColor: hc + "55",
-                              backgroundColor: hc + "22",
-                            },
-                          ]}
-                        >
-                          <Text style={[s.heatTexto, { color: hc }]}>
-                            {e.heatLevel}
-                          </Text>
-                        </View>
-                      )}
+                    )}
+
+                    {/* Preço + faixa etária + categoria */}
+                    <View style={s.cardFooterRow}>
+                      <View style={[s.precoBadge, isGratuito(e.price) && s.precoBadgeFree]}>
+                        <Text style={[s.precoTexto, isGratuito(e.price) && s.precoTextoFree]}>
+                          {fmtPreco(e.price)}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 4, alignItems: "center" }}>
+                        {e.ageRestriction && (
+                          <View style={s.ageBadge}>
+                            <Text style={s.ageTexto}>{e.ageRestriction}</Text>
+                          </View>
+                        )}
+                        {e.categoryLabel && (
+                          <Text style={s.catTagTexto} numberOfLines={1}>{e.categoryLabel}</Text>
+                        )}
+                      </View>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -539,29 +510,47 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: 2,
   },
-  eventoCardSub: { fontSize: 12, color: COLORS.textSub, marginBottom: 8 },
-  vmLabelTexto: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    fontWeight: "600",
-    marginBottom: 4,
-    textTransform: "uppercase",
+  eventoCardSub: { fontSize: 12, color: COLORS.textSub, marginBottom: 6 },
+  cardDivider: {
+    height: 0.5,
+    backgroundColor: COLORS.border,
+    marginBottom: 8,
   },
-  vmBg: {
-    height: 6,
-    backgroundColor: COLORS.bgOverlay,
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 3,
+  cardInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 8,
   },
-  vmFill: { height: "100%", borderRadius: 3 },
-  vmLabel: { fontSize: 9, color: COLORS.textMuted },
-  presencaTexto: { fontSize: 11, color: COLORS.textSub },
-  heatBadge: {
-    paddingHorizontal: 8,
+  cardInfoTexto: { fontSize: 12, color: COLORS.textSub, fontWeight: "500", flex: 1 },
+  cardFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+  },
+  precoBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.primary + "22",
+    borderWidth: 0.5,
+    borderColor: COLORS.primary + "55",
+  },
+  precoBadgeFree: {
+    backgroundColor: COLORS.success + "22",
+    borderColor: COLORS.success + "55",
+  },
+  precoTexto: { fontSize: 12, fontWeight: "800", color: COLORS.primary },
+  precoTextoFree: { color: COLORS.success },
+  ageBadge: {
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: RADIUS.full,
+    backgroundColor: COLORS.bgElevated,
     borderWidth: 0.5,
+    borderColor: COLORS.border,
   },
-  heatTexto: { fontSize: 10, fontWeight: "700" },
+  ageTexto: { fontSize: 11, fontWeight: "700", color: COLORS.textSub },
+  catTagTexto: { fontSize: 11, color: COLORS.textMuted },
 });

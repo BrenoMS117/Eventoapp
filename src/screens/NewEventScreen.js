@@ -50,6 +50,21 @@ function maskDate(raw) {
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
+function maskPreco(raw) {
+  // permite apenas dígitos e uma vírgula (separador decimal)
+  const onlyValid = raw.replace(/[^0-9,]/g, '');
+  const parts = onlyValid.split(',');
+  if (parts.length <= 1) return onlyValid;
+  // só uma vírgula, centavos limitados a 2 dígitos
+  return `${parts[0]},${parts[1].slice(0, 2)}`;
+}
+
+function maskCep(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
 function maskTime(raw) {
   const digits = raw.replace(/\D/g, '').slice(0, 4);
   if (digits.length <= 2) return digits;
@@ -112,6 +127,7 @@ export default function NewEventScreen({ navigation }) {
   const [publicando, setPublicando] = useState(false);
   const [geoCoords, setGeoCoords] = useState(null);
   const [gpsStatus, setGpsStatus] = useState('idle');
+  const [cepStatus, setCepStatus] = useState('idle'); // idle | loading | found | error
 
   const {
     control,
@@ -128,6 +144,7 @@ export default function NewEventScreen({ navigation }) {
       horarioInicio: "",
       horarioFim: "",
       venue: currentUser?.venueName || "",
+      cep: "",
       endereco: "",
       bairro: "",
       cidade: "São Paulo",
@@ -151,7 +168,7 @@ export default function NewEventScreen({ navigation }) {
 
   const camposPorEtapa = {
     0: ["nome", "categoria", "data", "horarioInicio"],
-    1: ["endereco"],
+    1: ["cep", "endereco"],
     2: [],
     3: entrada_gratis ? [] : ["preco"],
   };
@@ -176,6 +193,33 @@ export default function NewEventScreen({ navigation }) {
       if (address.city) setValue('cidade', address.city);
     }
     setGpsStatus('found');
+  }
+
+  async function buscarCep(cepMasked) {
+    const digits = cepMasked.replace(/\D/g, '');
+    if (digits.length !== 8) return;
+    setCepStatus('loading');
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${digits}`);
+      if (!res.ok) throw new Error('CEP não encontrado');
+      const data = await res.json();
+
+      if (data.street)       setValue('endereco', data.street);
+      if (data.neighborhood) setValue('bairro',   data.neighborhood);
+      if (data.city)         setValue('cidade',   data.city);
+
+      const coords = data.location?.coordinates;
+      if (coords?.latitude && coords?.longitude) {
+        setGeoCoords({ lat: coords.latitude, lng: coords.longitude });
+      } else {
+        const fullAddress = [data.street, data.neighborhood, data.city, 'Brasil'].filter(Boolean).join(', ');
+        const geocoded = await geoService.geocodeAddress(fullAddress);
+        if (geocoded) setGeoCoords(geocoded);
+      }
+      setCepStatus('found');
+    } catch {
+      setCepStatus('error');
+    }
   }
 
   async function publicar() {
@@ -230,18 +274,21 @@ export default function NewEventScreen({ navigation }) {
       }
 
       if (fotos.length > 0 && created?.id) {
-        Promise.allSettled(fotos.map(uri => addEventPhoto(created.id, uri)))
-          .then(results => {
-            const failed = results.filter(r => r.status === 'rejected' || r.value?.error);
-            if (failed.length > 0) {
-              console.warn(`[NewEventScreen] ${failed.length} foto(s) não enviada(s).`);
-              Alert.alert(
-                'Fotos não enviadas',
-                `${failed.length === fotos.length ? 'Nenhuma' : `${failed.length}`} foto(s) não puderam ser enviadas. O evento foi criado com sucesso — você pode tentar adicioná-las novamente pela tela do evento.`,
-                [{ text: 'Entendido' }],
-              );
-            }
-          });
+        (async () => {
+          let failed = 0;
+          for (const uri of fotos) {
+            const result = await addEventPhoto(created.id, uri);
+            if (!result?.url) failed++;
+          }
+          if (failed > 0) {
+            console.warn(`[NewEventScreen] ${failed} foto(s) não enviada(s).`);
+            Alert.alert(
+              'Fotos não enviadas',
+              `${failed === fotos.length ? 'Nenhuma' : `${failed}`} foto(s) não puderam ser enviadas. O evento foi criado com sucesso — você pode tentar adicioná-las novamente pela tela do evento.`,
+              [{ text: 'Entendido' }],
+            );
+          }
+        })();
       }
 
       if (Platform.OS === 'web') {
@@ -471,6 +518,54 @@ export default function NewEventScreen({ navigation }) {
             <View style={s.etapaConteudo}>
               <Text style={s.etapaTitulo}>Local do Evento</Text>
 
+              {/* CEP */}
+              <Text style={s.fieldLabel}>
+                CEP <Text style={{ color: COLORS.primary }}>*</Text>
+              </Text>
+              <Controller
+                control={control}
+                name="cep"
+                rules={{
+                  validate: (v) =>
+                    v.replace(/\D/g, '').length === 8 || "CEP inválido. Digite os 8 dígitos.",
+                }}
+                render={({ field: { onChange, value } }) => (
+                  <View style={[s.inputRow, (errors.cep || cepStatus === 'error') && s.inputRowErro, cepStatus === 'found' && s.inputRowOk]}>
+                    <Ionicons name="mail-outline" size={17} color={COLORS.textMuted} style={s.inputRowIcon} />
+                    <TextInput
+                      style={s.inputInner}
+                      placeholder="00000-000"
+                      placeholderTextColor={COLORS.textMuted}
+                      value={value}
+                      onChangeText={(raw) => {
+                        const masked = maskCep(raw);
+                        onChange(masked);
+                        if (masked.replace(/\D/g, '').length === 8) buscarCep(masked);
+                        else setCepStatus('idle');
+                      }}
+                      keyboardType="number-pad"
+                      maxLength={9}
+                    />
+                    {cepStatus === 'loading' && (
+                      <Text style={{ fontSize: 11, color: COLORS.textMuted }}>Buscando...</Text>
+                    )}
+                    {cepStatus === 'found' && (
+                      <Ionicons name="checkmark-circle" size={17} color={COLORS.success} />
+                    )}
+                    {cepStatus === 'error' && (
+                      <Ionicons name="alert-circle" size={17} color={COLORS.danger} />
+                    )}
+                  </View>
+                )}
+              />
+              {errors.cep && <Text style={s.erroTexto}>{errors.cep.message}</Text>}
+              {!errors.cep && cepStatus === 'error' && (
+                <Text style={s.erroTexto}>CEP não encontrado. Verifique e tente novamente.</Text>
+              )}
+              {cepStatus === 'found' && (
+                <Text style={[s.diaSegTexto, { color: COLORS.success, marginBottom: 8 }]}>Endereço preenchido automaticamente</Text>
+              )}
+
               <TouchableOpacity
                 style={[s.geoBtn, { marginBottom: 4 }, gpsStatus === 'found' && s.geoBtnOk]}
                 onPress={handleUseCurrentLocation}
@@ -663,8 +758,13 @@ export default function NewEventScreen({ navigation }) {
                     control={control}
                     name="preco"
                     rules={{
-                      validate: (v) =>
-                        entrada_gratis || !!v.trim() || "Valor da entrada é obrigatório.",
+                      validate: (v) => {
+                        if (entrada_gratis) return true;
+                        if (!v.trim()) return "Valor da entrada é obrigatório.";
+                        const n = parseFloat(v.replace(',', '.'));
+                        if (isNaN(n) || n <= 0) return "Informe um valor válido (ex: 80,00).";
+                        return true;
+                      },
                     }}
                     render={({ field: { onChange, value } }) => (
                       <View style={[s.inputRow, errors.preco && s.inputRowErro]}>
@@ -676,7 +776,7 @@ export default function NewEventScreen({ navigation }) {
                           placeholder="80,00"
                           placeholderTextColor={COLORS.textMuted}
                           value={value}
-                          onChangeText={onChange}
+                          onChangeText={(raw) => onChange(maskPreco(raw))}
                           keyboardType="numeric"
                         />
                       </View>
@@ -1026,6 +1126,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
   },
   inputRowErro: { borderColor: COLORS.danger, backgroundColor: COLORS.danger + "11" },
+  inputRowOk:   { borderColor: COLORS.success, backgroundColor: COLORS.success + "11" },
   inputRowIcon: { marginRight: 8 },
   inputInner: { flex: 1, fontSize: 15, color: COLORS.text },
   charCount: { fontSize: 11, color: COLORS.textMuted, textAlign: "right", marginTop: 4 },
@@ -1033,8 +1134,9 @@ const s = StyleSheet.create({
   diaSegTexto: { fontSize: 12, color: COLORS.warning, marginTop: 4 },
   categoriaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   catBtn: {
-    width: "22%",
-    aspectRatio: 1,
+    width: "47%",
+    paddingVertical: 13,
+    paddingHorizontal: 14,
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.lg,
     alignItems: "center",
@@ -1045,7 +1147,7 @@ const s = StyleSheet.create({
   },
   catBtnAtivo: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + "18" },
   catBtnIcon: { fontSize: 22 },
-  catBtnLabel: { fontSize: 10, color: COLORS.textMuted, marginTop: 3 },
+  catBtnLabel: { fontSize: 13, color: COLORS.textSub, fontWeight: "600" },
   catCheck: {
     position: "absolute",
     top: 4,

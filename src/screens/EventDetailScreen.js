@@ -18,6 +18,19 @@ import { RATING_OPTIONS, RATING_MAP } from "../services/ratings/ratingDefinition
 
 const { width } = Dimensions.get("window");
 
+function fmtDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+function fmtTime(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return typeof iso === 'string' && iso.includes(':') ? iso : null;
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
 
 // ─── RatingSection ───────────────────────────────────────────────────────────
 
@@ -348,6 +361,7 @@ export default function EventDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
+      
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={[s.hero, { backgroundColor: evento.gradient[0] }]}>
           <View
@@ -356,6 +370,9 @@ export default function EventDetailScreen({ route, navigation }) {
               { backgroundColor: evento.gradient[1], opacity: 0.5 },
             ]}
           />
+          <TouchableOpacity style={s.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={22} color="#fff" />
+          </TouchableOpacity>
           <View style={s.heroContent}>
             {evento.isLive && (
               <View style={s.liveBadge}>
@@ -364,12 +381,61 @@ export default function EventDetailScreen({ route, navigation }) {
               </View>
             )}
             <Text style={s.heroNome}>{evento.name}</Text>
-            <Text style={s.heroVenue}>{evento.venue}</Text>
+            <View style={s.heroFooter}>
+              <Text style={s.heroVenue}>{evento.venue}</Text>
+              {evento.price && (
+                <View style={[s.precoBadge, evento.price === 'Gratuito' && s.precoBadgeFree]}>
+                  <Ionicons name="ticket-outline" size={11} color={evento.price === 'Gratuito' ? COLORS.success : '#fff'} />
+                  <Text style={[s.precoTexto, evento.price === 'Gratuito' && { color: COLORS.success }]}>
+                    {evento.price === 'Gratuito' ? evento.price : `R$ ${evento.price}`}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
+
+        {/* ── Info strip ── */}
+        <View style={s.infoStrip}>
+          {evento.startsAt && (
+            <View style={[s.infoItem, s.infoItemSep]}>
+              <Text style={s.infoItemLabel}>Data</Text>
+              <Text style={s.infoItemValor}>{fmtDate(evento.startsAt) ?? '—'}</Text>
+            </View>
+          )}
+          {evento.startsAt && (
+            <View style={[s.infoItem, s.infoItemSep]}>
+              <Text style={s.infoItemLabel}>Horário</Text>
+              <Text style={s.infoItemValor}>
+                {fmtTime(evento.startsAt) ?? '—'}{evento.endsAt ? ` – ${fmtTime(evento.endsAt)}` : ''}
+              </Text>
+            </View>
+          )}
+          {evento.categoryLabel && (
+            <View style={[s.infoItem, s.infoItemSep]}>
+              <Text style={s.infoItemLabel}>Categoria</Text>
+              <Text style={s.infoItemValor}>{evento.categoryLabel}</Text>
+            </View>
+          )}
+          {evento.ageRestriction && (
+            <View style={s.infoItem}>
+              <Text style={s.infoItemLabel}>Faixa etária</Text>
+              <Text style={s.infoItemValor}>{evento.ageRestriction}</Text>
+            </View>
+          )}
+        </View>
+        {evento.address && (
+          <View style={s.addressRow}>
+            <Ionicons name="location-outline" size={16} color={COLORS.textMuted} />
+            <Text style={s.addressTexto} numberOfLines={1}>{evento.address}</Text>
+          </View>
+        )}
+
         {/* ── Carrossel de fotos ── */}
         {evento.photos?.length > 0 && (
-          <PhotoCarousel photos={evento.photos} height={240} />
+          <View style={{ marginTop: 10 }}>
+            <PhotoCarousel photos={evento.photos} height={240} />
+          </View>
         )}
 
         {/* ── Painel de público ── */}
@@ -587,8 +653,79 @@ export default function EventDetailScreen({ route, navigation }) {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
-  hero: { height: 140, justifyContent: "flex-end" },
+  hero: { height: 160, justifyContent: "flex-end" },
+  backButton: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
   heroContent: { padding: 16 },
+  heroFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  precoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: RADIUS.full,
+    borderWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  precoBadgeFree: {
+    backgroundColor: COLORS.success + "33",
+    borderColor: COLORS.success + "66",
+  },
+  precoTexto: { fontSize: 12, fontWeight: "800", color: "#fff" },
+  infoStrip: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    marginHorizontal: 12,
+    marginTop: 10,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.lg,
+    borderWidth: 0.5,
+    borderColor: COLORS.border,
+    overflow: "hidden",
+  },
+  infoItem: {
+    flex: 1,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    gap: 2,
+  },
+  infoItemSep: { borderRightWidth: 0.5, borderRightColor: COLORS.border },
+  infoItemValor: { fontSize: 11, fontWeight: "700", color: COLORS.text, textAlign: "center" },
+  infoItemLabel: { fontSize: 9, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.3, textAlign: "center" },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.lg,
+    borderWidth: 0.5,
+    borderColor: COLORS.border,
+  },
+  addressTexto: { flex: 1, fontSize: 13, color: COLORS.textSub },
   liveBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -607,26 +744,26 @@ const s = StyleSheet.create({
     marginRight: 5,
   },
   liveTexto: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: "800",
     color: "#fff",
     letterSpacing: 1,
   },
   heroNome: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "900",
     color: "#fff",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 4,
   },
-  heroVenue: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: 8 },
+  heroVenue: { fontSize: 13, color: "rgba(255,255,255,0.8)" },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 12,
+    marginHorizontal: 12,
     gap: 8,
-    marginTop: 10,
+    marginTop: 16,
   },
   statCard: {
     flex: 1,
@@ -646,7 +783,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     backgroundColor: COLORS.bgCard,
     marginHorizontal: 12,
-    marginTop: 10,
+    marginTop: 16,
     borderRadius: RADIUS.lg,
     padding: 14,
     borderWidth: 0.5,
