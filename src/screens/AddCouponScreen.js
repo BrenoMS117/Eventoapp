@@ -26,15 +26,6 @@ const TIPOS_CUPOM = [
   { key: "acesso",      label: "Acesso Especial", cor: "#0C447C" },
 ];
 
-const OPCOES_VALIDADE = [
-  { key: null, label: "Sem validade" },
-  { key: "00:00", label: "Meia-noite" },
-  { key: "01:00", label: "01:00" },
-  { key: "02:00", label: "02:00" },
-  { key: "22:00", label: "22:00" },
-  { key: "23:00", label: "23:00" },
-];
-
 const RESTRICAO_USUARIO = [
   { key: "all", label: "Todos" },
   { key: "user", label: "Apenas usuários" },
@@ -47,11 +38,17 @@ export default function AddCouponScreen({ navigation }) {
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
-  const [condicoes, setCondicoes] = useState("");
   const [quantidade, setQuantidade] = useState("50");
-  const [validade, setValidade] = useState(null);
   const [maxPerUser, setMaxPerUser] = useState(1);
   const [userTypeRestriction, setUserTypeRestriction] = useState("all");
+
+  function formatarEncerramentoEvento(endsAt) {
+    if (!endsAt) return 'Fim do evento';
+    if (/^\d{1,2}:\d{2}$/.test(String(endsAt))) return endsAt;
+    const d = new Date(endsAt);
+    if (isNaN(d.getTime())) return String(endsAt);
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
 
   const eventoAtivo =
     events.find((e) => e.ownerId === currentUser?.id && e.isLive) ??
@@ -105,9 +102,9 @@ export default function AddCouponScreen({ navigation }) {
         type: tipoSelecionado,
         title: titulo,
         description: descricao,
-        conditions: condicoes,
+        conditions: '',
         totalQty: quantidade,
-        expiresAt: validade,
+        expiresAt: eventoAtivo.endsAt ?? null,
         redemptionRules: { maxPerUser, userTypeRestriction },
       },
       tipoInfo,
@@ -260,16 +257,6 @@ export default function AddCouponScreen({ navigation }) {
               />
               <Text style={s.charCount}>{descricao.length}/200</Text>
 
-              <Text style={s.fieldLabel}>Condições de uso</Text>
-              <TextInput
-                style={s.input}
-                placeholder="Ex: Válido 1 por CPF. Não cumulativo."
-                placeholderTextColor={COLORS.textMuted}
-                value={condicoes}
-                onChangeText={setCondicoes}
-                maxLength={150}
-              />
-
               <Text style={s.fieldLabel}>
                 Quantidade disponível{" "}
                 <Text style={{ color: COLORS.primary }}>*</Text>
@@ -300,32 +287,6 @@ export default function AddCouponScreen({ navigation }) {
                 >
                   <Text style={s.qtdBtnTexto}>+5</Text>
                 </TouchableOpacity>
-              </View>
-
-              <Text style={s.fieldLabel}>Validade</Text>
-              <View style={s.validadeGrid}>
-                {OPCOES_VALIDADE.map((opt) => (
-                  <TouchableOpacity
-                    key={String(opt.key)}
-                    style={[
-                      s.validadeBtn,
-                      validade === opt.key && {
-                        backgroundColor: COLORS.primary,
-                        borderColor: COLORS.primary,
-                      },
-                    ]}
-                    onPress={() => setValidade(opt.key)}
-                  >
-                    <Text
-                      style={[
-                        s.validadeBtnTexto,
-                        validade === opt.key && { color: "#fff" },
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
               </View>
 
               <View style={s.regrasTitulo}>
@@ -361,28 +322,20 @@ export default function AddCouponScreen({ navigation }) {
 
               <Text style={s.fieldLabel}>Quem pode resgatar?</Text>
               <View style={{ flexDirection: "row", gap: 8 }}>
-                {RESTRICAO_USUARIO.map((opt) => (
-                  <TouchableOpacity
-                    key={opt.key}
-                    style={[
-                      s.validadeBtn,
-                      userTypeRestriction === opt.key && {
-                        backgroundColor: COLORS.primary,
-                        borderColor: COLORS.primary,
-                      },
-                    ]}
-                    onPress={() => setUserTypeRestriction(opt.key)}
-                  >
-                    <Text
-                      style={[
-                        s.validadeBtnTexto,
-                        userTypeRestriction === opt.key && { color: "#fff" },
-                      ]}
+                {RESTRICAO_USUARIO.map((opt) => {
+                  const ativo = userTypeRestriction === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[s.restricaoBtn, ativo && s.restricaoBtnAtivo]}
+                      onPress={() => setUserTypeRestriction(opt.key)}
                     >
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text style={[s.restricaoBtnTexto, ativo && s.restricaoBtnTextoAtivo]}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           )}
@@ -453,9 +406,9 @@ export default function AddCouponScreen({ navigation }) {
                     <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
                       {eventoAtivo?.venue || businessStats.venueName}
                     </Text>
-                    {validade && (
+                    {eventoAtivo?.endsAt && (
                       <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
-                        Até {validade}
+                        Até {formatarEncerramentoEvento(eventoAtivo.endsAt)}
                       </Text>
                     )}
                   </View>
@@ -508,7 +461,7 @@ export default function AddCouponScreen({ navigation }) {
                   rows: [
                     ["Título", titulo],
                     ["Quantidade", `${quantidade} unidades`],
-                    ["Validade", validade || "Sem limite"],
+                    ["Validade", formatarEncerramentoEvento(eventoAtivo?.endsAt)],
                     ["Limite/usuário", `${maxPerUser} resgate${maxPerUser > 1 ? "s" : ""}`],
                     ["Acesso", RESTRICAO_USUARIO.find((r) => r.key === userTypeRestriction)?.label ?? "Todos"],
                   ],
@@ -712,16 +665,28 @@ const s = StyleSheet.create({
     fontWeight: "800",
     color: COLORS.text,
   },
-  validadeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  validadeBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+  restricaoBtn: {
+    flex: 1,
+    paddingVertical: 12,
     backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.full,
-    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
     borderColor: COLORS.border,
+    alignItems: "center",
   },
-  validadeBtnTexto: { fontSize: 13, color: COLORS.text },
+  restricaoBtnAtivo: {
+    backgroundColor: COLORS.primary + "22",
+    borderColor: COLORS.primary,
+  },
+  restricaoBtnTexto: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.textSub,
+  },
+  restricaoBtnTextoAtivo: {
+    color: COLORS.primary,
+    fontWeight: "800",
+  },
   previewCard: {
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.xl,

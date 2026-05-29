@@ -348,47 +348,25 @@ export default function EventDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <View style={[s.hero, { backgroundColor: evento.gradient[0] }]}>
-        <View
-          style={[
-            StyleSheet.absoluteFillObject,
-            { backgroundColor: evento.gradient[1], opacity: 0.5 },
-          ]}
-        />
-        <View style={s.heroBar}>
-          <TouchableOpacity
-            style={s.voltarBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="chevron-back" size={20} color="#fff" />
-          </TouchableOpacity>
-          {isProximo && (
-            <View style={s.proximoChip}>
-              <View
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: "#4ade80",
-                }}
-              />
-              <Text style={s.proximoTexto}>Você está aqui</Text>
-            </View>
-          )}
-        </View>
-        <View style={s.heroContent}>
-          {evento.isLive && (
-            <View style={s.liveBadge}>
-              <View style={s.liveDot} />
-              <Text style={s.liveTexto}>AO VIVO</Text>
-            </View>
-          )}
-          <Text style={s.heroNome}>{evento.name}</Text>
-          <Text style={s.heroVenue}>{evento.venue}</Text>
-        </View>
-      </View>
-
       <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={[s.hero, { backgroundColor: evento.gradient[0] }]}>
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: evento.gradient[1], opacity: 0.5 },
+            ]}
+          />
+          <View style={s.heroContent}>
+            {evento.isLive && (
+              <View style={s.liveBadge}>
+                <View style={s.liveDot} />
+                <Text style={s.liveTexto}>AO VIVO</Text>
+              </View>
+            )}
+            <Text style={s.heroNome}>{evento.name}</Text>
+            <Text style={s.heroVenue}>{evento.venue}</Text>
+          </View>
+        </View>
         {/* ── Carrossel de fotos ── */}
         {evento.photos?.length > 0 && (
           <PhotoCarousel photos={evento.photos} height={240} />
@@ -602,42 +580,14 @@ export default function EventDetailScreen({ route, navigation }) {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
-  hero: { height: 200, justifyContent: "flex-end", position: "relative" },
-  heroBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-  voltarBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  proximoChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: RADIUS.full,
-  },
-  proximoTexto: { fontSize: 11, color: "#fff", fontWeight: "600" },
+  hero: { height: 140, justifyContent: "flex-end" },
   heroContent: { padding: 16 },
   liveBadge: {
     flexDirection: "row",

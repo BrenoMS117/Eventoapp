@@ -38,7 +38,7 @@ export const FeedFilterService = {
 
   feedContextLabel(currentEvent, nearbyEventIds, role) {
     if (role === 'business') return 'Posts do seu evento';
-    if (currentEvent) return `Você está em: ${currentEvent.name}`;
+    if (currentEvent) return 'Posts do evento onde você está';
     if (nearbyEventIds.length > 0) return `${nearbyEventIds.length} evento(s) próximo(s)`;
     return 'Posts recentes';
   },
