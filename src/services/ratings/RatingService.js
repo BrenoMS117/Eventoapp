@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase';
-import { RATING_MAP, computeWeightedRating } from './ratingDefinitions';
+import { RATING_MAP } from './ratingDefinitions';
 
 const MAX_RATING_CHANNELS = 5;
 
@@ -24,17 +24,8 @@ class RatingService {
         { onConflict: 'event_id,user_id' },
       );
     if (voteErr) return { error: voteErr };
-
-    const { data: counts } = await this.fetchCounts(eventId);
-    if (counts) {
-      const reviewCount = Object.values(counts).reduce((a, b) => a + b, 0);
-      const rating      = computeWeightedRating(counts);
-      await supabase
-        .from('events')
-        .update({ review_count: reviewCount, rating })
-        .eq('id', eventId);
-    }
-
+    // events.rating e events.review_count são atualizados pelo trigger
+    // trg_update_event_rating (SECURITY DEFINER) no banco
     return { error: null };
   }
 

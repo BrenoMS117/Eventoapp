@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "../context/AppContext";
 import { usePermissions } from "../hooks/usePermissions";
 import { COLORS, RADIUS, SHADOW } from "../utils/theme";
+import { RATING_OPTIONS, RATING_MAP } from "../services/ratings/ratingDefinitions";
 import { PhotoManager } from "../components/ImageCarousel";
 
 // ─── Design tokens — mapeados para o tema global do app ───────────────────────
@@ -105,9 +106,6 @@ function CrowdGauge({ eventoAtivo, meusEventos }) {
           <View style={cg.barBg}>
             <View style={[cg.barFill, { width: `${Math.max(2, level)}%`, backgroundColor: barColor }]} />
           </View>
-          <Text style={cg.countText}>
-            {cap ? `${count} / ${cap} pessoas` : `${count} ${count === 1 ? 'pessoa presente' : 'pessoas presentes'}`}
-          </Text>
         </View>
       </View>
       {deltaLabel && (
@@ -133,7 +131,6 @@ const cg = StyleSheet.create({
   crowdLabel: { fontSize: 13, fontWeight: '700', color: D.text, marginBottom: 8 },
   barBg: { height: 10, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 5, overflow: 'hidden', marginBottom: 6 },
   barFill: { height: '100%', borderRadius: 5 },
-  countText: { fontSize: 12, color: D.textSub },
   deltaRow: { marginTop: 12, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: D.border },
   deltaBar: { height: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden', marginBottom: 8, position: 'relative' },
   deltaFill: { height: '100%', borderRadius: 3 },
@@ -142,47 +139,151 @@ const cg = StyleSheet.create({
   avgLabel: { fontSize: 11, color: D.textSub },
 });
 
-// ─── FeaturedRatingCard ──────────────────────────────────────────────────────
+// ─── RatingSection (mesma lógica do EventDetailScreen) ───────────────────────
 
-function FeaturedRatingCard({ featured, totalVotes }) {
-  if (!featured) {
-    return (
-      <View style={fr.empty}>
-        <Text style={fr.emptyText}>Aguardando avaliações do público…</Text>
-      </View>
-    );
+function RatingSection({ evento, userRating, onVote, canVote, isOwner }) {
+  const [submitting, setSubmitting] = useState(null);
+  const [feedback, setFeedback]     = useState(false);
+
+  const counts   = userRating?.counts   ?? {};
+  const userVote = userRating?.userVote ?? null;
+  const featured = userRating?.featured ?? null;
+  const total    = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  async function handleVote(category) {
+    if (!canVote || submitting) return;
+    if (category === userVote) return;
+    setSubmitting(category);
+    const result = await onVote(evento.id, category);
+    setSubmitting(null);
+    if (result?.error) {
+      Alert.alert('Avaliação', result.error);
+    } else {
+      setFeedback(true);
+      setTimeout(() => setFeedback(false), 2800);
+    }
   }
+
   return (
-    <View style={[fr.card, { borderColor: featured.cor + '44' }]}>
-      <View style={fr.topRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={fr.categoryLabel}>MAIS VOTADO</Text>
-          <Text style={[fr.categoryName, { color: featured.cor }]}>{featured.label}</Text>
+    <View style={rs.wrap}>
+      {featured?.isClear && (
+        <View style={[rs.featBanner, { borderColor: featured.cor + '55' }]}>
+          <Text style={rs.featLabel}>CARACTERÍSTICA EM DESTAQUE</Text>
+          <View style={rs.featRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[rs.featName, { color: featured.cor }]}>{featured.label}</Text>
+              <View style={rs.featBarBg}>
+                <View style={[rs.featBarFill, { width: `${featured.pct}%`, backgroundColor: featured.cor }]} />
+              </View>
+            </View>
+            <View style={rs.featStats}>
+              <Text style={[rs.featPct, { color: featured.cor }]}>{featured.pct}%</Text>
+              <Text style={rs.featCount}>{featured.votes} votos</Text>
+            </View>
+          </View>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[fr.pct, { color: featured.cor }]}>{featured.pct}%</Text>
-          <Text style={fr.votesCount}>{featured.votes}/{totalVotes}</Text>
+      )}
+
+      <View style={rs.header}>
+        <Text style={rs.headerTitle}>
+          {isOwner ? 'PERCEPÇÃO DO PÚBLICO' : 'COMO ESTÁ O EVENTO?'}
+        </Text>
+        {total > 0 && (
+          <Text style={rs.headerCount}>{total} {total === 1 ? 'avaliação' : 'avaliações'}</Text>
+        )}
+      </View>
+
+      <View style={rs.grid}>
+        {RATING_OPTIONS.map((opt) => {
+          const count      = counts[opt.key] ?? 0;
+          const pct        = total > 0 ? Math.round((count / total) * 100) : 0;
+          const isVoted    = userVote === opt.key;
+          const isTop      = featured?.category === opt.key;
+          const isBusy     = submitting === opt.key;
+          const isDisabled = !canVote || !!submitting;
+
+          return (
+            <TouchableOpacity
+              key={opt.key}
+              style={[
+                rs.pill,
+                isVoted && { borderColor: opt.cor, backgroundColor: opt.cor + '28' },
+                isTop && !isVoted && { borderColor: opt.cor + '77' },
+              ]}
+              onPress={() => handleVote(opt.key)}
+              disabled={isDisabled}
+              activeOpacity={canVote ? 0.72 : 1}
+            >
+              {pct > 0 && !isVoted && (
+                <View style={[rs.pillProgress, { width: `${pct}%`, backgroundColor: opt.cor + '14' }]} />
+              )}
+              {isBusy && (
+                <ActivityIndicator size="small" color={opt.cor} style={rs.pillIconSlot} />
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[rs.pillLabel, isVoted && { color: opt.cor, fontWeight: '800' }]}>
+                  {opt.label}
+                </Text>
+                <Text style={[rs.pillVotes, isTop && { color: opt.cor, fontWeight: '600' }]}>
+                  {count > 0 ? `${count} votos` : '—'}
+                </Text>
+              </View>
+              {isVoted && <Ionicons name="star" size={13} color={opt.cor} />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {feedback && (
+        <View style={rs.feedbackRow}>
+          <Ionicons name="checkmark-circle" size={15} color={COLORS.success} />
+          <Text style={rs.feedbackText}>Avaliação registrada!</Text>
         </View>
-      </View>
-      <View style={fr.barBg}>
-        <View style={[fr.barFill, { width: `${featured.pct}%`, backgroundColor: featured.cor }]} />
-      </View>
+      )}
+      {!feedback && userVote && (
+        <View style={rs.votedRow}>
+          <Ionicons name="star" size={13} color={RATING_MAP[userVote]?.cor ?? COLORS.primary} />
+          <Text style={rs.votedText}>
+            Você votou: {RATING_MAP[userVote]?.label}
+            {canVote ? ' — toque em outra para mudar' : ''}
+          </Text>
+        </View>
+      )}
+      {isOwner && (
+        <Text style={rs.hintText}>Donos de estabelecimento visualizam em modo leitura</Text>
+      )}
+      {!canVote && !isOwner && (
+        <Text style={rs.hintText}>Vá ao local para avaliar</Text>
+      )}
     </View>
   );
 }
 
-const fr = StyleSheet.create({
-  card: { backgroundColor: D.card, borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 10 },
-  empty: { backgroundColor: D.card, borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: D.border, marginBottom: 10, alignItems: 'center' },
-  emptyText: { fontSize: 13, color: D.textSub },
-  topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  bigIcon: { fontSize: 34 },
-  categoryLabel: { fontSize: 10, fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-  categoryName: { fontSize: 18, fontWeight: '900' },
-  pct: { fontSize: 26, fontWeight: '900', lineHeight: 28 },
-  votesCount: { fontSize: 11, color: D.textSub },
-  barBg: { height: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 4 },
+const rs = StyleSheet.create({
+  wrap: { paddingHorizontal: 12, marginTop: 16, marginBottom: 8 },
+  featBanner: { backgroundColor: COLORS.bgCard, borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 16 },
+  featLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  featRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  featName: { fontSize: 17, fontWeight: '900', marginBottom: 6 },
+  featBarBg: { height: 6, backgroundColor: COLORS.bgOverlay, borderRadius: 3, overflow: 'hidden' },
+  featBarFill: { height: '100%', borderRadius: 3 },
+  featStats: { alignItems: 'flex-end', minWidth: 52 },
+  featPct: { fontSize: 24, fontWeight: '900', lineHeight: 26 },
+  featCount: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 },
+  headerTitle: { fontSize: 12, fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 },
+  headerCount: { fontSize: 11, color: COLORS.textMuted },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pill: { flex: 1, minWidth: '45%', flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgCard, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: COLORS.border, gap: 8, overflow: 'hidden', position: 'relative', minHeight: 58 },
+  pillProgress: { position: 'absolute', top: 0, left: 0, bottom: 0, borderRadius: 12 },
+  pillIconSlot: { width: 22, alignItems: 'center' },
+  pillLabel: { fontSize: 12, fontWeight: '600', color: COLORS.text },
+  pillVotes: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  votedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.bgOverlay, borderRadius: 10, padding: 10, marginTop: 10 },
+  votedText: { fontSize: 12, color: COLORS.textSub, flex: 1 },
+  feedbackRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.success + '22', borderRadius: 10, padding: 10, marginTop: 10, borderWidth: 0.5, borderColor: COLORS.success + '44' },
+  feedbackText: { fontSize: 13, fontWeight: '700', color: COLORS.success },
+  hintText: { fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginTop: 10 },
 });
 
 // ─── OwnerCard ───────────────────────────────────────────────────────────────
@@ -1151,7 +1252,7 @@ function ActivePanel({
   addEventPhoto, removeEventPhoto, updateEventFields, closeEvent,
 }) {
   const perms = usePermissions();
-  const { subscribeToEventRatings, getEventRatings, sendAnnouncement, updateSubscription, cancelSubscription } = useApp();
+  const { subscribeToEventRatings, getEventRatings, submitRating, canVoteOnEvent, sendAnnouncement, updateSubscription, cancelSubscription } = useApp();
   const [secaoFotos, setSecaoFotos]       = useState(false);
   const [plansVisible, setPlansVisible]   = useState(false);
 
@@ -1179,7 +1280,6 @@ function ActivePanel({
   }, [eventoAtivo?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const eventRating = getEventRatings(eventoAtivo?.id ?? '');
-  const totalVotes  = Object.values(eventRating.counts).reduce((a, b) => a + b, 0);
 
   const [novoArtista, setNovoArtista]       = useState("");
   const [novoHorarioFim, setNovoHorarioFim] = useState("");
@@ -1309,11 +1409,6 @@ function ActivePanel({
         {/* ── Métricas ── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={nd.infoCardsScroll} contentContainerStyle={nd.infoCardsContent}>
           <InfoCard
-            iconName="people"
-            value={eventoAtivo.checkedInCount?.toLocaleString() ?? '0'}
-            label="pessoas presentes"
-          />
-          <InfoCard
             iconName="star"
             value={eventoAtivo.rating > 0 ? eventoAtivo.rating.toFixed(1) : '—'}
             label={`Avaliações (${eventoAtivo.reviewCount ?? 0})`}
@@ -1353,10 +1448,13 @@ function ActivePanel({
         </View>
 
         {/* ── Percepção do Público ─────────────────────────────────────── */}
-        <View style={nd.section}>
-          <Text style={nd.sectionTitle}>Percepção do Público</Text>
-          <FeaturedRatingCard featured={eventRating.featured} totalVotes={totalVotes} />
-        </View>
+        <RatingSection
+          evento={eventoAtivo}
+          userRating={eventRating}
+          onVote={submitRating}
+          canVote={canVoteOnEvent(eventoAtivo?.id ?? '')}
+          isOwner={true}
+        />
 
         {/* ── Gerenciar Evento ─────────────────────────────────────────── */}
         {(perms.canEditEventField("nextAct") || perms.canEditEventField("endsAt") || perms.canEditEventField("closeEvent")) && (
@@ -1465,25 +1563,6 @@ function ActivePanel({
             ))
           )}
         </View>
-
-        {/* ── Avaliações Recentes ──────────────────────────────────────── */}
-        {businessStats.recentReviews?.length > 0 && (
-          <View style={nd.section}>
-            <Text style={nd.sectionTitle}>Avaliações Recentes</Text>
-            {businessStats.recentReviews.map((r, i) => (
-              <View key={i} style={nd.reviewCard}>
-                <View style={nd.reviewHeader}>
-                  <Text style={nd.reviewUser}>{r.user}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="star" size={13} color={D.primary} />
-                    <Text style={nd.reviewRating}>{r.stars?.toFixed ? r.stars.toFixed(1) : r.stars}</Text>
-                  </View>
-                </View>
-                <Text style={nd.reviewText} numberOfLines={3}>{r.text}</Text>
-              </View>
-            ))}
-          </View>
-        )}
 
         {/* ── Card Promocional / Assinatura ── */}
         <View style={[nd.promoCard, subIsActive && { borderColor: subPlan.color + '66' }]}>
@@ -1746,13 +1825,6 @@ const nd = StyleSheet.create({
   vazioCard: { backgroundColor: D.card2, borderRadius: 12, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: D.border, borderStyle: 'dashed' },
   vazioTitle: { fontSize: 15, fontWeight: '700', color: D.text, marginBottom: 4 },
   vazioSub: { fontSize: 13, color: D.textSub, textAlign: 'center' },
-
-  // ── Avaliações ──
-  reviewCard: { backgroundColor: D.card, borderRadius: 12, padding: 16, marginBottom: 10, borderWidth: 0.5, borderColor: D.border, gap: 10 },
-  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  reviewUser: { fontSize: 15, fontWeight: '700', color: D.text },
-  reviewRating: { fontSize: 14, fontWeight: '600', color: D.primary },
-  reviewText: { fontSize: 14, color: D.textSub, lineHeight: 20, fontStyle: 'italic' },
 
   // ── Card promocional ──
   promoCard:            { marginHorizontal: 16, marginBottom: 8, borderRadius: 16, overflow: 'hidden', minHeight: 180, borderWidth: 0.5, borderColor: D.primary + '44' },

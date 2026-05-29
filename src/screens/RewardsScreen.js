@@ -199,6 +199,7 @@ const cc = StyleSheet.create({
 export default function RewardsScreen({ navigation }) {
   const {
     coupons,
+    getNearbyCoupons,
     isCouponRedeemed,
     redemptionMap,
     currentUser,
@@ -206,6 +207,8 @@ export default function RewardsScreen({ navigation }) {
     updateProfile,
     updatePassword,
   } = useApp();
+
+  const nearbyCoupons = getNearbyCoupons();
 
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [editName, setEditName]         = useState("");
@@ -323,9 +326,12 @@ export default function RewardsScreen({ navigation }) {
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>Cupons Disponíveis</Text>
-          {coupons.length === 0 ? (
+          {nearbyCoupons.length === 0 ? (
             <View style={s.emptyState}>
-              <Text style={s.emptyText}>Nenhum cupom disponível no momento</Text>
+              <Text style={s.emptyText}>Nenhum cupom próximo de você</Text>
+              <Text style={s.emptySubText}>
+                Cupons aparecem quando você está perto de um evento
+              </Text>
             </View>
           ) : (
             <ScrollView
@@ -333,7 +339,7 @@ export default function RewardsScreen({ navigation }) {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 12, paddingRight: 16 }}
             >
-              {coupons.map((c) => (
+              {nearbyCoupons.map((c) => (
                 <CouponCard
                   key={c.id}
                   coupon={c}

@@ -9,7 +9,6 @@ import {
   Image,
   Alert,
   Platform,
-  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,8 +20,6 @@ import { COLORS, RADIUS, SHADOW } from '../utils/theme';
 
 const { width } = Dimensions.get('window');
 const HERO_H   = 260;
-const CARD_W   = width * 0.60;
-const CARD_H   = 200;
 const LIVE_W   = width * 0.50;
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────
@@ -119,48 +116,6 @@ function HeroCard({ event, distanceKm, onPress }) {
           <Text style={s.heroBtnText}>Ver detalhes</Text>
           <Ionicons name="arrow-forward" size={14} color="#fff" />
         </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ─── CarouselCard ─────────────────────────────────────────────────────────────
-
-function CarouselCard({ event, distanceKm, onPress }) {
-  const bgColor = Array.isArray(event.gradient) ? event.gradient[0] : COLORS.bgElevated;
-  const dist    = formatDist(distanceKm);
-
-  return (
-    <TouchableOpacity style={s.carCard} onPress={onPress} activeOpacity={0.88}>
-      {event.coverPhoto ? (
-        <Image source={{ uri: event.coverPhoto }} style={s.carImage} resizeMode="cover" />
-      ) : (
-        <View style={[s.carImage, { backgroundColor: bgColor, justifyContent: 'center', alignItems: 'center' }]}>
-          <Ionicons name={categoryIcon(event.category)} size={36} color="rgba(255,255,255,0.4)" />
-        </View>
-      )}
-
-      <View style={s.carOverlay} />
-
-      <View style={s.carBadgeRow}>
-        {event.isLive && <LiveBadge />}
-        {dist && (
-          <View style={s.distBadge}>
-            <Ionicons name="navigate-outline" size={9} color={COLORS.text} />
-            <Text style={s.distBadgeText}>{dist}</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={s.carInfo}>
-        <Text style={s.carName} numberOfLines={2}>{event.name}</Text>
-        <Text style={s.carVenue} numberOfLines={1}>{event.venue}</Text>
-        {event.startsAt && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-            <Ionicons name="time-outline" size={10} color={COLORS.textMuted} />
-            <Text style={s.carTime}>{formatTime(event.startsAt)}</Text>
-          </View>
-        )}
       </View>
     </TouchableOpacity>
   );
@@ -264,10 +219,6 @@ export default function HomeScreen({ navigation }) {
     }
   }
 
-  const carouselEvents = heroEvent
-    ? nearbyEvents.filter((e) => e.id !== heroEvent.id)
-    : nearbyEvents;
-
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
       {/* ── Cabeçalho ── */}
@@ -331,40 +282,6 @@ export default function HomeScreen({ navigation }) {
         ) : (
           <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
             <EmptyNearby hasCoords={hasCoords} />
-          </View>
-        )}
-
-        {/* ── Próximos de você ── */}
-        {(carouselEvents.length > 0 || nearbyEvents.length > 0) && (
-          <View style={{ marginTop: 16 }}>
-            <View style={{ paddingHorizontal: 16 }}>
-              <SectionHeader
-                title="Próximos de você"
-                onMore={goToExplore}
-              />
-            </View>
-
-            {carouselEvents.length > 0 ? (
-              <FlatList
-                data={carouselEvents}
-                keyExtractor={(item) => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingLeft: 16, paddingRight: 8 }}
-                ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-                renderItem={({ item }) => (
-                  <CarouselCard
-                    event={item}
-                    distanceKm={distances.get(item.id)}
-                    onPress={() => goToEvent(item)}
-                  />
-                )}
-              />
-            ) : (
-              <View style={{ paddingHorizontal: 16 }}>
-                <EmptyNearby hasCoords={hasCoords} />
-              </View>
-            )}
           </View>
         )}
 
@@ -529,50 +446,6 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.full,
   },
   heroBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
-
-  // ── Card do carrossel ──
-  carCard: {
-    width: CARD_W,
-    height: CARD_H,
-    borderRadius: RADIUS.xl,
-    overflow: 'hidden',
-    ...SHADOW.sm,
-  },
-  carImage: { width: CARD_W, height: CARD_H },
-  carOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.50)',
-  },
-  carBadgeRow: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  distBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
-    marginLeft: 'auto',
-  },
-  distBadgeText: { fontSize: 10, color: COLORS.text, fontWeight: '600' },
-  carInfo: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 12,
-  },
-  carName: { fontSize: 14, fontWeight: '800', color: '#fff', lineHeight: 19, marginBottom: 3 },
-  carVenue: { fontSize: 11, color: 'rgba(255,255,255,0.7)' },
-  carTime: { fontSize: 10, color: COLORS.textMuted },
 
   // ── Linha de evento ao vivo ──
   liveCard: {

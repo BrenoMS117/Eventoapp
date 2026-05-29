@@ -55,7 +55,7 @@ export default function CouponDetailScreen({ route, navigation }) {
       Alert.alert('Vá ao local', geoMessage);
       return;
     }
-    Alert.alert('Resgatar agora?', `${coupon.title}\n\n${coupon.conditions ?? ''}`, [
+    Alert.alert('Resgatar agora?', coupon.title, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Confirmar',
@@ -139,17 +139,6 @@ export default function CouponDetailScreen({ route, navigation }) {
           <View style={s.infoCard}>
             <Text style={s.infoCardTitle}>Sobre este cupom</Text>
             <Text style={s.infoCardText}>{coupon.description}</Text>
-          </View>
-
-          <View style={s.infoCard}>
-            <Text style={s.infoCardTitle}>Condições</Text>
-            <Text style={s.infoCardText}>{coupon.conditions}</Text>
-            {coupon.expiresAt && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
-                <Ionicons name="time-outline" size={14} color={COLORS.danger} />
-                <Text style={{ fontSize: 13, color: COLORS.danger, fontWeight: '600' }}>Válido até {coupon.expiresAt}</Text>
-              </View>
-            )}
           </View>
 
           <View style={s.infoCard}>
