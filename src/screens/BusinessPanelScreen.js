@@ -51,6 +51,14 @@ const ANUNCIOS = [
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────
 
+function formatTime(value) {
+  if (!value) return "—";
+  if (/^\d{1,2}:\d{2}$/.test(String(value))) return value;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
 function formatDate(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("pt-BR", {
@@ -1479,7 +1487,7 @@ function ActivePanel({
             {perms.canEditEventField("endsAt") && (
               <View style={nd.editCampo}>
                 <Text style={nd.editLabel}>Horário de Término</Text>
-                <Text style={nd.editAtual}>Atual: {eventoAtivo.endsAt || "—"}</Text>
+                <Text style={nd.editAtual}>Atual: {formatTime(eventoAtivo.endsAt)}</Text>
                 <TextInput
                   style={nd.editInput}
                   placeholder="Ex: 02:00"

@@ -2,7 +2,7 @@ export const GEO_PROFILES = {
   user: {
     role: 'user',
     discoveryRadiusKm: 5,
-    geofenceRadiusM: 150,
+    geofenceRadiusM: 500,
   },
   business: {
     role: 'business',
